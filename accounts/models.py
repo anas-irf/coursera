@@ -74,6 +74,43 @@ class User(AbstractUser):
     def is_admin(self):
         return self.user_type == 'admin' or self.is_superuser
 
+    @property
+    def has_plus_access(self):
+        """Check if user has active Coursera Plus subscription"""
+        if self.user_type != 'student':
+            return False
+        try:
+            subscription = StudentPlusSubscription.objects.get(student=self)
+            return subscription.can_access_plus_courses()
+        except StudentPlusSubscription.DoesNotExist:
+            return False
+
+    @property
+    def subscription_status(self):
+        """Get user's subscription status info"""
+        if self.user_type != 'student':
+            return None
+
+        try:
+            subscription = StudentPlusSubscription.objects.get(student=self)
+            return {
+                'has_subscription': True,
+                'type': subscription.subscription_type,
+                'status': subscription.status,
+                'is_active': subscription.is_active(),
+                'end_date': subscription.end_date,
+                'next_billing_date': subscription.next_billing_date
+            }
+        except StudentPlusSubscription.DoesNotExist:
+            return {
+                'has_subscription': False,
+                'type': None,
+                'status': 'none',
+                'is_active': False,
+                'end_date': None,
+                'next_billing_date': None
+            }
+
 class InstructorProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='instructor_profile')
     verified_instructor = models.BooleanField(default=False)

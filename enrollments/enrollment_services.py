@@ -30,11 +30,8 @@ class EnrollmentService:
         # Coursera Plus courses - need active subscription
         if course.course_type == 'coursera_plus':
             # Check if student has active Plus subscription
-            if hasattr(student, 'plus_subscription'):
-                if student.plus_subscription.can_access_plus_courses():
-                    return True, "Can enroll with Plus subscription"
-                else:
-                    return False, "Plus subscription required but not active"
+            if student.has_plus_access:
+                return True, "Can enroll with Plus subscription"
             else:
                 return False, "Plus subscription required"
 
@@ -69,9 +66,7 @@ class EnrollmentService:
         courses = Course.objects.filter(status='published')
 
         # Check subscription status
-        has_plus = False
-        if hasattr(student, 'plus_subscription'):
-            has_plus = student.plus_subscription.can_access_plus_courses()
+        has_plus = student.has_plus_access
 
         if has_plus:
             # Plus subscribers can see all courses

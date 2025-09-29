@@ -255,3 +255,9 @@ FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
 
 # Max upload size is handled by web server (nginx/apache) and not Django directly
 # For development, ensure your web server allows 2GB+ uploads
+
+# Stripe Configuration
+STRIPE_PUBLISHABLE_KEY = get_env_variable('STRIPE_PUBLISHABLE_KEY', 'pk_test_51S7ZPzPntOYHMm3396WCOaEmjC0GuO1WWtzB1c8a9XnnGzRkSWpHJAfXDz8XamBuxVO9aetwPP8S2O4jddLvHEOs00PVe1uTVt')
+STRIPE_SECRET_KEY = get_env_variable('STRIPE_SECRET_KEY', '')
+STRIPE_ACCOUNT_ID = get_env_variable('STRIPE_ACCOUNT_ID', 'acct_1S7ZPzPntOYHMm33')
+STRIPE_WEBHOOK_SECRET = get_env_variable('STRIPE_WEBHOOK_SECRET', '')

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Heart, Star, Clock, BookOpen } from 'lucide-react';
+import { Heart, Star, Clock, BookOpen, Crown } from 'lucide-react';
 import api from '../../services/api';
 
-const CourseCard = ({ course, onEnrollSuccess }) => {
+const CourseCard = ({ course, onEnrollSuccess, onUpgradeClick }) => {
   const [liked, setLiked] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
 
@@ -24,7 +24,13 @@ const CourseCard = ({ course, onEnrollSuccess }) => {
       console.error('Enrollment error:', error);
 
       if (error.response?.status === 402) {
-        alert('Coursera Plus subscription required to enroll in this course.');
+        // Show upgrade prompt instead of just an alert
+        const upgrade = window.confirm(
+          'This course requires Coursera Plus. Would you like to upgrade now?'
+        );
+        if (upgrade && onUpgradeClick) {
+          onUpgradeClick();
+        }
       } else if (error.response?.data?.error) {
         alert(`Enrollment failed: ${error.response.data.error}`);
       } else {
@@ -120,26 +126,43 @@ const CourseCard = ({ course, onEnrollSuccess }) => {
           </div>
         </div>
 
-        <button
-          onClick={course.is_enrolled ? () => window.location.href = `/courses/${course.course_id || course.id}/learn` : handleEnroll}
-          className={`w-full mt-3 px-4 py-2 rounded-lg transition-all duration-200 text-sm font-medium ${
-            course.is_enrolled
-              ? "bg-green-600 text-white hover:bg-green-700"
-              : course.can_enroll && !enrolling
-                ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
-          }`}
-          disabled={!course.is_enrolled && (!course.can_enroll || enrolling)}
-        >
-          {course.is_enrolled
-            ? "Go to Course"
-            : enrolling
-              ? "Enrolling..."
-              : course.can_enroll
-                ? "Enroll Now"
-                : course.enrollment_message || "Cannot Enroll"
-          }
-        </button>
+        {course.is_enrolled ? (
+          <button
+            onClick={() => window.location.href = `/courses/${course.course_id || course.id}/learn`}
+            className="w-full mt-3 px-4 py-2 rounded-lg transition-all duration-200 text-sm font-medium bg-green-600 text-white hover:bg-green-700"
+          >
+            Go to Course
+          </button>
+        ) : course.can_enroll ? (
+          <button
+            onClick={handleEnroll}
+            disabled={enrolling}
+            className="w-full mt-3 px-4 py-2 rounded-lg transition-all duration-200 text-sm font-medium bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50"
+          >
+            {enrolling ? "Enrolling..." : "Enroll Now"}
+          </button>
+        ) : course.course_type === 'coursera_plus' && course.enrollment_message === 'Plus subscription required' ? (
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center justify-center py-2 px-4 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg border border-yellow-200">
+              <Crown className="h-4 w-4 text-yellow-600 mr-2" />
+              <span className="text-sm font-medium text-yellow-800">Coursera Plus Required</span>
+            </div>
+            <button
+              onClick={onUpgradeClick}
+              className="w-full px-4 py-2 rounded-lg transition-all duration-200 text-sm font-medium bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 transform hover:scale-105"
+            >
+              <Crown className="h-4 w-4 inline mr-1" />
+              Upgrade to Access
+            </button>
+          </div>
+        ) : (
+          <button
+            disabled
+            className="w-full mt-3 px-4 py-2 rounded-lg text-sm font-medium bg-gray-300 text-gray-500 cursor-not-allowed"
+          >
+            {course.enrollment_message || "Cannot Enroll"}
+          </button>
+        )}
       </div>
     </div>
   );

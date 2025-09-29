@@ -17,4 +17,5 @@ urlpatterns = [
     path('student/cancel-subscription/', views.cancel_plus_subscription, name='cancel_plus_subscription'),
     path('student/stats/', views.student_stats, name='student_stats'),
     path('student/weekly-progress/', views.student_weekly_progress, name='student_weekly_progress'),
+    path('student/debug-subscription/', views.debug_subscription, name='debug_subscription'),
 ]

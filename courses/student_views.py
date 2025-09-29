@@ -39,8 +39,7 @@ def all_courses(request):
     # Check subscription status for enrollment permissions (but show all courses)
     has_plus_access = False
     if request.user.is_authenticated and request.user.user_type == 'student':
-        if hasattr(request.user, 'plus_subscription'):
-            has_plus_access = request.user.plus_subscription.can_access_plus_courses()
+        has_plus_access = request.user.has_plus_access
     
     # Apply filters
     if category != 'all':
@@ -734,30 +733,29 @@ def student_stats(request):
 @permission_classes([IsStudent])
 def enroll_course(request, course_uuid):
     """Enroll student in a course"""
-    
+
     course = get_object_or_404(Course, uuid=course_uuid)
     student = request.user
-    
+
     # Check if already enrolled
     if Enrollment.objects.filter(course=course, student=student).exists():
         return Response(
             {'error': 'Already enrolled in this course'},
             status=status.HTTP_400_BAD_REQUEST
         )
-    
+
     # Check if course is free or student has subscription
     if course.course_type == 'coursera_plus':
         # Check if student has active Plus subscription
-        has_plus_access = False
-        if hasattr(student, 'plus_subscription'):
-            has_plus_access = student.plus_subscription.can_access_plus_courses()
-
-        if not has_plus_access:
+        if not student.has_plus_access:
             return Response(
                 {
                     'error': 'Coursera Plus subscription required',
                     'requires_subscription': True,
-                    'course_type': 'coursera_plus'
+                    'course_type': 'coursera_plus',
+                    'course_title': course.title,
+                    'checkout_url': '/checkout',  # Frontend can use this to redirect
+                    'message': f'Upgrade to Coursera Plus to access "{course.title}" and thousands of other courses'
                 },
                 status=status.HTTP_402_PAYMENT_REQUIRED
             )
@@ -1298,3 +1296,81 @@ def attempt_quiz(request, quiz_uuid):
             {'error': 'Invalid action. Use "start" or "submit"'},
             status=status.HTTP_400_BAD_REQUEST
         )
+
+@api_view(['GET'])
+@permission_classes([IsStudent])
+def plus_courses_preview(request):
+    """Get preview of Plus courses for upgrade promotion"""
+
+    student = request.user
+
+    # Check current subscription status
+    if student.has_plus_access:
+        return Response(
+            {'message': 'You already have Plus access'},
+            status=status.HTTP_200_OK
+        )
+
+    # Get sample of Plus courses to show what they're missing
+    plus_courses = Course.objects.filter(
+        course_type='coursera_plus',
+        status='published'
+    ).order_by('-average_rating', '-total_enrolled')[:12]
+
+    courses_data = []
+    for course in plus_courses:
+        # Calculate total duration
+        total_duration = 0
+        for section in course.sections.all():
+            for lecture in section.lectures.all():
+                if lecture.content_type == 'video':
+                    try:
+                        from content.models import VideoContent
+                        video_content = VideoContent.objects.get(lecture=lecture)
+                        total_duration += video_content.duration
+                    except:
+                        pass
+        total_duration = total_duration / 3600  # Convert to hours
+
+        courses_data.append({
+            'id': str(course.uuid),
+            'title': course.title,
+            'instructor': f"{course.instructor.first_name} {course.instructor.last_name}",
+            'thumbnail': course.thumbnail.url if course.thumbnail else None,
+            'rating': float(course.average_rating),
+            'students': course.total_enrolled,
+            'duration': f"{int(total_duration)} hours",
+            'level': course.level,
+            'category': course.category.name if course.category else 'General',
+            'description': course.description[:150] + '...' if len(course.description) > 150 else course.description
+        })
+
+    # Get stats about Plus benefits
+    total_plus_courses = Course.objects.filter(
+        course_type='coursera_plus',
+        status='published'
+    ).count()
+
+    total_free_courses = Course.objects.filter(
+        course_type='free',
+        status='published'
+    ).count()
+
+    return Response({
+        'preview_courses': courses_data,
+        'benefits': {
+            'total_plus_courses': total_plus_courses,
+            'total_free_courses': total_free_courses,
+            'unlimited_access': True,
+            'certificates_included': True,
+            'offline_download': True,
+            'no_ads': True
+        },
+        'pricing': {
+            'monthly': 49.99,
+            'yearly': 399.99,
+            'yearly_savings': round((49.99 * 12) - 399.99, 2),
+            'yearly_savings_percentage': round(((49.99 * 12) - 399.99) / (49.99 * 12) * 100)
+        },
+        'checkout_url': '/api/payments/checkout/data/'
+    })

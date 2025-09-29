@@ -85,6 +85,9 @@ urlpatterns = [
     # Quiz attempt endpoints
     path('quizzes/<uuid:quiz_uuid>/attempt/', student_views.attempt_quiz, name='attempt-quiz'),
 
+    # Plus courses preview for upgrade promotion
+    path('plus-preview/', student_views.plus_courses_preview, name='plus-courses-preview'),
+
     # Instructor assignment management
     path('instructor/assignments/', views.instructor_assignments, name='instructor-assignments'),
     path('instructor/assignments/<uuid:assignment_uuid>/submissions/', views.instructor_assignment_submissions, name='instructor-assignment-submissions'),

@@ -201,6 +201,38 @@ const authService = {
   getUserUUID: () => {
     const user = authService.getCurrentUser();
     return user ? user.uuid : null;
+  },
+
+  getToken: () => {
+    return localStorage.getItem('access_token');
+  },
+
+  // Helper method for making authenticated API calls
+  apiCall: async (url, method = 'GET', data = null) => {
+    try {
+      const config = {
+        method,
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      };
+
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        config.headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      if (data) {
+        config.data = data;
+      }
+
+      const response = await axios(config);
+      return response.data;
+    } catch (error) {
+      console.error('API call error:', error);
+      throw error;
+    }
   }
 };
 

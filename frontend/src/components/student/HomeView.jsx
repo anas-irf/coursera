@@ -4,7 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import CourseCard from './CourseCard';
 import api from '../../services/api';
 
-const HomeView = () => {
+const HomeView = ({ onNavigateToCheckout }) => {
   const [stats, setStats] = useState(null);
   const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [recommendedCourses, setRecommendedCourses] = useState([]);
@@ -151,7 +151,7 @@ const HomeView = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {recommendedCourses.length > 0 ? (
             recommendedCourses.map((course) => (
-              <CourseCard key={course.id} course={course} onEnrollSuccess={fetchHomeData} />
+              <CourseCard key={course.id} course={course} onEnrollSuccess={fetchHomeData} onUpgradeClick={onNavigateToCheckout} />
             ))
           ) : (
             <div className="col-span-full text-center py-12">
@@ -168,7 +168,10 @@ const HomeView = () => {
           <p className="text-purple-100 mb-4">
             Get access to all courses, certificates, and premium features with Coursera Plus
           </p>
-          <button className="bg-white text-purple-600 px-6 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors">
+          <button
+            onClick={onNavigateToCheckout}
+            className="bg-white text-purple-600 px-6 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
+          >
             Upgrade to Plus
           </button>
         </div>

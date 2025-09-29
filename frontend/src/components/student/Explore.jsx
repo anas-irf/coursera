@@ -3,7 +3,7 @@ import { Search, Filter, Star, Users, Clock } from 'lucide-react';
 import CourseCard from './CourseCard';
 import api from '../../services/api';
 
-const Explore = () => {
+const Explore = ({ onNavigateToCheckout }) => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
@@ -153,6 +153,7 @@ const Explore = () => {
               key={course.id}
               course={course}
               onEnrollSuccess={fetchCourses}
+              onUpgradeClick={onNavigateToCheckout}
             />
           ))}
         </div>

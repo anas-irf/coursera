@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
-import { BookOpen, Award, Search, Bell, User, Settings, LogOut, Home, Zap, Menu, X,  MessageSquare, Trophy, GraduationCap } from "lucide-react";
+import { BookOpen, Award, Search, Bell, User, Settings, LogOut, Home, Zap, Menu, X, MessageSquare, Trophy, GraduationCap, Crown, Plus } from "lucide-react";
 import authService from "../services/authService";
+import api from "../services/api";
 
 // Import extracted components
 import HomeView from './student/HomeView';
@@ -12,6 +13,7 @@ import StudentMessagesView from './student/StudentMessagesView';
 import NotificationDropdown from './student/NotificationDropdown';
 import NotificationsView from './student/NotificationsView';
 import GradesView from './student/GradesView';
+import CheckoutView from './student/CheckoutView';
 
 const StudentDashboard = () => {
   const [activeTab, setActiveTab] = useState(() => {
@@ -24,8 +26,10 @@ const StudentDashboard = () => {
     name: "John Student",
     email: "student@example.com",
     avatar: "https://ui-avatars.com/api/?name=John+Student&background=4F46E5&color=fff",
-    subscription: "coursera_plus", // or 'free'
+    subscription: null, // Will be loaded from API
   });
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
+  const [showCongratulations, setShowCongratulations] = useState(false);
   const mobileMenuRef = useRef(null);
 
   // Save active tab to localStorage whenever it changes
@@ -33,7 +37,7 @@ const StudentDashboard = () => {
     localStorage.setItem('student_active_tab', activeTab);
   }, [activeTab]);
 
-  // Get actual user data
+  // Get actual user data and subscription status
   useEffect(() => {
     const currentUser = authService.getCurrentUser();
     if (currentUser) {
@@ -41,10 +45,34 @@ const StudentDashboard = () => {
         name: `${currentUser.first_name} ${currentUser.last_name}`,
         email: currentUser.email,
         avatar: `https://ui-avatars.com/api/?name=${currentUser.first_name}+${currentUser.last_name}&background=4F46E5&color=fff`,
-        subscription: "coursera_plus", // This should come from actual subscription data
+        subscription: null, // Will be loaded from API
       });
+
+      // Fetch subscription status
+      fetchSubscriptionStatus();
     }
   }, []);
+
+  const fetchSubscriptionStatus = async () => {
+    try {
+      setSubscriptionLoading(true);
+      const response = await api.get('/auth/student/subscription-status/');
+
+      setUser(prevUser => ({
+        ...prevUser,
+        subscription: response.data.can_access_plus_courses ? "coursera_plus" : "free"
+      }));
+    } catch (error) {
+      console.error('Error fetching subscription status:', error);
+      // If API fails, assume free user
+      setUser(prevUser => ({
+        ...prevUser,
+        subscription: "free"
+      }));
+    } finally {
+      setSubscriptionLoading(false);
+    }
+  };
 
   // Close mobile menu when clicking outside or when resizing to larger screen
   useEffect(() => {
@@ -69,6 +97,58 @@ const StudentDashboard = () => {
     };
   }, []);
 
+  // Check for payment success in URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get('success');
+    const plan = urlParams.get('plan');
+    const sessionId = urlParams.get('session_id');
+
+    if (success === 'true' && plan) {
+      // Clean the URL first
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      // Verify session and create subscription if needed
+      if (sessionId) {
+        verifyStripeSession(sessionId);
+      } else {
+        // Fallback: show congratulations and refresh status
+        setShowCongratulations(true);
+        fetchSubscriptionStatus();
+      }
+
+      // Auto close popup after 5 seconds
+      const timer = setTimeout(() => {
+        setShowCongratulations(false);
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const verifyStripeSession = async (sessionId) => {
+    try {
+      console.log('Verifying Stripe session:', sessionId);
+      const response = await api.post('/payments/verify-session/', {
+        session_id: sessionId
+      });
+
+      if (response.data.has_subscription) {
+        setShowCongratulations(true);
+        fetchSubscriptionStatus();
+        console.log('✅ Subscription verified and created');
+      } else {
+        console.log('⚠️ Session not paid yet:', response.data.payment_status);
+        // Maybe show a different message or retry
+      }
+    } catch (error) {
+      console.error('Error verifying session:', error);
+      // Fallback: show congratulations anyway
+      setShowCongratulations(true);
+      fetchSubscriptionStatus();
+    }
+  };
+
   // Logout functionality
   const handleLogout = async () => {
     // Show confirmation dialog
@@ -87,6 +167,11 @@ const StudentDashboard = () => {
     }
   };
 
+  // Navigate to checkout page
+  const handleUpgradeToPlus = () => {
+    setActiveTab('checkout');
+  };
+
   const navItems = [
     { id: "home", label: "Home", icon: Home },
     { id: "my-learning", label: "My Learning", icon: BookOpen },
@@ -98,14 +183,20 @@ const StudentDashboard = () => {
     { id: "certificates", label: "Certificates", icon: Award },
   ];
 
+  const handleCheckoutSuccess = () => {
+    // Refresh subscription status and redirect to home
+    fetchSubscriptionStatus();
+    setActiveTab('home');
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case "home":
-        return <HomeView />;
+        return <HomeView onNavigateToCheckout={handleUpgradeToPlus} />;
       case "my-learning":
         return <MyLearning />;
       case "explore":
-        return <Explore />;
+        return <Explore onNavigateToCheckout={handleUpgradeToPlus} />;
       case "grades":
         return <GradesView />;
       case "notifications":
@@ -116,6 +207,8 @@ const StudentDashboard = () => {
         return <AchievementsView />;
       case "certificates":
         return <CertificatesView />;
+      case "checkout":
+        return <CheckoutView onSuccess={handleCheckoutSuccess} />;
       default:
         return <HomeView />;
     }
@@ -170,11 +263,23 @@ const StudentDashboard = () => {
             {/* Right side - User menu */}
             <div className="flex items-center space-x-4">
               {/* Subscription Badge */}
-              {user.subscription === "coursera_plus" && (
+              {subscriptionLoading ? (
+                <div className="hidden sm:flex items-center px-3 py-1 rounded-full bg-gray-100">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
+                </div>
+              ) : user.subscription === "coursera_plus" ? (
                 <span className="hidden sm:inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-yellow-400 to-orange-400 text-white">
                   <Zap size={14} className="mr-1" />
                   Plus Member
                 </span>
+              ) : (
+                <button
+                  onClick={handleUpgradeToPlus}
+                  className="hidden sm:inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 transition-all duration-200 transform hover:scale-105"
+                >
+                  <Crown size={14} className="mr-1" />
+                  Upgrade to Plus
+                </button>
               )}
 
               {/* Notifications */}
@@ -276,6 +381,31 @@ const StudentDashboard = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {renderContent()}
       </main>
+
+      {/* Congratulations Popup */}
+      {showCongratulations && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-8 max-w-md mx-4 text-center animate-pulse">
+            <div className="w-16 h-16 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Crown className="h-8 w-8 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">🎉 Congratulations!</h2>
+            <p className="text-gray-600 mb-6">
+              Welcome to Coursera Plus! You now have unlimited access to all Plus courses.
+            </p>
+            <div className="flex items-center justify-center space-x-2 text-sm text-gray-500 mb-6">
+              <Trophy className="h-4 w-4" />
+              <span>Your subscription is now active</span>
+            </div>
+            <button
+              onClick={() => setShowCongratulations(false)}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-8 rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200"
+            >
+              Get Started!
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

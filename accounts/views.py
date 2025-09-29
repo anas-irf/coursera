@@ -165,8 +165,14 @@ def student_subscription_status(request):
                 status=status.HTTP_403_FORBIDDEN
             )
 
+        # Explicitly query the StudentPlusSubscription table
+        subscription = None
         try:
-            subscription = user.plus_subscription
+            subscription = StudentPlusSubscription.objects.get(student=user)
+        except StudentPlusSubscription.DoesNotExist:
+            subscription = None
+
+        if subscription:
             data = {
                 'has_subscription': True,
                 'status': subscription.status,
@@ -178,7 +184,7 @@ def student_subscription_status(request):
                 'auto_renew': subscription.auto_renew,
                 'next_billing_date': subscription.next_billing_date.isoformat() if subscription.next_billing_date else None
             }
-        except StudentPlusSubscription.DoesNotExist:
+        else:
             data = {
                 'has_subscription': False,
                 'status': 'none',
@@ -212,11 +218,15 @@ def create_plus_subscription(request):
             )
 
         # Check if user already has a subscription
-        if hasattr(user, 'plus_subscription'):
+        try:
+            existing_subscription = StudentPlusSubscription.objects.get(student=user)
             return Response(
                 {'error': 'User already has a subscription'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        except StudentPlusSubscription.DoesNotExist:
+            # User doesn't have subscription, can create one
+            pass
 
         subscription_type = request.data.get('subscription_type', 'monthly')
         payment_method = request.data.get('payment_method', 'credit_card')
@@ -328,9 +338,7 @@ def student_stats(request):
         certificates_earned = completed_enrollments.filter(certificate_issued=True).count()
 
         # Get subscription status
-        has_plus = False
-        if hasattr(user, 'plus_subscription'):
-            has_plus = user.plus_subscription.can_access_plus_courses()
+        has_plus = user.has_plus_access
 
         return Response({
             'courses_enrolled': enrollments.count(),
@@ -392,3 +400,39 @@ def student_weekly_progress(request):
             {'error': f'Failed to get weekly progress: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def debug_subscription(request):
+    """Debug endpoint to check subscription detection"""
+    user = request.user
+
+    if user.user_type != 'student':
+        return Response({'error': 'Only for students'})
+
+    # Direct database query
+    from accounts.models import StudentPlusSubscription
+    subscription_exists = StudentPlusSubscription.objects.filter(student=user).exists()
+    subscription_count = StudentPlusSubscription.objects.filter(student=user).count()
+
+    subscription_data = None
+    if subscription_exists:
+        subscription = StudentPlusSubscription.objects.get(student=user)
+        subscription_data = {
+            'id': str(subscription.uuid),
+            'type': subscription.subscription_type,
+            'status': subscription.status,
+            'start_date': subscription.start_date.isoformat(),
+            'is_active': subscription.is_active(),
+            'can_access_plus': subscription.can_access_plus_courses()
+        }
+
+    return Response({
+        'user_id': user.id,
+        'user_email': user.email,
+        'subscription_exists_in_db': subscription_exists,
+        'subscription_count': subscription_count,
+        'subscription_data': subscription_data,
+        'has_plus_access_property': user.has_plus_access,
+        'all_subscriptions_count': StudentPlusSubscription.objects.all().count()
+    })
