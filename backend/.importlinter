@@ -6,10 +6,14 @@ include_external_packages = False
 # ones above it.  Slices on the same line are independent of each other.  Upward
 # interaction goes through domain events (apps.core.events) and the lecture-content
 # registry (apps.courses.extensions), never through imports.
+#
+# apps.seeding is development tooling (demo data, local database setup).  It sits on
+# top of everything, may import any slice and is imported by none.
 [importlinter:contract:slices]
 name = Slices depend downwards only
 type = layers
 layers =
+    apps.seeding
     apps.insights | apps.notifications
     apps.assessments | apps.certificates
     apps.learning

@@ -128,6 +128,24 @@ ASGI_APPLICATION = 'config.asgi.application'
 
 DB_ENGINE = get_env_variable('DB_ENGINE', 'postgres').lower()
 
+
+def postgres_database():
+    """The PostgreSQL connection described by the DB_* variables.
+
+    There is no built-in password: an unset ``DB_PASSWORD`` stays empty, the
+    connection is refused and ``manage.py create_dev_database`` will not create
+    a role without one.
+    """
+    return {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': get_env_variable('DB_NAME', 'coursera_db'),
+        'USER': get_env_variable('DB_USER', 'coursera_admin'),
+        'PASSWORD': get_env_variable('DB_PASSWORD', ''),
+        'HOST': get_env_variable('DB_HOST', 'localhost'),
+        'PORT': get_env_variable('DB_PORT', '5432'),
+    }
+
+
 if DB_ENGINE == 'sqlite':
     DATABASES = {
         'default': {
@@ -136,16 +154,7 @@ if DB_ENGINE == 'sqlite':
         }
     }
 else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': get_env_variable('DB_NAME', 'coursera_db'),
-            'USER': get_env_variable('DB_USER', 'coursera_admin'),
-            'PASSWORD': get_env_variable('DB_PASSWORD', '123'),
-            'HOST': get_env_variable('DB_HOST', 'localhost'),
-            'PORT': get_env_variable('DB_PORT', '5432'),
-        }
-    }
+    DATABASES = {'default': postgres_database()}
 
 
 # Password validation
@@ -286,3 +295,6 @@ STRIPE_WEBHOOK_SECRET = get_env_variable('STRIPE_WEBHOOK_SECRET', '')
 
 # Where Stripe sends the customer back to (the React app)
 FRONTEND_URL = get_env_variable('FRONTEND_URL', 'http://localhost:3000')
+
+# Password of the users created by ``manage.py seed_dev`` (random, printed once, when empty)
+SEED_PASSWORD = get_env_variable('SEED_PASSWORD', '')
