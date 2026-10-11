@@ -4,7 +4,7 @@ import api from '../../services/api';
 import { CreateCourseModal, EditCourseModal } from './CourseModals';
 import DeleteCourseModal from './DeleteCourseModal';
 import authService from '../../services/authService';
-import { useToast } from '../shared/Toast';
+import { useToast } from '../../shared/ui/Toast';
 
 
 const CoursesManagement = () => {

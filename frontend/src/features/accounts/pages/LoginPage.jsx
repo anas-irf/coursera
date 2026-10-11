@@ -1,21 +1,59 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Check, User, GraduationCap, ChevronDown } from 'lucide-react';
-import authService from '../services/authService';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, Check, User, GraduationCap } from 'lucide-react';
 
-const CourseraAuth = () => {
+import { useAuth } from '../../../app/AuthProvider';
+import { homePathFor } from '../../../app/guards';
+import { fieldErrors as serializerErrors } from '../../../shared/api/errors';
+
+const Header = () => (
+  <header className="bg-white border-b border-gray-200 px-4 py-4">
+    <div className="max-w-7xl mx-auto">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center cursor-pointer">
+          <svg className="h-8 w-8 text-blue-600 mr-2" viewBox="0 0 32 32" fill="currentColor">
+            <rect x="0" y="0" width="14" height="14" rx="2" />
+            <rect x="18" y="0" width="14" height="14" rx="2" />
+            <rect x="0" y="18" width="14" height="14" rx="2" />
+            <rect x="18" y="18" width="14" height="14" rx="2" />
+          </svg>
+          <span className="text-2xl font-semibold text-gray-900">coursera</span>
+        </div>
+      </div>
+    </div>
+  </header>
+);
+
+const SocialButton = ({ provider, icon, onClick }) => (
+  <button
+    onClick={onClick}
+    className="w-full flex items-center justify-center px-4 py-2.5 border border-gray-300 rounded-md hover:bg-gray-50 transition duration-200 mb-3 bg-white"
+  >
+    <span className="mr-2">{icon}</span>
+    <span className="text-sm font-medium text-gray-700">Continue with {provider}</span>
+  </button>
+);
+
+const EMPTY_FORM = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  password: '',
+  confirmPassword: '',
+  phoneNumber: '',
+  userType: 'student'
+};
+
+const LoginPage = () => {
+  const { login, signup } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    phoneNumber: '',
-    userType: 'student'
-  });
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [notice, setNotice] = useState('');
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
 
@@ -77,127 +115,71 @@ const CourseraAuth = () => {
   };
 
   const handleSubmit = async () => {
-  const newErrors = validateForm();
-  
-  if (Object.keys(newErrors).length > 0) {
-    setErrors(newErrors);
-    return;
-  }
-  
-  setIsLoading(true);
-  
-  try {
-    let response;
-    if (isLogin) {
-      response = await authService.login(formData.email, formData.password);
-    } else {
-      // UPDATE THIS PART - Send the data as an object matching the backend
-      response = await authService.signup({
-        email: formData.email,
-        password: formData.password,
-        confirm_password: formData.confirmPassword,
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-        phone_number: formData.phoneNumber,
-        user_type: formData.userType
-      });
+    const newErrors = validateForm();
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
     }
-    
-    console.log('Success:', response);
-    
-    // Registration success message only (login doesn't need welcome alert since user sees dashboard)
-    if (!isLogin && response.message) {
-      // User registration success - they'll see the dashboard next, no need for alert
-      console.log('Registration successful:', response.message);
-    }
-    
-    // Redirect based on user type after successful login
-    if (isLogin && response.user) {
-      if (response.user.user_type === 'instructor') {
-        window.location.href = '/instructor/dashboard';
+
+    setIsLoading(true);
+
+    try {
+      if (isLogin) {
+        const response = await login(formData.email, formData.password);
+        // back to the page that asked for a login, else to the user's own home
+        const from = location.state && location.state.from && location.state.from.pathname;
+        navigate(from && from !== '/login' ? from : homePathFor(response.user.user_type), { replace: true });
       } else {
-        window.location.href = '/student/dashboard';
-      }
-    } else if (!isLogin) {
-      // After successful signup, show success message and switch to login
-      setTimeout(() => {
-        setIsLogin(true);
-      }, 2000);
-    }
-  } catch (error) {
-    console.error('Error:', error.response?.data);
-    
-    // Handle different error formats
-    if (error.response?.data) {
-      const errorData = error.response.data;
-      
-      // Check for field-specific errors
-      const fieldErrors = {};
-      if (errorData.email) fieldErrors.email = errorData.email[0];
-      if (errorData.password) fieldErrors.password = errorData.password[0];
-      if (errorData.first_name) fieldErrors.firstName = errorData.first_name[0];
-      if (errorData.last_name) fieldErrors.lastName = errorData.last_name[0];
-      if (errorData.phone_number) fieldErrors.phoneNumber = errorData.phone_number[0];
-      
-      if (Object.keys(fieldErrors).length > 0) {
-        setErrors(fieldErrors);
-      } else {
-        setErrors({ 
-          general: errorData.error || errorData.detail || 'An error occurred. Please try again.' 
+        await signup({
+          email: formData.email,
+          password: formData.password,
+          confirm_password: formData.confirmPassword,
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          phone_number: formData.phoneNumber,
+          user_type: formData.userType
         });
+        // registration done: continue with the login form
+        const email = formData.email;
+        setIsLogin(true);
+        setErrors({});
+        setFormData({ ...EMPTY_FORM, email });
+        setAgreedToTerms(false);
+        setNotice('Account created. Please log in.');
       }
-    } else {
-      setErrors({ general: 'Network error. Please check your connection.' });
+    } catch (error) {
+      const data = error.response && error.response.data;
+      if (data) {
+        const fields = serializerErrors(error);
+        const known = {
+          email: fields.email,
+          password: fields.password,
+          firstName: fields.first_name,
+          lastName: fields.last_name,
+          phoneNumber: fields.phone_number,
+        };
+        const shown = Object.fromEntries(Object.entries(known).filter(([, message]) => message));
+        setErrors(Object.keys(shown).length > 0
+          ? shown
+          : { general: data.error || data.detail || 'An error occurred. Please try again.' });
+      } else {
+        setErrors({ general: 'Network error. Please check your connection.' });
+      }
+    } finally {
+      setIsLoading(false);
     }
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   const switchMode = () => {
     setIsLogin(!isLogin);
     setErrors({});
-    setFormData({
-      firstName: '',
-      lastName: '',
-      email: '',
-      password: '',
-      confirmPassword: '',
-      phoneNumber: '',
-      userType: 'student'
-    });
+    setNotice('');
+    setFormData(EMPTY_FORM);
     setAgreedToTerms(false);
     setShowPassword(false);
     setShowConfirmPassword(false);
   };
-
-  const Header = () => (
-    <header className="bg-white border-b border-gray-200 px-4 py-4">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center cursor-pointer">
-            <svg className="h-8 w-8 text-blue-600 mr-2" viewBox="0 0 32 32" fill="currentColor">
-              <rect x="0" y="0" width="14" height="14" rx="2" />
-              <rect x="18" y="0" width="14" height="14" rx="2" />
-              <rect x="0" y="18" width="14" height="14" rx="2" />
-              <rect x="18" y="18" width="14" height="14" rx="2" />
-            </svg>
-            <span className="text-2xl font-semibold text-gray-900">coursera</span>
-          </div>
-        </div>
-      </div>
-    </header>
-  );
-
-  const SocialButton = ({ provider, icon, onClick }) => (
-    <button
-      onClick={onClick}
-      className="w-full flex items-center justify-center px-4 py-2.5 border border-gray-300 rounded-md hover:bg-gray-50 transition duration-200 mb-3 bg-white"
-    >
-      <span className="mr-2">{icon}</span>
-      <span className="text-sm font-medium text-gray-700">Continue with {provider}</span>
-    </button>
-  );
 
   const passwordRequirements = [
     { met: formData.password.length >= 8, text: "At least 8 characters" },
@@ -230,6 +212,12 @@ const CourseraAuth = () => {
                 </p>
               )}
               
+              {notice && (
+                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+                  <p className="text-sm text-green-700">{notice}</p>
+                </div>
+              )}
+
               {/* Error message */}
               {errors.general && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
@@ -528,36 +516,6 @@ const CourseraAuth = () => {
                 </div>
               )}
               
-              {/* Development Test Credentials */}
-              {isLogin && process.env.NODE_ENV === 'development' && (
-                <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-                  <p className="text-xs font-medium text-yellow-800 mb-2">🔧 Development Test Credentials:</p>
-                  <div className="space-y-2 text-xs">
-                    <div>
-                      <strong>Test Instructor:</strong>
-                      <div>Email: instructor@test.com</div>
-                      <div>Password: testpass123</div>
-                    </div>
-                    <div>
-                      <strong>Test Student:</strong>
-                      <div>Email: student@test.com</div>
-                      <div>Password: testpass123</div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setFormData({
-                        ...formData,
-                        email: 'instructor@test.com',
-                        password: 'testpass123'
-                      });
-                    }}
-                    className="mt-2 text-xs bg-yellow-200 hover:bg-yellow-300 px-2 py-1 rounded"
-                  >
-                    Use Instructor Test Account
-                  </button>
-                </div>
-              )}
             </div>
           </div>
           
@@ -575,4 +533,4 @@ const CourseraAuth = () => {
   );
 };
 
-export default CourseraAuth;
+export default LoginPage;

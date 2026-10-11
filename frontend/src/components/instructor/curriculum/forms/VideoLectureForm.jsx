@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, Loader2 } from 'lucide-react';
-import { useToast } from '../../../shared/Toast';
-import { useConfirm } from '../../../shared/ConfirmDialog';
+import { useToast } from '../../../../shared/ui/Toast';
+import { useConfirm } from '../../../../shared/ui/ConfirmDialog';
 
 const VideoLectureForm = ({ formData, setFormData, isUploading, setIsUploading }) => {
   const { error, warning } = useToast();

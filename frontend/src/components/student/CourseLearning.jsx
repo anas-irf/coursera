@@ -15,8 +15,8 @@ import {
   RefreshCw
 } from 'lucide-react';
 import api from '../../services/api';
-import { useToast } from '../shared/Toast';
-import { useConfirm } from '../shared/ConfirmDialog';
+import { useToast } from '../../shared/ui/Toast';
+import { useConfirm } from '../../shared/ui/ConfirmDialog';
 
 // Helper function to extract YouTube video ID
 const getYouTubeVideoId = (url) => {

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import api from '../../services/api';
 import CurriculumTab from './CurriculumTab';
-import { useToast } from '../shared/Toast';
+import { useToast } from '../../shared/ui/Toast';
 
 // Create Course Modal
 export const CreateCourseModal = ({ onClose, onSave }) => {

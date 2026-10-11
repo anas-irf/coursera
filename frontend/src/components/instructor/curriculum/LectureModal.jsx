@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Play, FileText, HelpCircle, ClipboardList, X, BookOpen } from 'lucide-react';
-import { useToast } from '../../shared/Toast';
+import { useToast } from '../../../shared/ui/Toast';
 import VideoLectureForm from './forms/VideoLectureForm';
-import ArticleForm from './forms/ArticleForm';
 import QuizForm from './forms/QuizForm';
 import AssignmentForm from './forms/AssignmentForm';
 import ReadingForm from './forms/ReadingForm';

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Download, Calendar, Filter, BarChart2, PieChart, TrendingUp } from 'lucide-react';
-import { useToast } from '../shared/Toast';
+import { useToast } from '../../shared/ui/Toast';
 
 // Mock API service
 const api = {

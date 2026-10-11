@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, Clock, AlertCircle, Eye, Calendar, MoreVertical, Search, Filter } from 'lucide-react';
 import apiService from '../../services/api';
-import { useToast } from '../shared/Toast';
+import { useToast } from '../../shared/ui/Toast';
 
 // Mock API service with real integration
 const api = {

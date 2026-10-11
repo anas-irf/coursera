@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../../services/api';
-import { useToast } from '../../shared/Toast';
-import { useConfirm } from '../../shared/ConfirmDialog';
+import { useToast } from '../../../shared/ui/Toast';
+import { useConfirm } from '../../../shared/ui/ConfirmDialog';
 
 const useCurriculum = (courseId) => {
   const [sections, setSections] = useState([]);

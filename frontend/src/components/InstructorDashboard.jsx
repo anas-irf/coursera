@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Menu, X, ChevronDown, Settings, LogOut, Home, BarChart2, CreditCard, MessageSquare, BookOpen, Users, Search, FileText } from 'lucide-react';
 import authService from '../services/authService';
-import { useConfirm } from './shared/ConfirmDialog';
+import { useConfirm } from '../shared/ui/ConfirmDialog';
 
 // Import extracted components
 import DashboardOverview from './instructor/DashboardOverview';

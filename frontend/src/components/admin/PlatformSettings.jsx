@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Settings, Save, Shield, Bell, Globe, Database, Mail, Palette } from 'lucide-react';
-import { useToast } from '../shared/Toast';
+import { useToast } from '../../shared/ui/Toast';
 
 const PlatformSettings = () => {
   const { success } = useToast();

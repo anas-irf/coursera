@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Crown, Check, Star, Zap, ChevronRight, Shield } from 'lucide-react';
-import { useToast } from '../shared/Toast';
+import { useToast } from '../../shared/ui/Toast';
 import authService from '../../services/authService';
 import api from '../../services/api';
 

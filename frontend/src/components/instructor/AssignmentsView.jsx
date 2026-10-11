@@ -14,7 +14,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import api from '../../services/api';
-import { useToast } from '../shared/Toast';
+import { useToast } from '../../shared/ui/Toast';
 
 const AssignmentsView = () => {
   const [assignments, setAssignments] = useState([]);

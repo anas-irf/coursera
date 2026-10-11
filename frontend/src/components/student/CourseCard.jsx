@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Heart, Star, Clock, BookOpen, Crown } from 'lucide-react';
 import api from '../../services/api';
-import { useToast } from '../shared/Toast';
-import { useConfirm } from '../shared/ConfirmDialog';
+import { useToast } from '../../shared/ui/Toast';
+import { useConfirm } from '../../shared/ui/ConfirmDialog';
 
 const CourseCard = ({ course, onEnrollSuccess, onUpgradeClick }) => {
   const [liked, setLiked] = useState(false);

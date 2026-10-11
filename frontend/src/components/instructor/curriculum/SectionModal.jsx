@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useToast } from '../../shared/Toast';
+import { useToast } from '../../../shared/ui/Toast';
 
 const SectionModal = ({ section, onClose, onSave, title }) => {
   const { error } = useToast();

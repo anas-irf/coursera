@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { BookOpen, Award, Search, Bell, User, Settings, LogOut, Home, Zap, Menu, X, MessageSquare, Trophy, GraduationCap, Crown, Plus } from "lucide-react";
 import authService from "../services/authService";
 import api from "../services/api";
-import { useConfirm } from './shared/ConfirmDialog';
+import { useConfirm } from '../shared/ui/ConfirmDialog';
 
 // Import extracted components
 import HomeView from './student/HomeView';
