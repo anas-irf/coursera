@@ -105,15 +105,10 @@ const CourseraAuth = () => {
     
     console.log('Success:', response);
     
-    // Show success message
+    // Registration success message only (login doesn't need welcome alert since user sees dashboard)
     if (!isLogin && response.message) {
-      alert(response.message);
-    } else {
-      alert(`Welcome ${
-        response.user.user_type === 'instructor' ? 'Instructor' :
-        response.user.user_type === 'admin' ? 'Admin' :
-        'Student'
-      }!`);
+      // User registration success - they'll see the dashboard next, no need for alert
+      console.log('Registration successful:', response.message);
     }
     
     // Redirect based on user type after successful login

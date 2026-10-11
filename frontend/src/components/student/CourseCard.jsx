@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
 import { Heart, Star, Clock, BookOpen, Crown } from 'lucide-react';
 import api from '../../services/api';
+import { useToast } from '../shared/Toast';
+import { useConfirm } from '../shared/ConfirmDialog';
 
 const CourseCard = ({ course, onEnrollSuccess, onUpgradeClick }) => {
   const [liked, setLiked] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
+  const { success, error } = useToast();
+  const { confirm } = useConfirm();
 
   const handleEnroll = async () => {
     if (!course.can_enroll || enrolling) return;
@@ -14,27 +18,31 @@ const CourseCard = ({ course, onEnrollSuccess, onUpgradeClick }) => {
       await api.post(`/courses/${course.id}/enroll/`);
 
       // Show success message
-      alert('Successfully enrolled in course!');
+      success('Successfully enrolled in course!', 'Enrollment Complete');
 
       // Callback to parent to refresh data
       if (onEnrollSuccess) {
         onEnrollSuccess();
       }
-    } catch (error) {
-      console.error('Enrollment error:', error);
+    } catch (err) {
+      console.error('Enrollment error:', err);
 
-      if (error.response?.status === 402) {
+      if (err.response?.status === 402) {
         // Show upgrade prompt instead of just an alert
-        const upgrade = window.confirm(
-          'This course requires Coursera Plus. Would you like to upgrade now?'
-        );
+        const upgrade = await confirm({
+          type: 'info',
+          title: 'Coursera Plus Required',
+          message: 'This course requires Coursera Plus. Would you like to upgrade now?',
+          confirmText: 'Upgrade Now',
+          cancelText: 'Not Now'
+        });
         if (upgrade && onUpgradeClick) {
           onUpgradeClick();
         }
-      } else if (error.response?.data?.error) {
-        alert(`Enrollment failed: ${error.response.data.error}`);
+      } else if (err.response?.data?.error) {
+        error(err.response.data.error, 'Enrollment Failed');
       } else {
-        alert('Failed to enroll. Please try again.');
+        error('Failed to enroll. Please try again.', 'Enrollment Failed');
       }
     } finally {
       setEnrolling(false);

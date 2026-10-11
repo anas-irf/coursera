@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { BookOpen, Award, Search, Bell, User, Settings, LogOut, Home, Zap, Menu, X, MessageSquare, Trophy, GraduationCap, Crown, Plus } from "lucide-react";
 import authService from "../services/authService";
 import api from "../services/api";
+import { useConfirm } from './shared/ConfirmDialog';
 
 // Import extracted components
 import HomeView from './student/HomeView';
@@ -31,6 +32,7 @@ const StudentDashboard = () => {
   const [subscriptionLoading, setSubscriptionLoading] = useState(true);
   const [showCongratulations, setShowCongratulations] = useState(false);
   const mobileMenuRef = useRef(null);
+  const { confirmLogout } = useConfirm();
 
   // Save active tab to localStorage whenever it changes
   useEffect(() => {
@@ -151,8 +153,12 @@ const StudentDashboard = () => {
 
   // Logout functionality
   const handleLogout = async () => {
-    // Show confirmation dialog
-    if (window.confirm("Are you sure you want to logout?")) {
+    const confirmed = await confirmLogout(
+      "You will need to login again to access your account.",
+      "Logout"
+    );
+
+    if (confirmed) {
       setIsLoggingOut(true);
       try {
         await authService.logout();
@@ -218,13 +224,13 @@ const StudentDashboard = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Top Navigation */}
       <header ref={mobileMenuRef} className="bg-white shadow-sm border-b sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8">
+          <div className="flex justify-between items-center h-14 sm:h-16">
             {/* Logo and Desktop Nav */}
-            <div className="flex items-center">
-              <div className="flex items-center mr-8">
+            <div className="flex items-center min-w-0 flex-1">
+              <div className="flex items-center mr-4 sm:mr-6 lg:mr-8 flex-shrink-0">
                 <svg
-                  className="h-8 w-8 text-blue-600 mr-2"
+                  className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-blue-600 mr-1.5 sm:mr-2"
                   viewBox="0 0 32 32"
                   fill="currentColor"
                 >
@@ -233,27 +239,29 @@ const StudentDashboard = () => {
                   <rect x="0" y="18" width="14" height="14" rx="2" />
                   <rect x="18" y="18" width="14" height="14" rx="2" />
                 </svg>
-                <span className="text-2xl font-semibold text-gray-900">
+                <span className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-900">
                   coursera
                 </span>
               </div>
 
               {/* Desktop Navigation */}
-              <nav className="hidden lg:flex space-x-1">
+              <nav className="hidden lg:flex space-x-1 overflow-x-auto">
                 {navItems.map((item) => {
                   const Icon = item.icon;
                   return (
                     <button
                       key={item.id}
                       onClick={() => setActiveTab(item.id)}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${
+                      className={`px-2 xl:px-3 py-2 rounded-lg text-xs xl:text-sm font-medium transition-all duration-200 flex items-center space-x-1 xl:space-x-2 flex-shrink-0 ${
                         activeTab === item.id
                           ? "bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-600"
                           : "text-gray-700 hover:bg-gray-50"
                       }`}
                     >
-                      <Icon size={16} />
-                      <span className="whitespace-nowrap">{item.label}</span>
+                      <Icon size={14} className="xl:hidden" />
+                      <Icon size={16} className="hidden xl:block" />
+                      <span className="whitespace-nowrap hidden xl:block">{item.label}</span>
+                      <span className="whitespace-nowrap xl:hidden text-xs">{item.label.length > 8 ? item.label.substring(0, 8) + '...' : item.label}</span>
                     </button>
                   );
                 })}
@@ -261,40 +269,44 @@ const StudentDashboard = () => {
             </div>
 
             {/* Right side - User menu */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-4">
               {/* Subscription Badge */}
               {subscriptionLoading ? (
-                <div className="hidden sm:flex items-center px-3 py-1 rounded-full bg-gray-100">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
+                <div className="hidden md:flex items-center px-2 py-1 rounded-full bg-gray-100">
+                  <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b-2 border-gray-400"></div>
                 </div>
               ) : user.subscription === "coursera_plus" ? (
-                <span className="hidden sm:inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-yellow-400 to-orange-400 text-white">
-                  <Zap size={14} className="mr-1" />
-                  Plus Member
+                <span className="hidden md:inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-yellow-400 to-orange-400 text-white">
+                  <Zap size={12} className="mr-1 sm:mr-1" />
+                  <span className="hidden lg:inline">Plus Member</span>
+                  <span className="lg:hidden">Plus</span>
                 </span>
               ) : (
                 <button
                   onClick={handleUpgradeToPlus}
-                  className="hidden sm:inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 transition-all duration-200 transform hover:scale-105"
+                  className="hidden md:inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 transition-all duration-200 transform hover:scale-105"
                 >
-                  <Crown size={14} className="mr-1" />
-                  Upgrade to Plus
+                  <Crown size={12} className="mr-1" />
+                  <span className="hidden lg:inline">Upgrade to Plus</span>
+                  <span className="lg:hidden">Upgrade</span>
                 </button>
               )}
 
               {/* Notifications */}
-              <NotificationDropdown onNavigateToNotifications={() => setActiveTab('notifications')} />
+              <div className="hidden sm:block">
+                <NotificationDropdown onNavigateToNotifications={() => setActiveTab('notifications')} />
+              </div>
 
               {/* User Menu */}
               <div className="relative group">
-                <button className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50">
+                <button className="flex items-center space-x-2 sm:space-x-3 p-1 sm:p-2 rounded-lg hover:bg-gray-50">
                   <img
                     src={user.avatar}
                     alt="Profile"
-                    className="w-8 h-8 rounded-full"
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full"
                   />
-                  <div className="hidden sm:block text-left">
-                    <p className="text-sm font-medium text-gray-900">
+                  <div className="hidden md:block text-left">
+                    <p className="text-xs sm:text-sm font-medium text-gray-900 truncate max-w-24">
                       {user.name}
                     </p>
                     <p className="text-xs text-gray-500">Student</p>
@@ -340,9 +352,9 @@ const StudentDashboard = () => {
               {/* Mobile menu button */}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="lg:hidden p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                className="lg:hidden p-1.5 sm:p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                {mobileMenuOpen ? <X size={20} className="sm:w-6 sm:h-6" /> : <Menu size={20} className="sm:w-6 sm:h-6" />}
               </button>
             </div>
           </div>
@@ -351,7 +363,7 @@ const StudentDashboard = () => {
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
           <nav className="lg:hidden border-t bg-white shadow-lg">
-            <div className="px-4 py-3 space-y-1 max-h-80 overflow-y-auto">
+            <div className="px-3 sm:px-4 py-3 space-y-1 max-h-80 overflow-y-auto">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -361,45 +373,74 @@ const StudentDashboard = () => {
                       setActiveTab(item.id);
                       setMobileMenuOpen(false);
                     }}
-                    className={`w-full px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-3 ${
+                    className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-3 ${
                       activeTab === item.id
                         ? "bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-600 border border-indigo-200"
                         : "text-gray-700 hover:bg-gray-50"
                     }`}
                   >
-                    <Icon size={20} />
-                    <span>{item.label}</span>
+                    <Icon size={18} className="sm:w-5 sm:h-5 flex-shrink-0" />
+                    <span className="text-left">{item.label}</span>
                   </button>
                 );
               })}
+
+              {/* Mobile-only navigation items */}
+              <div className="pt-3 border-t">
+                {/* Mobile Notifications */}
+                <button
+                  onClick={() => {
+                    setActiveTab('notifications');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="sm:hidden w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-3 text-gray-700 hover:bg-gray-50"
+                >
+                  <Bell size={18} className="flex-shrink-0" />
+                  <span className="text-left">Notifications</span>
+                </button>
+
+                {/* Mobile Plus Upgrade */}
+                {user.subscription !== "coursera_plus" && (
+                  <button
+                    onClick={() => {
+                      handleUpgradeToPlus();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="md:hidden w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+                  >
+                    <Crown size={18} className="flex-shrink-0" />
+                    <span className="text-left">Upgrade to Plus</span>
+                  </button>
+                )}
+              </div>
             </div>
           </nav>
         )}
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 lg:py-8">
         {renderContent()}
       </main>
 
       {/* Congratulations Popup */}
       {showCongratulations && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-8 max-w-md mx-4 text-center animate-pulse">
-            <div className="w-16 h-16 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Crown className="h-8 w-8 text-white" />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-sm sm:max-w-md w-full text-center animate-pulse">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
+              <Crown className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">🎉 Congratulations!</h2>
-            <p className="text-gray-600 mb-6">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3 sm:mb-4">🎉 Congratulations!</h2>
+            <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
               Welcome to Coursera Plus! You now have unlimited access to all Plus courses.
             </p>
-            <div className="flex items-center justify-center space-x-2 text-sm text-gray-500 mb-6">
-              <Trophy className="h-4 w-4" />
+            <div className="flex items-center justify-center space-x-2 text-xs sm:text-sm text-gray-500 mb-4 sm:mb-6">
+              <Trophy className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>Your subscription is now active</span>
             </div>
             <button
               onClick={() => setShowCongratulations(false)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-8 rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200"
+              className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 text-white py-2.5 sm:py-3 px-6 sm:px-8 rounded-xl text-sm sm:text-base font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200"
             >
               Get Started!
             </button>

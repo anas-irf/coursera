@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
 import api from '../../../services/api';
+import { useToast } from '../../shared/Toast';
+import { useConfirm } from '../../shared/ConfirmDialog';
 
 const useCurriculum = (courseId) => {
   const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { success, error } = useToast();
+  const { confirmDelete } = useConfirm();
 
   const fetchSections = async () => {
     if (!courseId) return;
@@ -29,7 +33,7 @@ const useCurriculum = (courseId) => {
       return response.data;
     } catch (error) {
       console.error('Error creating section:', error);
-      alert('Error creating section');
+      error('Error creating section. Please try again.', 'Creation Failed');
     }
   };
 
@@ -40,19 +44,23 @@ const useCurriculum = (courseId) => {
       return response.data;
     } catch (error) {
       console.error('Error updating section:', error);
-      alert('Error updating section');
+      error('Error updating section. Please try again.', 'Update Failed');
     }
   };
 
   const deleteSection = async (sectionId) => {
-    if (!window.confirm('Are you sure you want to delete this section and all its lectures?')) return;
+    const confirmed = await confirmDelete(
+      'This action will permanently delete the section and all its lectures.',
+      'Delete Section'
+    );
+    if (!confirmed) return;
 
     try {
       await api.delete(`/courses/instructor/sections/${sectionId}/`);
       fetchSections();
     } catch (error) {
       console.error('Error deleting section:', error);
-      alert('Error deleting section');
+      error('Error deleting section. Please try again.', 'Deletion Failed');
     }
   };
 
@@ -124,13 +132,13 @@ const useCurriculum = (courseId) => {
 
       // Handle different types of errors
       if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-        alert('Upload timeout. The file is too large or your connection is slow. Please try with a smaller file or check your internet connection.');
+        error('Upload timeout. The file is too large or your connection is slow. Please try with a smaller file or check your internet connection.', 'Upload Timeout');
       } else if (error.response?.status === 413) {
-        alert('File too large. Maximum file size is 2GB. Please reduce the file size and try again.');
+        error('File too large. Maximum file size is 2GB. Please reduce the file size and try again.', 'File Too Large');
       } else if (error.response?.status === 500) {
-        alert('Server error while processing your upload. Please try again later.');
+        error('Server error while processing your upload. Please try again later.', 'Server Error');
       } else {
-        alert(`Error creating lecture: ${error.response?.data?.error || error.message || 'Unknown error'}`);
+        error(`Error creating lecture: ${error.response?.data?.error || error.message || 'Unknown error'}`, 'Creation Failed');
       }
 
       throw error; // Re-throw so the modal can handle the uploading state
@@ -205,13 +213,13 @@ const useCurriculum = (courseId) => {
 
       // Handle different types of errors
       if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-        alert('Upload timeout. The file is too large or your connection is slow. Please try with a smaller file or check your internet connection.');
+        error('Upload timeout. The file is too large or your connection is slow. Please try with a smaller file or check your internet connection.', 'Upload Timeout');
       } else if (error.response?.status === 413) {
-        alert('File too large. Maximum file size is 2GB. Please reduce the file size and try again.');
+        error('File too large. Maximum file size is 2GB. Please reduce the file size and try again.', 'File Too Large');
       } else if (error.response?.status === 500) {
-        alert('Server error while processing your upload. Please try again later.');
+        error('Server error while processing your upload. Please try again later.', 'Server Error');
       } else {
-        alert(`Error updating lecture: ${error.response?.data?.error || error.message || 'Unknown error'}`);
+        error(`Error updating lecture: ${error.response?.data?.error || error.message || 'Unknown error'}`, 'Update Failed');
       }
 
       throw error; // Re-throw so the modal can handle the uploading state
@@ -219,14 +227,18 @@ const useCurriculum = (courseId) => {
   };
 
   const deleteLecture = async (lectureId) => {
-    if (!window.confirm('Are you sure you want to delete this lecture?')) return;
+    const confirmed = await confirmDelete(
+      'This action will permanently delete the lecture.',
+      'Delete Lecture'
+    );
+    if (!confirmed) return;
 
     try {
       await api.delete(`/courses/instructor/lectures/${lectureId}/`);
       fetchSections();
     } catch (error) {
       console.error('Error deleting lecture:', error);
-      alert('Error deleting lecture');
+      error('Error deleting lecture. Please try again.', 'Deletion Failed');
     }
   };
 
@@ -245,7 +257,7 @@ const useCurriculum = (courseId) => {
       setSections(newSectionOrder);
     } catch (error) {
       console.error('Error reordering sections:', error);
-      alert('Error reordering sections');
+      error('Error reordering sections. Changes have been reverted.', 'Reorder Failed');
       // Revert on error
       fetchSections();
     }
@@ -272,7 +284,7 @@ const useCurriculum = (courseId) => {
       );
     } catch (error) {
       console.error('Error reordering lectures:', error);
-      alert('Error reordering lectures');
+      error('Error reordering lectures. Changes have been reverted.', 'Reorder Failed');
       // Revert on error
       fetchSections();
     }
@@ -292,7 +304,7 @@ const useCurriculum = (courseId) => {
       return true;
     } catch (error) {
       console.error('Error reordering quiz questions:', error);
-      alert('Error reordering quiz questions');
+      error('Error reordering quiz questions. Please try again.', 'Reorder Failed');
       return false;
     }
   };

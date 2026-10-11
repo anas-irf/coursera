@@ -7,6 +7,8 @@ import authService from './services/authService';
 import StudentDashboard from './components/StudentDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import CourseLearning from './components/student/CourseLearning';
+import { ToastProvider } from './components/shared/Toast';
+import { ConfirmProvider } from './components/shared/ConfirmDialog';
 
 // Protected route component for admin access
 const AdminProtectedRoute = ({ children }) => {
@@ -63,81 +65,85 @@ function App() {
   }
 
   return (
-    <Router>
-      <Routes>
-        <Route
-          path="/login"
-          element={
-            isAuthenticated ?
-              <Navigate to = {
-                userType === 'instructor' ? '/instructor/dashboard' :
-                userType === 'admin' ? '/admin/dashboard' :
-                '/student/dashboard'
-              } /> :
-              <CourseraAuth />
-          }
-        />
+    <ToastProvider>
+      <ConfirmProvider>
+        <Router>
+          <Routes>
+            <Route
+              path="/login"
+              element={
+                isAuthenticated ?
+                  <Navigate to = {
+                    userType === 'instructor' ? '/instructor/dashboard' :
+                    userType === 'admin' ? '/admin/dashboard' :
+                    '/student/dashboard'
+                  } /> :
+                  <CourseraAuth />
+              }
+            />
 
-        <Route
-          path="/admin/dashboard"
-          element={
-            <AdminProtectedRoute>
-              <AdminDashboard />
-            </AdminProtectedRoute>
-          }
-        />
+            <Route
+              path="/admin/dashboard"
+              element={
+                <AdminProtectedRoute>
+                  <AdminDashboard />
+                </AdminProtectedRoute>
+              }
+            />
 
-        {/* Legacy route compatibility - with proper auth check */}
-        <Route
-          path="/admindashboard"
-          element={
-            <AdminProtectedRoute>
-              <Navigate to="/admin/dashboard" />
-            </AdminProtectedRoute>
-          }
-        />
-        
-        <Route 
-          path="/instructor/dashboard" 
-          element={
-            isAuthenticated && userType === 'instructor' ? 
-              <InstructorDashboard /> : 
-              <Navigate to="/login" />
-          } 
-        />
-        
-        <Route
-          path="/student/dashboard"
-          element={
-            isAuthenticated && userType === 'student' ?
-              <StudentDashboard /> :
-              <Navigate to="/login" />
-          }
-        />
+            {/* Legacy route compatibility - with proper auth check */}
+            <Route
+              path="/admindashboard"
+              element={
+                <AdminProtectedRoute>
+                  <Navigate to="/admin/dashboard" />
+                </AdminProtectedRoute>
+              }
+            />
 
-        <Route
-          path="/courses/:courseId/learn"
-          element={
-            isAuthenticated && userType === 'student' ?
-              <CourseLearning /> :
-              <Navigate to="/login" />
-          }
-        />
-        
-        <Route
-          path="/"
-          element={
-            <Navigate to={
-              isAuthenticated ?
-                (userType === 'instructor' ? '/instructor/dashboard' :
-                 userType === 'admin' ? '/admin/dashboard' :
-                 '/student/dashboard') :
-                '/login'
-            } />
-          }
-        />
-      </Routes>
-    </Router>
+            <Route
+              path="/instructor/dashboard"
+              element={
+                isAuthenticated && userType === 'instructor' ?
+                  <InstructorDashboard /> :
+                  <Navigate to="/login" />
+              }
+            />
+
+            <Route
+              path="/student/dashboard"
+              element={
+                isAuthenticated && userType === 'student' ?
+                  <StudentDashboard /> :
+                  <Navigate to="/login" />
+              }
+            />
+
+            <Route
+              path="/courses/:courseId/learn"
+              element={
+                isAuthenticated && userType === 'student' ?
+                  <CourseLearning /> :
+                  <Navigate to="/login" />
+              }
+            />
+
+            <Route
+              path="/"
+              element={
+                <Navigate to={
+                  isAuthenticated ?
+                    (userType === 'instructor' ? '/instructor/dashboard' :
+                     userType === 'admin' ? '/admin/dashboard' :
+                     '/student/dashboard') :
+                    '/login'
+                } />
+              }
+            />
+          </Routes>
+        </Router>
+      </ConfirmProvider>
+    </ToastProvider>
   );
 }
 

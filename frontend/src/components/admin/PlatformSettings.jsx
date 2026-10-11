@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Settings, Save, Shield, Bell, Globe, Database, Mail, Palette } from 'lucide-react';
+import { useToast } from '../shared/Toast';
 
 const PlatformSettings = () => {
+  const { success } = useToast();
   const [settings, setSettings] = useState({
     // General Settings
     platform_name: 'Coursera Clone',
@@ -48,7 +50,7 @@ const PlatformSettings = () => {
 
   const handleSaveSettings = () => {
     // Simulate API call
-    alert('Settings saved successfully!');
+    success('Settings saved successfully!', 'Settings Updated');
   };
 
   return (

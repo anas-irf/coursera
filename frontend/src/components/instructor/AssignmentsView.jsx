@@ -14,10 +14,12 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import api from '../../services/api';
+import { useToast } from '../shared/Toast';
 
 const AssignmentsView = () => {
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { success, error } = useToast();
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [submissions, setSubmissions] = useState([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
@@ -90,10 +92,10 @@ const AssignmentsView = () => {
       setSelectedSubmission(prev => ({ ...prev, ...response.data.submission }));
 
       // Show success message
-      alert('Assignment graded successfully!');
-    } catch (error) {
-      console.error('Error grading submission:', error);
-      alert('Error grading assignment. Please try again.');
+      success('Assignment graded successfully!', 'Grade Submitted');
+    } catch (err) {
+      console.error('Error grading submission:', err);
+      error('Error grading assignment. Please try again.', 'Grading Failed');
     } finally {
       setGradingSubmission(false);
     }
@@ -112,9 +114,9 @@ const AssignmentsView = () => {
       link.download = submission.original_filename || 'assignment.pdf';
       link.click();
       window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Error downloading file:', error);
-      alert('Error downloading file');
+    } catch (err) {
+      console.error('Error downloading file:', err);
+      error('Error downloading file', 'Download Failed');
     }
   };
 

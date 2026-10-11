@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Download, Calendar, Filter, BarChart2, PieChart, TrendingUp } from 'lucide-react';
+import { useToast } from '../shared/Toast';
 
 // Mock API service
 const api = {
@@ -78,6 +79,7 @@ const Reports = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [generatingReport, setGeneratingReport] = useState(null);
+  const { success } = useToast();
 
   useEffect(() => {
     fetchReports();
@@ -99,12 +101,12 @@ const Reports = () => {
     // Simulate report generation
     await new Promise(resolve => setTimeout(resolve, 2000));
     setGeneratingReport(null);
-    alert('Report generated successfully!');
+    success('Report generated successfully!', 'Report Ready');
   };
 
   const handleDownloadReport = (reportId) => {
     // Simulate download
-    alert('Report download started!');
+    success('Report download started!', 'Download Started');
   };
 
   const getReportIcon = (type) => {

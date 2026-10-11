@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, Loader2 } from 'lucide-react';
+import { useToast } from '../../../shared/Toast';
+import { useConfirm } from '../../../shared/ConfirmDialog';
 
 const VideoLectureForm = ({ formData, setFormData, isUploading, setIsUploading }) => {
+  const { error, warning } = useToast();
+  const { confirmWarning } = useConfirm();
   const [videoSource, setVideoSource] = useState('url');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStartTime, setUploadStartTime] = useState(null);
@@ -23,7 +27,7 @@ const VideoLectureForm = ({ formData, setFormData, isUploading, setIsUploading }
     }
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
       // Check file size and warn for large files
@@ -31,26 +35,28 @@ const VideoLectureForm = ({ formData, setFormData, isUploading, setIsUploading }
       const fileGB = fileSizeMB / 1024;
 
       if (fileSizeMB > 2048) { // 2GB limit
-        alert(`This file is ${fileGB.toFixed(2)}GB which exceeds the 2GB limit. Please:\n\n` +
+        error(`This file is ${fileGB.toFixed(2)}GB which exceeds the 2GB limit. Please:\n\n` +
               `• Compress the video to reduce file size\n` +
               `• Use YouTube and paste the video URL instead\n` +
               `• Split long videos into shorter segments\n\n` +
-              `Maximum file size allowed is 2GB.`);
+              `Maximum file size allowed is 2GB.`, 'File Too Large');
         e.target.value = ''; // Clear the input
         return;
       } else if (fileSizeMB > 1024) { // 1GB+ warning
-        const confirm = window.confirm(
-          `This file is ${fileGB.toFixed(2)}GB. Very large files may take 10+ minutes to upload and could timeout. Continue?`
+        const confirmed = await confirmWarning(
+          `This file is ${fileGB.toFixed(2)}GB. Very large files may take 10+ minutes to upload and could timeout.`,
+          'Large File Warning'
         );
-        if (!confirm) {
+        if (!confirmed) {
           e.target.value = ''; // Clear the input
           return;
         }
       } else if (fileSizeMB > 500) { // 500MB+ warning
-        const confirm = window.confirm(
-          `This file is ${fileSizeMB.toFixed(1)}MB. Large files may take several minutes to upload. Continue?`
+        const confirmed = await confirmWarning(
+          `This file is ${fileSizeMB.toFixed(1)}MB. Large files may take several minutes to upload.`,
+          'Large File Warning'
         );
-        if (!confirm) {
+        if (!confirmed) {
           e.target.value = ''; // Clear the input
           return;
         }
@@ -67,9 +73,12 @@ const VideoLectureForm = ({ formData, setFormData, isUploading, setIsUploading }
     }
   };
 
-  const handleCancelUpload = () => {
-    const confirm = window.confirm('Are you sure you want to cancel the upload? You will lose any progress.');
-    if (confirm) {
+  const handleCancelUpload = async () => {
+    const confirmed = await confirmWarning(
+      'You will lose any upload progress.',
+      'Cancel Upload'
+    );
+    if (confirmed) {
       setIsUploading && setIsUploading(false);
       setFormData({ ...formData, video_file: null });
       setUploadProgress(0);

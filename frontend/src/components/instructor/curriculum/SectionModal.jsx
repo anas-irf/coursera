@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { useToast } from '../../shared/Toast';
 
 const SectionModal = ({ section, onClose, onSave, title }) => {
+  const { error } = useToast();
   const [formData, setFormData] = useState({
     title: section?.title || '',
     description: section?.description || '',
@@ -10,7 +12,7 @@ const SectionModal = ({ section, onClose, onSave, title }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!formData.title.trim()) {
-      alert('Please enter a section title');
+      error('Please enter a section title', 'Validation Error');
       return;
     }
     onSave(formData);

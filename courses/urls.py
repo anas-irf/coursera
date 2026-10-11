@@ -28,8 +28,9 @@ def reorder_lectures_wrapper(request, section_uuid):
 app_name = 'courses'
 
 urlpatterns = [
-    path('', include(router.urls)),
+    # Put specific paths first to avoid router conflicts
     path('instructor/dashboard/', views.instructor_dashboard, name='instructor-dashboard'),
+    path('instructor/students/', views.instructor_students, name='instructor-students'),
     
     # Section management
     path('instructor/courses/<uuid:course_uuid>/sections/',
@@ -97,4 +98,6 @@ urlpatterns = [
     path('instructor/courses/<uuid:course_uuid>/gradebook/', views.instructor_course_gradebook, name='instructor-course-gradebook'),
     path('student/gradebook/', views.student_gradebook, name='student-gradebook'),
 
+    # Router paths (must come after all specific paths to avoid conflicts)
+    path('', include(router.urls)),
 ]

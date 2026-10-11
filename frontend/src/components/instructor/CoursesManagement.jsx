@@ -4,6 +4,7 @@ import api from '../../services/api';
 import { CreateCourseModal, EditCourseModal } from './CourseModals';
 import DeleteCourseModal from './DeleteCourseModal';
 import authService from '../../services/authService';
+import { useToast } from '../shared/Toast';
 
 
 const CoursesManagement = () => {
@@ -17,6 +18,7 @@ const CoursesManagement = () => {
   const [sortOption, setSortOption] = useState('date');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [courseToDelete, setCourseToDelete] = useState(null);
+  const { success, error, warning } = useToast();
 
   useEffect(() => {
     fetchCourses();
@@ -75,31 +77,34 @@ const CoursesManagement = () => {
     if (currentStatus === 'draft' || currentStatus === 'rejected') {
       try {
         const response = await api.post(`/courses/instructor/courses/${courseId}/apply_for_publish/`);
-        alert(response.data.message || 'Course submitted for review!');
+        success(response.data.message || 'Course submitted for review!', 'Submit for Review');
         fetchCourses();
-      } catch (error) {
-        console.error('Error applying for publish:', error);
-        if (error.response?.data?.error) {
-          alert(`Error: ${error.response.data.error}`);
-          if (error.response.data.current_weight !== undefined) {
-            alert(`Current grade weight: ${error.response.data.current_weight}%. Missing: ${error.response.data.missing_weight}%`);
+      } catch (err) {
+        console.error('Error applying for publish:', err);
+        if (err.response?.data?.error) {
+          error(err.response.data.error, 'Submission Failed');
+          if (err.response.data.current_weight !== undefined) {
+            warning(
+              `Current grade weight: ${err.response.data.current_weight}%. Missing: ${err.response.data.missing_weight}%`,
+              'Grade Weight Issue'
+            );
           }
         } else {
-          alert('Failed to submit course for review. Please try again.');
+          error('Failed to submit course for review. Please try again.', 'Submission Failed');
         }
       }
     } else if (currentStatus === 'published') {
       // Handle unpublish
       try {
         const response = await api.post(`/courses/instructor/courses/${courseId}/unpublish/`);
-        alert(response.data.message || 'Course has been unpublished successfully! You can now edit the course.');
+        success(response.data.message || 'Course has been unpublished successfully! You can now edit the course.', 'Course Unpublished');
         fetchCourses();
-      } catch (error) {
-        console.error('Error unpublishing course:', error);
-        if (error.response?.data?.error) {
-          alert(`Error: ${error.response.data.error}`);
+      } catch (err) {
+        console.error('Error unpublishing course:', err);
+        if (err.response?.data?.error) {
+          error(err.response.data.error, 'Unpublish Failed');
         } else {
-          alert('Failed to unpublish course. Please try again.');
+          error('Failed to unpublish course. Please try again.', 'Unpublish Failed');
         }
       }
     }
@@ -115,18 +120,19 @@ const CoursesManagement = () => {
       await api.post(`/courses/instructor/courses/${courseToDelete.id}/delete-course/`, {
         confirmation
       });
-      
+
       // Refresh the courses list
       await fetchCourses();
-      
+
       // Close modal and reset state
       setShowDeleteModal(false);
+      const courseTitle = courseToDelete.title;
       setCourseToDelete(null);
-      
-      alert(`Course "${courseToDelete.title}" has been successfully deleted.`);
-    } catch (error) {
-      console.error('Error deleting course:', error);
-      throw error; // Re-throw to let the modal handle the error
+
+      success(`Course "${courseTitle}" has been successfully deleted.`, 'Course Deleted');
+    } catch (err) {
+      console.error('Error deleting course:', err);
+      throw err; // Re-throw to let the modal handle the error
     }
   };
 

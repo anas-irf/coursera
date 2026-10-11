@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Crown, Check, Star, Zap, ChevronRight, Shield } from 'lucide-react';
+import { useToast } from '../shared/Toast';
 import authService from '../../services/authService';
 import api from '../../services/api';
 
 const CheckoutView = ({ onSuccess }) => {
+  const { error } = useToast();
   const [loading, setLoading] = useState(true);
   const [checkoutData, setCheckoutData] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState('yearly'); // Default to yearly for savings
@@ -54,7 +56,7 @@ const CheckoutView = ({ onSuccess }) => {
         errorMessage = error.response.data.error;
       }
 
-      alert(errorMessage);
+      error(errorMessage, 'Checkout Failed');
       setProcessing(false);
     }
   };

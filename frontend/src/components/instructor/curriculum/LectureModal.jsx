@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Play, FileText, HelpCircle, ClipboardList, X, BookOpen } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
 import VideoLectureForm from './forms/VideoLectureForm';
 import ArticleForm from './forms/ArticleForm';
 import QuizForm from './forms/QuizForm';
@@ -7,6 +8,7 @@ import AssignmentForm from './forms/AssignmentForm';
 import ReadingForm from './forms/ReadingForm';
 
 const LectureModal = ({ lecture, onClose, onSave, title }) => {
+  const { error, warning } = useToast();
   const [isUploading, setIsUploading] = useState(false);
   const [assignmentAttachment, setAssignmentAttachment] = useState(null); // Store file separately
   const [readingFile, setReadingFile] = useState(null); // Store reading file separately
@@ -52,34 +54,34 @@ const LectureModal = ({ lecture, onClose, onSave, title }) => {
 
   const validateForm = () => {
     if (!formData.title.trim()) {
-      alert('Please enter a lecture title');
+      error('Please enter a lecture title', 'Validation Error');
       return false;
     }
 
     if (activeTab === 'video') {
       if (!formData.video_url && !formData.video_file) {
-        alert('Please provide a video URL or upload a video file');
+        error('Please provide a video URL or upload a video file', 'Video Content Required');
         return false;
       }
     }
 
     if (activeTab === 'reading') {
       if (!formData.article_content && !formData.markdown_file && !formData.pdf_file && !readingFile && !formData.reading_document?.existing_file) {
-        alert('Please provide reading content: write rich text, upload a markdown file, or upload a PDF file');
+        error('Please provide reading content: write rich text, upload a markdown file, or upload a PDF file', 'Reading Content Required');
         return false;
       }
     }
 
     if (activeTab === 'quiz') {
       if (!formData.questions || formData.questions.length === 0) {
-        alert('Please add at least one quiz question');
+        error('Please add at least one quiz question', 'Quiz Content Required');
         return false;
       }
 
       // Validate weight for graded quizzes
       if (formData.quiz_settings?.weight && formData.quiz_settings.weight > 0) {
         if (formData.quiz_settings.weight < 0.01 || formData.quiz_settings.weight > 40) {
-          alert('Quiz weight must be between 0.01% and 40%');
+          error('Quiz weight must be between 0.01% and 40%', 'Invalid Weight');
           return false;
         }
       }
@@ -87,15 +89,15 @@ const LectureModal = ({ lecture, onClose, onSave, title }) => {
       for (let i = 0; i < formData.questions.length; i++) {
         const question = formData.questions[i];
         if (!question.question_text.trim()) {
-          alert(`Please enter text for question ${i + 1}`);
+          error(`Please enter text for question ${i + 1}`, 'Question Incomplete');
           return false;
         }
         if (!question.options.every(opt => opt.option_text.trim())) {
-          alert(`Please fill all options for question ${i + 1}`);
+          error(`Please fill all options for question ${i + 1}`, 'Options Incomplete');
           return false;
         }
         if (!question.options.some(opt => opt.is_correct)) {
-          alert(`Please mark the correct answer for question ${i + 1}`);
+          error(`Please mark the correct answer for question ${i + 1}`, 'Correct Answer Missing');
           return false;
         }
       }
@@ -103,14 +105,14 @@ const LectureModal = ({ lecture, onClose, onSave, title }) => {
 
     if (activeTab === 'assignment') {
       if (!formData.assignment_settings?.instructions?.trim()) {
-        alert('Please provide assignment instructions');
+        error('Please provide assignment instructions', 'Assignment Instructions Required');
         return false;
       }
 
       // Validate weight for graded assignments
       if (formData.assignment_settings?.weight && formData.assignment_settings.weight > 0) {
         if (formData.assignment_settings.weight < 0.01 || formData.assignment_settings.weight > 40) {
-          alert('Assignment weight must be between 0.01% and 40%');
+          error('Assignment weight must be between 0.01% and 40%', 'Invalid Weight');
           return false;
         }
       }
@@ -122,7 +124,7 @@ const LectureModal = ({ lecture, onClose, onSave, title }) => {
         minDate.setHours(minDate.getHours() + 1);
 
         if (dueDate <= minDate) {
-          alert('Due date must be at least 1 hour from now');
+          error('Due date must be at least 1 hour from now', 'Invalid Due Date');
           return false;
         }
       }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Menu, X, ChevronDown, Settings, LogOut, Home, BarChart2, CreditCard, MessageSquare, BookOpen, Users, Search, FileText } from 'lucide-react';
 import authService from '../services/authService';
+import { useConfirm } from './shared/ConfirmDialog';
 
 // Import extracted components
 import DashboardOverview from './instructor/DashboardOverview';
@@ -22,6 +23,7 @@ const InstructorDashboard = () => {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const profileDropdownRef = useRef(null);
+  const { confirmLogout } = useConfirm();
   const [user, setUser] = useState({
     name: 'John Instructor',
     email: 'instructor@example.com',
@@ -61,8 +63,12 @@ const InstructorDashboard = () => {
 
   // Logout functionality
   const handleLogout = async () => {
-    // Show confirmation dialog
-    if (window.confirm('Are you sure you want to logout?')) {
+    const confirmed = await confirmLogout(
+      "You will need to login again to access your instructor dashboard.",
+      "Logout"
+    );
+
+    if (confirmed) {
       setIsLoggingOut(true);
       try {
         await authService.logout();

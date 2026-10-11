@@ -15,6 +15,8 @@ import {
   RefreshCw
 } from 'lucide-react';
 import api from '../../services/api';
+import { useToast } from '../shared/Toast';
+import { useConfirm } from '../shared/ConfirmDialog';
 
 // Helper function to extract YouTube video ID
 const getYouTubeVideoId = (url) => {
@@ -38,13 +40,14 @@ const AssignmentSubmissionForm = ({ assignment, onSubmissionSuccess }) => {
   const [submitting, setSubmitting] = useState(false);
   const [submissionText, setSubmissionText] = useState('');
   const [submissionFile, setSubmissionFile] = useState(null);
+  const { success, error, warning } = useToast();
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
     if (file) {
       // Check file size (50MB limit)
       if (file.size > 50 * 1024 * 1024) {
-        alert('File size cannot exceed 50MB');
+        warning('File size cannot exceed 50MB', 'File Too Large');
         return;
       }
 
@@ -53,7 +56,7 @@ const AssignmentSubmissionForm = ({ assignment, onSubmissionSuccess }) => {
       const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
 
       if (!allowedTypes.includes(fileExtension)) {
-        alert(`File type ${fileExtension} not allowed. Allowed types: ${allowedTypes.join(', ')}`);
+        warning(`File type ${fileExtension} not allowed. Allowed types: ${allowedTypes.join(', ')}`, 'Invalid File Type');
         return;
       }
 
@@ -65,7 +68,7 @@ const AssignmentSubmissionForm = ({ assignment, onSubmissionSuccess }) => {
     e.preventDefault();
 
     if (!submissionText.trim() && !submissionFile) {
-      alert('Please provide either text submission or upload a file');
+      warning('Please provide either text submission or upload a file', 'Missing Submission');
       return;
     }
 
@@ -87,14 +90,14 @@ const AssignmentSubmissionForm = ({ assignment, onSubmissionSuccess }) => {
         },
       });
 
-      alert('Assignment submitted successfully!');
+      success('Assignment submitted successfully!', 'Submission Complete');
       if (onSubmissionSuccess) {
         onSubmissionSuccess();
       }
-    } catch (error) {
-      console.error('Assignment submission error:', error);
-      console.error('Error response:', error.response); // More detailed error logging
-      alert(error.response?.data?.error || 'Failed to submit assignment. Please try again.');
+    } catch (err) {
+      console.error('Assignment submission error:', err);
+      console.error('Error response:', err.response); // More detailed error logging
+      error(err.response?.data?.error || 'Failed to submit assignment. Please try again.', 'Submission Failed');
     } finally {
       setSubmitting(false);
     }
@@ -182,6 +185,8 @@ const AssignmentSubmissionForm = ({ assignment, onSubmissionSuccess }) => {
 const CourseLearning = () => {
   const { courseId } = useParams();
   const navigate = useNavigate();
+  const { success, error, warning } = useToast();
+  const { confirm } = useConfirm();
   const [courseData, setCourseData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -242,7 +247,7 @@ const CourseLearning = () => {
     } catch (error) {
       console.error('Error fetching course data:', error);
       if (error.response?.status === 403) {
-        alert('You must be enrolled in this course to access learning materials');
+        error('You must be enrolled in this course to access learning materials', 'Access Denied');
         navigate('/student/dashboard');
       }
     } finally {
@@ -309,12 +314,16 @@ const CourseLearning = () => {
     }));
   };
 
-  const handleLectureSelect = (lecture) => {
+  const handleLectureSelect = async (lecture) => {
     // Check if user is in the middle of taking a quiz
     if (quizMode === 'taking') {
-      const confirmSwitch = window.confirm(
-        'You are currently taking a quiz. Switching lectures will end your current quiz attempt. Are you sure you want to continue?'
-      );
+      const confirmSwitch = await confirm({
+        type: 'warning',
+        title: 'Quiz in Progress',
+        message: 'You are currently taking a quiz. Switching lectures will end your current quiz attempt. Are you sure you want to continue?',
+        confirmText: 'Switch Lecture',
+        cancelText: 'Stay on Quiz'
+      });
       if (!confirmSwitch) {
         return; // Don't switch lectures
       }
@@ -355,7 +364,7 @@ const CourseLearning = () => {
       fetchCourseData();
     } catch (error) {
       console.error('Error marking lecture complete:', error);
-      alert('Failed to mark lecture as complete. Please try again.');
+      error('Failed to mark lecture as complete. Please try again.', 'Update Failed');
     }
   };
 
@@ -373,7 +382,7 @@ const CourseLearning = () => {
       setQuizResults(null);
     } catch (error) {
       console.error('Error starting quiz:', error);
-      alert('Failed to start quiz. Please try again.');
+      error('Failed to start quiz. Please try again.', 'Quiz Error');
     } finally {
       setQuizLoading(false);
     }
@@ -397,7 +406,7 @@ const CourseLearning = () => {
       await refreshCourseDataOnly();
     } catch (error) {
       console.error('Error submitting quiz:', error);
-      alert('Failed to submit quiz. Please try again.');
+      error('Failed to submit quiz. Please try again.', 'Quiz Submission Failed');
     } finally {
       setQuizLoading(false);
     }
@@ -865,7 +874,7 @@ const CourseLearning = () => {
                             window.URL.revokeObjectURL(url);
                           } catch (error) {
                             console.error('Download failed:', error);
-                            alert('Failed to download file. The file might not exist or there might be a server issue.');
+                            error('Failed to download file. The file might not exist or there might be a server issue.', 'Download Failed');
                           }
                         }}
                       >
@@ -895,7 +904,7 @@ const CourseLearning = () => {
                           window.URL.revokeObjectURL(url);
                         } catch (error) {
                           console.error('Download failed:', error);
-                          alert('Failed to download file. The file might not exist or there might be a server issue.');
+                          error('Failed to download file. The file might not exist or there might be a server issue.', 'Download Failed');
                         }
                       }}
                       className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors"
@@ -989,7 +998,7 @@ const CourseLearning = () => {
                                 window.URL.revokeObjectURL(url);
                               } catch (error) {
                                 console.error('Download error:', error);
-                                alert('Failed to download file. Please try again.');
+                                error('Failed to download file. Please try again.', 'Download Failed');
                               }
                             }}
                             className="flex items-center px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"

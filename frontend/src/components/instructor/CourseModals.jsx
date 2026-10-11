@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import api from '../../services/api';
 import CurriculumTab from './CurriculumTab';
+import { useToast } from '../shared/Toast';
 
 // Create Course Modal
 export const CreateCourseModal = ({ onClose, onSave }) => {
+  const { success, error: showError, warning } = useToast();
+
   // Language mapping - we'll use IDs that should exist or can be created
   const languageMap = {
     'en': 1, 'es': 2, 'zh': 3, 'hi': 4, 'ar': 5,
@@ -77,12 +80,12 @@ export const CreateCourseModal = ({ onClose, onSave }) => {
 
   const handleSubmit = async () => {
     if (!courseData.title || !courseData.description) {
-      alert('Please fill in required fields');
+      warning('Please fill in required fields (Title and Description)', 'Missing Information');
       return;
     }
 
     if (!thumbnailFile) {
-      alert('Please upload a course thumbnail');
+      warning('Please upload a course thumbnail', 'Missing Thumbnail');
       return;
     }
     
@@ -121,30 +124,30 @@ export const CreateCourseModal = ({ onClose, onSave }) => {
       console.log('Course created successfully:', response.data);
       
       // Show success message
-      alert('Course created successfully! You can now edit it and add content.');
-      
+      success('Course created successfully! You can now edit it and add content.', 'Course Created');
+
       onSave(); // This will refresh the courses list and close the modal
-    } catch (error) {
-      console.error('Error creating course:', error);
-      console.error('Error response:', error.response?.data);
-      console.error('Error status:', error.response?.status);
-      
+    } catch (err) {
+      console.error('Error creating course:', err);
+      console.error('Error response:', err.response?.data);
+      console.error('Error status:', err.response?.status);
+
       // Show more specific error message
       let errorMessage = 'Unknown error occurred';
 
-      if (error.response?.data) {
-        if (typeof error.response.data === 'string') {
-          errorMessage = error.response.data;
-        } else if (error.response.data.detail) {
-          errorMessage = error.response.data.detail;
-        } else if (error.response.data.message) {
-          errorMessage = error.response.data.message;
-        } else if (error.response.data.non_field_errors) {
-          errorMessage = error.response.data.non_field_errors.join(', ');
+      if (err.response?.data) {
+        if (typeof err.response.data === 'string') {
+          errorMessage = err.response.data;
+        } else if (err.response.data.detail) {
+          errorMessage = err.response.data.detail;
+        } else if (err.response.data.message) {
+          errorMessage = err.response.data.message;
+        } else if (err.response.data.non_field_errors) {
+          errorMessage = err.response.data.non_field_errors.join(', ');
         } else {
           // Handle field validation errors
           const fieldErrors = [];
-          for (const [field, errors] of Object.entries(error.response.data)) {
+          for (const [field, errors] of Object.entries(err.response.data)) {
             if (Array.isArray(errors)) {
               fieldErrors.push(`${field}: ${errors.join(', ')}`);
             } else {
@@ -152,16 +155,16 @@ export const CreateCourseModal = ({ onClose, onSave }) => {
             }
           }
           if (fieldErrors.length > 0) {
-            errorMessage = fieldErrors.join('\n');
+            errorMessage = fieldErrors.join('. ');
           } else {
-            errorMessage = JSON.stringify(error.response.data);
+            errorMessage = JSON.stringify(err.response.data);
           }
         }
-      } else if (error.message) {
-        errorMessage = error.message;
+      } else if (err.message) {
+        errorMessage = err.message;
       }
 
-      alert(`Error creating course: ${errorMessage}`);
+      showError(errorMessage, 'Course Creation Failed');
     }
   };
 
@@ -385,6 +388,8 @@ export const CreateCourseModal = ({ onClose, onSave }) => {
 
 // Edit Course Modal
 export const EditCourseModal = ({ course, onClose, onSave }) => {
+  const { success, error: showError, warning } = useToast();
+
   const [activeTab, setActiveTab] = useState('basic');
   const [loading, setLoading] = useState(false);
   const [fetchingDetails, setFetchingDetails] = useState(false);
@@ -487,7 +492,7 @@ export const EditCourseModal = ({ course, onClose, onSave }) => {
 
   const handleSave = async () => {
     if (!courseData.title || !courseData.description) {
-      alert('Please fill in required fields (Title and Description)');
+      warning('Please fill in required fields (Title and Description)', 'Missing Information');
       return;
     }
 
@@ -537,27 +542,27 @@ export const EditCourseModal = ({ course, onClose, onSave }) => {
         });
       }
 
-      alert('Course updated successfully!');
+      success('Course updated successfully!', 'Course Updated');
       onSave(); // This will refresh the courses list and close the modal
-    } catch (error) {
-      console.error('Error updating course:', error);
+    } catch (err) {
+      console.error('Error updating course:', err);
 
       // Show more specific error message
       let errorMessage = 'Unknown error occurred';
 
-      if (error.response?.data) {
-        if (typeof error.response.data === 'string') {
-          errorMessage = error.response.data;
-        } else if (error.response.data.detail) {
-          errorMessage = error.response.data.detail;
-        } else if (error.response.data.message) {
-          errorMessage = error.response.data.message;
-        } else if (error.response.data.non_field_errors) {
-          errorMessage = error.response.data.non_field_errors.join(', ');
+      if (err.response?.data) {
+        if (typeof err.response.data === 'string') {
+          errorMessage = err.response.data;
+        } else if (err.response.data.detail) {
+          errorMessage = err.response.data.detail;
+        } else if (err.response.data.message) {
+          errorMessage = err.response.data.message;
+        } else if (err.response.data.non_field_errors) {
+          errorMessage = err.response.data.non_field_errors.join(', ');
         } else {
           // Handle field validation errors
           const fieldErrors = [];
-          for (const [field, errors] of Object.entries(error.response.data)) {
+          for (const [field, errors] of Object.entries(err.response.data)) {
             if (Array.isArray(errors)) {
               fieldErrors.push(`${field}: ${errors.join(', ')}`);
             } else {
@@ -565,16 +570,16 @@ export const EditCourseModal = ({ course, onClose, onSave }) => {
             }
           }
           if (fieldErrors.length > 0) {
-            errorMessage = fieldErrors.join('\n');
+            errorMessage = fieldErrors.join('. ');
           } else {
-            errorMessage = JSON.stringify(error.response.data);
+            errorMessage = JSON.stringify(err.response.data);
           }
         }
-      } else if (error.message) {
-        errorMessage = error.message;
+      } else if (err.message) {
+        errorMessage = err.message;
       }
 
-      alert(`Error updating course: ${errorMessage}`);
+      showError(errorMessage, 'Course Update Failed');
     } finally {
       setLoading(false);
     }

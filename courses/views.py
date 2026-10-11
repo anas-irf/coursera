@@ -40,6 +40,73 @@ class IsStudent(IsAuthenticated):
 
 @api_view(['GET'])
 @permission_classes([IsInstructor])
+def instructor_students(request):
+    """Get all students enrolled in instructor's courses"""
+    try:
+        instructor = request.user
+
+        # Get all enrollments for instructor's courses
+        enrollments = Enrollment.objects.filter(
+            course__instructor=instructor
+        ).select_related('student', 'course').order_by('-enrolled_date')
+
+        students_data = []
+        for enrollment in enrollments:
+            # Handle name formatting - use email username if no first/last name
+            first_name = enrollment.student.first_name or ''
+            last_name = enrollment.student.last_name or ''
+            full_name = f"{first_name} {last_name}".strip()
+            if not full_name:
+                full_name = enrollment.student.email.split('@')[0].title()
+
+            student_data = {
+                'id': str(enrollment.student.uuid),
+                'name': full_name,
+                'email': enrollment.student.email,
+                'avatar': f"https://ui-avatars.com/api/?name={full_name.replace(' ', '+')}&background=4F46E5&color=fff",
+                'courses_enrolled': [enrollment.course.title],
+                'progress': float(enrollment.progress_percentage),
+                'last_active': enrollment.last_accessed.isoformat() if enrollment.last_accessed else None,
+                'enrolled_date': enrollment.enrolled_date.isoformat(),
+                'status': enrollment.status
+            }
+            students_data.append(student_data)
+
+        # Group students by their ID to avoid duplicates and aggregate course data
+        students_dict = {}
+        for student_data in students_data:
+            student_id = student_data['id']
+            if student_id in students_dict:
+                # Add course to existing student
+                students_dict[student_id]['courses_enrolled'].extend(student_data['courses_enrolled'])
+                # Update progress to average
+                current_progress = students_dict[student_id]['progress']
+                new_progress = student_data['progress']
+                students_dict[student_id]['progress'] = (current_progress + new_progress) / 2
+                # Update last active to most recent
+                if student_data['last_active']:
+                    if not students_dict[student_id]['last_active'] or student_data['last_active'] > students_dict[student_id]['last_active']:
+                        students_dict[student_id]['last_active'] = student_data['last_active']
+            else:
+                students_dict[student_id] = student_data
+
+        # Convert back to list and format course count
+        final_students = []
+        for student in students_dict.values():
+            student['courses_enrolled_count'] = len(student['courses_enrolled'])
+            student['courses_enrolled'] = f"{len(student['courses_enrolled'])} courses"
+            final_students.append(student)
+
+        return Response(final_students)
+
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to fetch students: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['GET'])
+@permission_classes([IsInstructor])
 def instructor_dashboard(request):
     """Get dashboard overview stats for instructor"""
     try:
@@ -443,6 +510,72 @@ class InstructorCourseViewSet(viewsets.ModelViewSet):
             'course_id': str(course.uuid),
             'user': request.user.email
         })
+
+    @action(detail=False, methods=['get'], url_path='students')
+    def students_list(self, request):
+        """Get all students enrolled in instructor's courses"""
+        try:
+            instructor = request.user
+
+            # Get all enrollments for instructor's courses
+            enrollments = Enrollment.objects.filter(
+                course__instructor=instructor
+            ).select_related('student', 'course').order_by('-enrolled_date')
+
+            students_data = []
+            for enrollment in enrollments:
+                # Handle name formatting - use email username if no first/last name
+                first_name = enrollment.student.first_name or ''
+                last_name = enrollment.student.last_name or ''
+                full_name = f"{first_name} {last_name}".strip()
+                if not full_name:
+                    full_name = enrollment.student.email.split('@')[0].title()
+
+                student_data = {
+                    'id': str(enrollment.student.uuid),
+                    'name': full_name,
+                    'email': enrollment.student.email,
+                    'avatar': f"https://ui-avatars.com/api/?name={full_name.replace(' ', '+')}&background=4F46E5&color=fff",
+                    'courses_enrolled': [enrollment.course.title],
+                    'progress': float(enrollment.progress_percentage),
+                    'last_active': enrollment.last_accessed.isoformat() if enrollment.last_accessed else None,
+                    'enrolled_date': enrollment.enrolled_date.isoformat(),
+                    'status': enrollment.status
+                }
+                students_data.append(student_data)
+
+            # Group students by their ID to avoid duplicates and aggregate course data
+            students_dict = {}
+            for student_data in students_data:
+                student_id = student_data['id']
+                if student_id in students_dict:
+                    # Add course to existing student
+                    students_dict[student_id]['courses_enrolled'].extend(student_data['courses_enrolled'])
+                    # Update progress to average
+                    current_progress = students_dict[student_id]['progress']
+                    new_progress = student_data['progress']
+                    students_dict[student_id]['progress'] = (current_progress + new_progress) / 2
+                    # Update last active to most recent
+                    if student_data['last_active']:
+                        if not students_dict[student_id]['last_active'] or student_data['last_active'] > students_dict[student_id]['last_active']:
+                            students_dict[student_id]['last_active'] = student_data['last_active']
+                else:
+                    students_dict[student_id] = student_data
+
+            # Convert back to list and format course count
+            final_students = []
+            for student in students_dict.values():
+                student['courses_enrolled_count'] = len(student['courses_enrolled'])
+                student['courses_enrolled'] = f"{len(student['courses_enrolled'])} courses"
+                final_students.append(student)
+
+            return Response(final_students)
+
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to fetch students: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def update(self, request, *args, **kwargs):
         """Override update to prevent editing published courses"""

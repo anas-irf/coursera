@@ -154,7 +154,6 @@ class StudentPlusSubscription(BaseModel):
     SUBSCRIPTION_TYPE_CHOICES = (
         ('monthly', 'Monthly'),
         ('yearly', 'Yearly'),
-        ('lifetime', 'Lifetime'),
     )
 
     student = models.OneToOneField(

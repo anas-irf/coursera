@@ -98,6 +98,17 @@ const courseService = {
    }
  },
 
+ // Get all students for instructor
+ getInstructorStudents: async () => {
+   try {
+     const response = await axiosInstance.get('/courses/instructor/courses/students/');
+     return response.data;
+   } catch (error) {
+     console.error('Error fetching instructor students:', error);
+     return [];
+   }
+ },
+
  // Upload course content
  uploadContent: async (courseId, formData) => {
    try {

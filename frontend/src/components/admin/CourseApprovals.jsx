@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, Clock, AlertCircle, Eye, Calendar, MoreVertical, Search, Filter } from 'lucide-react';
 import apiService from '../../services/api';
+import { useToast } from '../shared/Toast';
 
 // Mock API service with real integration
 const api = {
@@ -56,6 +57,7 @@ const CourseApprovals = () => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const { success, error, warning } = useToast();
 
   useEffect(() => {
     fetchPendingCourses();
@@ -81,16 +83,16 @@ const CourseApprovals = () => {
         setSelectedCourse(null);
       }
       // Show success message
-      alert('Course approved successfully!');
-    } catch (error) {
-      console.error('Error approving course:', error);
-      alert('Failed to approve course. Please try again.');
+      success('Course approved successfully!', 'Course Approved');
+    } catch (err) {
+      console.error('Error approving course:', err);
+      error('Failed to approve course. Please try again.', 'Approval Failed');
     }
   };
 
   const handleReject = async (courseId) => {
     if (!rejectionReason.trim()) {
-      alert('Please provide a rejection reason.');
+      warning('Please provide a rejection reason.', 'Missing Reason');
       return;
     }
 
@@ -107,10 +109,10 @@ const CourseApprovals = () => {
       setShowRejectForm(false);
       setRejectionReason('');
       // Show success message
-      alert('Course rejected successfully!');
-    } catch (error) {
-      console.error('Error rejecting course:', error);
-      alert('Failed to reject course. Please try again.');
+      success('Course rejected successfully!', 'Course Rejected');
+    } catch (err) {
+      console.error('Error rejecting course:', err);
+      error('Failed to reject course. Please try again.', 'Rejection Failed');
     }
   };
 
