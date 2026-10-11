@@ -1,127 +1,70 @@
-import React, { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Clock, AlertCircle, Eye, Calendar, MoreVertical, Search, Filter } from 'lucide-react';
-import apiService from '../../services/api';
-import { useToast } from '../../shared/ui/Toast';
+import React, { useCallback, useEffect, useState } from 'react';
+import { CheckCircle, XCircle, Clock, AlertCircle, Eye, Calendar, Search } from 'lucide-react';
 
-// Mock API service with real integration
-const api = {
-  get: async (endpoint) => {
-    // Use real API for pending courses
-    if (endpoint.includes('/courses/admin/pending')) {
-      try {
-        const response = await apiService.get('/courses/admin/pending/');
-        return { data: response.data };
-      } catch (error) {
-        console.error('Error fetching pending courses:', error);
-        return { data: [] };
-      }
-    }
+import { errorMessage } from '../../../shared/api/errors';
+import { PageSpinner } from '../../../shared/ui/Spinner';
+import { useToast } from '../../../shared/ui/Toast';
+import * as adminApi from '../api';
 
-    return { data: {} };
-  },
-
-  post: async (endpoint, data) => {
-    // Use real API for course approval/rejection
-    if (endpoint.includes('/courses/admin/') && endpoint.includes('/approve')) {
-      try {
-        const courseId = endpoint.split('/')[3];
-        const response = await apiService.post(`/courses/admin/${courseId}/approve/`);
-        return { data: response.data };
-      } catch (error) {
-        console.error('Error approving course:', error);
-        throw error;
-      }
-    }
-
-    if (endpoint.includes('/courses/admin/') && endpoint.includes('/reject')) {
-      try {
-        const courseId = endpoint.split('/')[3];
-        const response = await apiService.post(`/courses/admin/${courseId}/reject/`, data);
-        return { data: response.data };
-      } catch (error) {
-        console.error('Error rejecting course:', error);
-        throw error;
-      }
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return { data: { success: true } };
-  }
-};
-
-const CourseApprovals = () => {
+const ApprovalsPage = () => {
   const [pendingCourses, setPendingCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
-  const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const { success, error, warning } = useToast();
+  const toast = useToast();
+
+  const fetchPendingCourses = useCallback(async () => {
+    try {
+      setPendingCourses(await adminApi.pendingCourses());
+    } catch (err) {
+      setPendingCourses([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchPendingCourses();
-  }, []);
+  }, [fetchPendingCourses]);
 
-  const fetchPendingCourses = async () => {
-    try {
-      const response = await api.get('/courses/admin/pending');
-      setPendingCourses(response.data);
-    } catch (error) {
-      console.error('Error fetching pending courses:', error);
-    } finally {
-      setLoading(false);
+  const forget = (courseId) => {
+    setPendingCourses((prev) => prev.filter((course) => course.id !== courseId));
+    if (selectedCourse && selectedCourse.id === courseId) {
+      setSelectedCourse(null);
     }
   };
 
   const handleApprove = async (courseId) => {
     try {
-      await api.post(`/courses/admin/${courseId}/approve`);
-      // Remove from pending list
-      setPendingCourses(prev => prev.filter(course => course.id !== courseId));
-      if (selectedCourse?.id === courseId) {
-        setSelectedCourse(null);
-      }
-      // Show success message
-      success('Course approved successfully!', 'Course Approved');
+      await adminApi.approveCourse(courseId);
+      forget(courseId);
+      toast.success('Course approved successfully!', 'Course Approved');
     } catch (err) {
-      console.error('Error approving course:', err);
-      error('Failed to approve course. Please try again.', 'Approval Failed');
+      toast.error(errorMessage(err, 'Failed to approve course. Please try again.'), 'Approval Failed');
     }
   };
 
   const handleReject = async (courseId) => {
     if (!rejectionReason.trim()) {
-      warning('Please provide a rejection reason.', 'Missing Reason');
+      toast.warning('Please provide a rejection reason.', 'Missing Reason');
       return;
     }
 
     try {
-      await api.post(`/courses/admin/${courseId}/reject`, {
-        reason: rejectionReason
-      });
-
-      // Remove from pending list
-      setPendingCourses(prev => prev.filter(course => course.id !== courseId));
-      if (selectedCourse?.id === courseId) {
-        setSelectedCourse(null);
-      }
+      await adminApi.rejectCourse(courseId, rejectionReason);
+      forget(courseId);
       setShowRejectForm(false);
       setRejectionReason('');
-      // Show success message
-      success('Course rejected successfully!', 'Course Rejected');
+      toast.success('Course rejected successfully!', 'Course Rejected');
     } catch (err) {
-      console.error('Error rejecting course:', err);
-      error('Failed to reject course. Please try again.', 'Rejection Failed');
+      toast.error(errorMessage(err, 'Failed to reject course. Please try again.'), 'Rejection Failed');
     }
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-      </div>
-    );
+    return <PageSpinner />;
   }
 
   const filteredCourses = pendingCourses.filter(course => {
@@ -406,4 +349,4 @@ const CourseApprovals = () => {
   );
 };
 
-export default CourseApprovals;
+export default ApprovalsPage;

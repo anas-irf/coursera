@@ -8,7 +8,7 @@ import {
 import { PlusWelcomeDialog, useStripeReturn, useSubscription } from '../../features/billing';
 import { NotificationDropdown } from '../../features/notifications';
 import { useConfirm } from '../../shared/ui/ConfirmDialog';
-import { useAuth } from '../AuthProvider';
+import { useAuth } from '../../shared/auth/AuthProvider';
 
 const NAV_ITEMS = [
   { to: '/student', label: 'Home', icon: Home, end: true },

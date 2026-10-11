@@ -1,76 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import React from 'react';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { DollarSign, TrendingUp, CreditCard, Users } from 'lucide-react';
 
-// Mock API service
-const api = {
-  get: async (endpoint) => {
-    await new Promise(resolve => setTimeout(resolve, 500));
+import { SAMPLE_NOTICE, SAMPLE_REVENUE } from '../sampleData';
 
-    if (endpoint.includes('/admin/revenue')) {
-      return {
-        data: {
-          stats: {
-            total_revenue: 245000,
-            monthly_growth: 12.5,
-            total_subscriptions: 8934,
-            avg_revenue_per_user: 27.44
-          },
-          revenue_chart: [
-            { month: 'Jan', revenue: 85000, subscriptions: 7200, courses_sold: 1200 },
-            { month: 'Feb', revenue: 92000, subscriptions: 7800, courses_sold: 1350 },
-            { month: 'Mar', revenue: 105000, subscriptions: 8200, courses_sold: 1500 },
-            { month: 'Apr', revenue: 118000, subscriptions: 8600, courses_sold: 1680 },
-            { month: 'May', revenue: 125000, subscriptions: 8934, courses_sold: 1820 },
-            { month: 'Jun', revenue: 142000, subscriptions: 9500, courses_sold: 2100 }
-          ],
-          top_courses: [
-            { name: 'Machine Learning Basics', revenue: 45000, enrollments: 1500 },
-            { name: 'Web Development', revenue: 38000, enrollments: 1200 },
-            { name: 'Data Science', revenue: 32000, enrollments: 980 },
-            { name: 'Mobile Development', revenue: 28000, enrollments: 850 },
-            { name: 'Cloud Computing', revenue: 22000, enrollments: 720 }
-          ]
-        }
-      };
-    }
-
-    return { data: {} };
-  }
-};
-
-const RevenueAnalytics = () => {
-  const [revenueData, setRevenueData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchRevenueData();
-  }, []);
-
-  const fetchRevenueData = async () => {
-    try {
-      const response = await api.get('/admin/revenue');
-      setRevenueData(response.data);
-    } catch (error) {
-      console.error('Error fetching revenue data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-      </div>
-    );
-  }
-
-  const { stats, revenue_chart, top_courses } = revenueData;
+const RevenuePage = () => {
+  const { stats, revenue_chart, top_courses } = SAMPLE_REVENUE;
 
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-900">Revenue Analytics</h2>
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
+        {SAMPLE_NOTICE}
+      </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -244,4 +186,4 @@ const RevenueAnalytics = () => {
   );
 };
 
-export default RevenueAnalytics;
+export default RevenuePage;

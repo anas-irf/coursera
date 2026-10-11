@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 import { session } from '../shared/lib/session';
-import { AuthProvider } from './AuthProvider';
+import { AuthProvider } from '../shared/auth/AuthProvider';
 import { HomeRedirect, RequireAuth, RequireRole } from './guards';
 
 function renderAt(path) {

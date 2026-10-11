@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Check, User, GraduationCap } from 'lucide-react';
 
-import { useAuth } from '../../../app/AuthProvider';
-import { homePathFor } from '../../../app/guards';
+import { useAuth } from '../../../shared/auth/AuthProvider';
+import { homePathFor } from '../../../shared/auth/paths';
 import { fieldErrors as serializerErrors } from '../../../shared/api/errors';
 
 const Header = () => (

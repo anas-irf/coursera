@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from 'react';
 
-import * as accountsApi from '../features/accounts/api';
-import { session } from '../shared/lib/session';
+import * as accountsApi from './api';
+import { session } from '../lib/session';
 
 const AuthContext = createContext(null);
 

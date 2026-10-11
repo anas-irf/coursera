@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Plus, Search, Star, Edit2, Eye, EyeOff, Trash2, AlertCircle } from 'lucide-react';
 
-import { useAuth } from '../../../app/AuthProvider';
+import { useAuth } from '../../../shared/auth/AuthProvider';
 import { errorMessage } from '../../../shared/api/errors';
 import { mediaUrl } from '../../../shared/lib/media';
 import { PageSpinner } from '../../../shared/ui/Spinner';

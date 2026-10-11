@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Settings, Save, Shield, Bell, Globe, Database, Mail, Palette } from 'lucide-react';
-import { useToast } from '../../shared/ui/Toast';
+import { Settings, Save, Shield, Bell, Globe } from 'lucide-react';
+import { useToast } from '../../../shared/ui/Toast';
 
-const PlatformSettings = () => {
+const SettingsPage = () => {
   const { success } = useToast();
   const [settings, setSettings] = useState({
     // General Settings
@@ -49,14 +49,19 @@ const PlatformSettings = () => {
   };
 
   const handleSaveSettings = () => {
-    // Simulate API call
-    success('Settings saved successfully!', 'Settings Updated');
+    // demo only: the platform has no settings endpoint yet
+    success('Demo only: platform settings are not stored yet.', 'Not Saved');
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Platform Settings</h2>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Platform Settings</h2>
+          <p className="text-sm text-yellow-700 mt-1">
+            Sample settings: nothing here is stored or applied yet.
+          </p>
+        </div>
         <button
           onClick={handleSaveSettings}
           className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
@@ -306,4 +311,4 @@ const PlatformSettings = () => {
   );
 };
 
-export default PlatformSettings;
+export default SettingsPage;

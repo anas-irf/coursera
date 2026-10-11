@@ -1,112 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { FileText, Download, Calendar, Filter, BarChart2, PieChart, TrendingUp } from 'lucide-react';
-import { useToast } from '../../shared/ui/Toast';
+import React, { useState } from 'react';
+import { FileText, Download, Calendar, BarChart2, PieChart, TrendingUp } from 'lucide-react';
+import { useToast } from '../../../shared/ui/Toast';
+import { SAMPLE_NOTICE, SAMPLE_REPORTS } from '../sampleData';
 
-// Mock API service
-const api = {
-  get: async (endpoint) => {
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    if (endpoint.includes('/admin/reports')) {
-      return {
-        data: {
-          available_reports: [
-            {
-              id: 1,
-              name: 'Monthly User Activity Report',
-              description: 'Detailed breakdown of user engagement and activity metrics',
-              type: 'user_activity',
-              last_generated: '2024-01-15',
-              file_size: '2.4 MB',
-              format: 'PDF'
-            },
-            {
-              id: 2,
-              name: 'Course Performance Analytics',
-              description: 'Analysis of course completion rates, ratings, and enrollment trends',
-              type: 'course_performance',
-              last_generated: '2024-01-14',
-              file_size: '3.1 MB',
-              format: 'Excel'
-            },
-            {
-              id: 3,
-              name: 'Revenue & Financial Summary',
-              description: 'Comprehensive financial overview including revenue, subscriptions, and growth metrics',
-              type: 'financial',
-              last_generated: '2024-01-13',
-              file_size: '1.8 MB',
-              format: 'PDF'
-            },
-            {
-              id: 4,
-              name: 'Instructor Performance Report',
-              description: 'Metrics on instructor engagement, course quality, and student feedback',
-              type: 'instructor_performance',
-              last_generated: '2024-01-12',
-              file_size: '2.7 MB',
-              format: 'PDF'
-            },
-            {
-              id: 5,
-              name: 'Platform Usage Statistics',
-              description: 'Technical metrics including page views, session duration, and feature usage',
-              type: 'platform_usage',
-              last_generated: '2024-01-11',
-              file_size: '4.2 MB',
-              format: 'Excel'
-            },
-            {
-              id: 6,
-              name: 'Content Quality Assessment',
-              description: 'Review of course content quality, user feedback, and improvement recommendations',
-              type: 'content_quality',
-              last_generated: '2024-01-10',
-              file_size: '3.5 MB',
-              format: 'PDF'
-            }
-          ]
-        }
-      };
-    }
-
-    return { data: {} };
-  }
-};
-
-const Reports = () => {
-  const [reports, setReports] = useState([]);
-  const [loading, setLoading] = useState(true);
+const ReportsPage = () => {
+  const reports = SAMPLE_REPORTS.available_reports;
   const [filter, setFilter] = useState('all');
   const [generatingReport, setGeneratingReport] = useState(null);
   const { success } = useToast();
 
-  useEffect(() => {
-    fetchReports();
-  }, []);
-
-  const fetchReports = async () => {
-    try {
-      const response = await api.get('/admin/reports');
-      setReports(response.data.available_reports);
-    } catch (error) {
-      console.error('Error fetching reports:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleGenerateReport = async (reportId) => {
     setGeneratingReport(reportId);
-    // Simulate report generation
+    // demo only: nothing is generated yet
     await new Promise(resolve => setTimeout(resolve, 2000));
     setGeneratingReport(null);
-    success('Report generated successfully!', 'Report Ready');
+    success('Demo only: no report file is produced yet.', 'Report Ready');
   };
 
   const handleDownloadReport = (reportId) => {
-    // Simulate download
-    success('Report download started!', 'Download Started');
+    // demo only
+    success('Demo only: there is no file to download yet.', 'Download');
   };
 
   const getReportIcon = (type) => {
@@ -130,13 +43,6 @@ const Reports = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-      </div>
-    );
-  }
 
   const filteredReports = reports.filter(report => {
     if (filter === 'all') return true;
@@ -149,7 +55,7 @@ const Reports = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Reports & Analytics</h2>
-          <p className="text-gray-600 mt-1">Generate and download platform reports</p>
+          <p className="text-gray-600 mt-1">{SAMPLE_NOTICE}</p>
         </div>
 
         <div className="flex items-center space-x-4">
@@ -305,4 +211,4 @@ const Reports = () => {
   );
 };
 
-export default Reports;
+export default ReportsPage;

@@ -1,27 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { Users, Search, Filter, MoreVertical, Shield, User, GraduationCap } from 'lucide-react';
-import apiService from '../../services/api';
+import React, { useEffect, useState } from 'react';
+import { Users, Search, MoreVertical, Shield, User, GraduationCap } from 'lucide-react';
 
-const UserManagement = () => {
+import { PageSpinner } from '../../../shared/ui/Spinner';
+import * as adminApi from '../api';
+
+const UsersPage = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    fetchUsers();
+    let cancelled = false;
+    adminApi
+      .users()
+      .then((rows) => !cancelled && setUsers(rows))
+      .catch(() => !cancelled && setUsers([]))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
   }, []);
-
-  const fetchUsers = async () => {
-    try {
-      const response = await apiService.get('/courses/admin/users/');
-      setUsers(response.data);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getUserTypeIcon = (userType) => {
     switch (userType) {
@@ -42,11 +41,7 @@ const UserManagement = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-      </div>
-    );
+    return <PageSpinner />;
   }
 
   const filteredUsers = users.filter(user => {
@@ -215,4 +210,4 @@ const UserManagement = () => {
   );
 };
 
-export default UserManagement;
+export default UsersPage;

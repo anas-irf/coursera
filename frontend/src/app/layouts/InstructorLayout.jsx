@@ -7,7 +7,7 @@ import {
 
 import { NotificationDropdown } from '../../features/notifications';
 import { useConfirm } from '../../shared/ui/ConfirmDialog';
-import { useAuth } from '../AuthProvider';
+import { useAuth } from '../../shared/auth/AuthProvider';
 
 const NAV_ITEMS = [
   { to: '/instructor', label: 'Dashboard', icon: Home, end: true },

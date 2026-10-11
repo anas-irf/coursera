@@ -1,27 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BookOpen, Search, MoreVertical } from 'lucide-react';
-import apiService from '../../services/api';
 
-const CourseManagement = () => {
+import { PageSpinner } from '../../../shared/ui/Spinner';
+import * as adminApi from '../api';
+
+const CoursesPage = () => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    fetchAllCourses();
+    let cancelled = false;
+    adminApi
+      .allCourses()
+      .then((rows) => !cancelled && setCourses(rows))
+      .catch(() => !cancelled && setCourses([]))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
   }, []);
-
-  const fetchAllCourses = async () => {
-    try {
-      const response = await apiService.get('/courses/admin/all/');
-      setCourses(response.data);
-    } catch (error) {
-      console.error('Error fetching all courses:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -44,11 +43,7 @@ const CourseManagement = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-      </div>
-    );
+    return <PageSpinner />;
   }
 
   const filteredCourses = courses.filter(course => {
@@ -204,4 +199,4 @@ const CourseManagement = () => {
   );
 };
 
-export default CourseManagement;
+export default CoursesPage;

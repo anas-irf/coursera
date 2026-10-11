@@ -1,4 +1,4 @@
-import api from '../../shared/api/client';
+import api from '../api/client';
 
 export const login = (email, password) =>
   api.post('/auth/login/', { email, password }).then((response) => response.data);

@@ -1,8 +1,11 @@
 import React from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
-import AdminDashboard from '../components/AdminDashboard';
 import { InstructorSettingsPage, LoginPage } from '../features/accounts';
+import {
+  ApprovalsPage, CoursesPage as AdminCoursesPage, OverviewPage as AdminOverviewPage, ReportsPage,
+  RevenuePage, SettingsPage as AdminSettingsPage, UsersPage,
+} from '../features/admin';
 import { GradesPage, InstructorAssignmentsPage } from '../features/assessments';
 import { CheckoutPage } from '../features/billing';
 import { CertificatesPage } from '../features/certificates';
@@ -17,8 +20,10 @@ import { MessagesPage } from '../features/messaging';
 import { NotificationsPage } from '../features/notifications';
 import { ConfirmProvider } from '../shared/ui/ConfirmDialog';
 import { ToastProvider } from '../shared/ui/Toast';
-import { AuthProvider, useAuth } from './AuthProvider';
-import { HomeRedirect, RedirectKeepingSearch, RequireAuth, RequireRole, homePathFor } from './guards';
+import { AuthProvider, useAuth } from '../shared/auth/AuthProvider';
+import { homePathFor } from '../shared/auth/paths';
+import { HomeRedirect, RedirectKeepingSearch, RequireAuth, RequireRole } from './guards';
+import AdminLayout from './layouts/AdminLayout';
 import InstructorLayout from './layouts/InstructorLayout';
 import StudentLayout from './layouts/StudentLayout';
 
@@ -70,9 +75,18 @@ function App() {
                 </Route>
 
                 <Route element={<RequireRole role="admin" />}>
-                  <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
-                  <Route path="/admin/dashboard" element={<AdminDashboard />} />
-                  <Route path="/admindashboard" element={<Navigate to="/admin/dashboard" replace />} />
+                  <Route path="/admin" element={<AdminLayout />}>
+                    <Route index element={<AdminOverviewPage />} />
+                    <Route path="courses" element={<AdminCoursesPage />} />
+                    <Route path="courses/approvals" element={<ApprovalsPage />} />
+                    <Route path="users" element={<UsersPage />} />
+                    <Route path="revenue" element={<RevenuePage />} />
+                    <Route path="reports" element={<ReportsPage />} />
+                    <Route path="settings" element={<AdminSettingsPage />} />
+                  </Route>
+                  {/* the old names */}
+                  <Route path="/admin/dashboard" element={<Navigate to="/admin" replace />} />
+                  <Route path="/admindashboard" element={<Navigate to="/admin" replace />} />
                 </Route>
               </Route>
 

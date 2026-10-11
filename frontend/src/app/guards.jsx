@@ -1,16 +1,8 @@
 import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
-import { useAuth } from './AuthProvider';
-
-const HOME = {
-  student: '/student',
-  instructor: '/instructor',
-  admin: '/admin',
-};
-
-/** Landing page of a user type (the login page when nobody is logged in). */
-export const homePathFor = (userType) => HOME[userType] || '/login';
+import { useAuth } from '../shared/auth/AuthProvider';
+import { homePathFor } from '../shared/auth/paths';
 
 /** Renders the nested routes for logged in users, the login page for everybody else. */
 export function RequireAuth() {
