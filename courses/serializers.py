@@ -4,7 +4,6 @@ from django.db.models import Avg, Count, Sum, Q
 from .models import Course, Section, Lecture, LectureResource, CourseAnnouncement
 from enrollments.models import Enrollment, LectureProgress
 from assessments.models import Quiz, Assignment, Question, QuestionOption
-from reviews.models import CourseReview
 from payments.models import InstructorEarning
 from accounts.serializers import UserSerializer
 

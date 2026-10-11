@@ -30,9 +30,7 @@ urlpatterns = [
     path('api/discussions/', include('discussions.urls')),
     path('api/notifications/', include('notifications.urls')),
     path('api/analytics/', include('analytics.urls')),
-    path('api/search/', include('search.urls')),
     path('api/content/', include('content.urls')),
-    path('api/reviews/', include('reviews.urls')),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

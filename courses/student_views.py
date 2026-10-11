@@ -10,9 +10,8 @@ from datetime import datetime, timedelta, date
 from decimal import Decimal
 
 from .models import Course, Section, Lecture
-from enrollments.models import Enrollment, LectureProgress, LearningStreak, CourseBookmark
+from enrollments.models import Enrollment, LectureProgress, CourseBookmark
 from certificates.models import Certificate
-from reviews.models import CourseReview
 from accounts.models import User, StudentProfile
 from assessments.models import QuizAttempt, AssignmentSubmission, Quiz, Question, QuestionResponse, QuestionOption, Assignment
 
@@ -677,57 +676,6 @@ def student_enrolled_courses(request):
     
     return Response(enrolled_data)
 
-@api_view(['GET'])
-@permission_classes([IsStudent])
-def student_stats(request):
-    """Get student statistics and achievements"""
-    
-    student = request.user
-    
-    # Get or create student profile
-    profile, created = StudentProfile.objects.get_or_create(user=student)
-    
-    # Calculate stats
-    total_courses = Enrollment.objects.filter(student=student).count()
-    completed_courses = Enrollment.objects.filter(
-        student=student,
-        status='completed'
-    ).count()
-    
-    certificates_earned = Certificate.objects.filter(student=student).count()
-    
-    # Calculate total learning hours
-    total_seconds = LectureProgress.objects.filter(
-        enrollment__student=student
-    ).aggregate(Sum('progress_seconds'))['progress_seconds__sum'] or 0
-    total_learning_hours = total_seconds / 3600
-    
-    # Calculate learning streak
-    today = timezone.now().date()
-    current_streak = calculate_learning_streak(student)
-    longest_streak = profile.learning_streak  # Stored in profile
-    
-    # This week's hours
-    week_start = today - timedelta(days=today.weekday())
-    week_seconds = LectureProgress.objects.filter(
-        enrollment__student=student,
-        updated_at__gte=week_start
-    ).aggregate(Sum('progress_seconds'))['progress_seconds__sum'] or 0
-    this_week_hours = week_seconds / 3600
-    
-    # Achievements (simplified version)
-    achievements = calculate_achievements(student)
-    
-    return Response({
-        'total_courses': total_courses,
-        'completed_courses': completed_courses,
-        'certificates_earned': certificates_earned,
-        'total_learning_hours': round(total_learning_hours, 1),
-        'current_streak': current_streak,
-        'longest_streak': longest_streak,
-        'this_week_hours': round(this_week_hours, 1),
-        'achievements': achievements
-    })
 
 @api_view(['POST'])
 @permission_classes([IsStudent])
@@ -878,49 +826,6 @@ def calculate_learning_streak(student):
     
     return streak
 
-def calculate_achievements(student):
-    """Calculate basic achievements"""
-    achievements = []
-    
-    # Fast Learner - Complete 5 lessons in one day
-    today_lessons = LectureProgress.objects.filter(
-        enrollment__student=student,
-        completed_date__date=timezone.now().date()
-    ).count()
-    
-    if today_lessons >= 5:
-        achievements.append({
-            'id': 1,
-            'title': 'Fast Learner',
-            'icon': '🚀',
-            'description': 'Complete 5 lessons in one day'
-        })
-    
-    # Consistent - 7 day streak
-    streak = calculate_learning_streak(student)
-    if streak >= 7:
-        achievements.append({
-            'id': 2,
-            'title': 'Consistent',
-            'icon': '🔥',
-            'description': '7 day learning streak'
-        })
-    
-    # Quiz Master - High quiz scores
-    high_scores = QuizAttempt.objects.filter(
-        student=student,
-        score__gte=100
-    ).count()
-    
-    if high_scores >= 3:
-        achievements.append({
-            'id': 3,
-            'title': 'Quiz Master',
-            'icon': '🏆',
-            'description': 'Score 100% on 3 quizzes'
-        })
-    
-    return achievements
 
 def calculate_total_points(student):
     """Calculate total points for gamification"""
@@ -1023,32 +928,6 @@ def get_all_achievements(student):
     
     return achievements
 
-@api_view(['GET'])
-@permission_classes([IsStudent])
-def weekly_progress(request):
-    """Get weekly learning progress for charts"""
-    
-    student = request.user
-    today = timezone.now().date()
-    week_data = []
-    
-    for i in range(6, -1, -1):
-        day = today - timedelta(days=i)
-        day_name = day.strftime('%a')
-        
-        # Calculate hours for this day
-        seconds = LectureProgress.objects.filter(
-            enrollment__student=student,
-            updated_at__date=day
-        ).aggregate(Sum('progress_seconds'))['progress_seconds__sum'] or 0
-        
-        hours = round(seconds / 3600, 1)
-        week_data.append({
-            'day': day_name,
-            'hours': hours
-        })
-    
-    return Response(week_data)
 
 @api_view(['POST'])
 @permission_classes([IsStudent])

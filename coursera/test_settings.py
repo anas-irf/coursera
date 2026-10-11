@@ -14,9 +14,6 @@ DATABASES = {
     }
 }
 
-# the search app relies on Postgres-only fields and has no live code
-INSTALLED_APPS = [app for app in INSTALLED_APPS if app != 'search']
-
 # the in-memory limiter is shared between tests and would produce flaky 403s
 MIDDLEWARE = [m for m in MIDDLEWARE if m != 'core.security.RateLimitMiddleware']
 

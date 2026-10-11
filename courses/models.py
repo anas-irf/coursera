@@ -137,10 +137,6 @@ class Course(BaseModel):
     def __str__(self):
         return self.title
     
-    def get_final_price(self):
-        if self.is_free:
-            return 0
-        return self.discount_price if self.discount_price else self.price
 
 class CoursePrerequisite(BaseModel):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='prerequisites')

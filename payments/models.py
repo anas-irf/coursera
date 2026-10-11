@@ -3,7 +3,6 @@ from django.db import models
 from django.conf import settings
 from core.models import BaseModel
 from courses.models import Course
-from enrollments.models import Enrollment
 from decimal import Decimal
 
 class SubscriptionPlan(BaseModel):

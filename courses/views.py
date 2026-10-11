@@ -1,5 +1,5 @@
 # courses/views.py
-from rest_framework import generics, status, viewsets
+from rest_framework import generics, mixins, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -18,7 +18,6 @@ from .serializers import (
 )
 from enrollments.models import Enrollment
 from payments.models import InstructorEarning
-from reviews.models import CourseReview
 from notifications.services import NotificationService
 from notifications.models import Notification
 from assessments.models import Quiz, Question, QuestionOption, Assignment
@@ -38,72 +37,6 @@ class IsStudent(IsAuthenticated):
     def has_permission(self, request, view):
         return super().has_permission(request, view) and request.user.user_type == 'student'
 
-@api_view(['GET'])
-@permission_classes([IsInstructor])
-def instructor_students(request):
-    """Get all students enrolled in instructor's courses"""
-    try:
-        instructor = request.user
-
-        # Get all enrollments for instructor's courses
-        enrollments = Enrollment.objects.filter(
-            course__instructor=instructor
-        ).select_related('student', 'course').order_by('-enrolled_date')
-
-        students_data = []
-        for enrollment in enrollments:
-            # Handle name formatting - use email username if no first/last name
-            first_name = enrollment.student.first_name or ''
-            last_name = enrollment.student.last_name or ''
-            full_name = f"{first_name} {last_name}".strip()
-            if not full_name:
-                full_name = enrollment.student.email.split('@')[0].title()
-
-            student_data = {
-                'id': str(enrollment.student.uuid),
-                'name': full_name,
-                'email': enrollment.student.email,
-                'avatar': f"https://ui-avatars.com/api/?name={full_name.replace(' ', '+')}&background=4F46E5&color=fff",
-                'courses_enrolled': [enrollment.course.title],
-                'progress': float(enrollment.progress_percentage),
-                'last_active': enrollment.last_accessed.isoformat() if enrollment.last_accessed else None,
-                'enrolled_date': enrollment.enrolled_date.isoformat(),
-                'status': enrollment.status
-            }
-            students_data.append(student_data)
-
-        # Group students by their ID to avoid duplicates and aggregate course data
-        students_dict = {}
-        for student_data in students_data:
-            student_id = student_data['id']
-            if student_id in students_dict:
-                # Add course to existing student
-                students_dict[student_id]['courses_enrolled'].extend(student_data['courses_enrolled'])
-                # Update progress to average
-                current_progress = students_dict[student_id]['progress']
-                new_progress = student_data['progress']
-                students_dict[student_id]['progress'] = (current_progress + new_progress) / 2
-                # Update last active to most recent
-                if student_data['last_active']:
-                    if not students_dict[student_id]['last_active'] or student_data['last_active'] > students_dict[student_id]['last_active']:
-                        students_dict[student_id]['last_active'] = student_data['last_active']
-            else:
-                students_dict[student_id] = student_data
-
-        # Convert back to list and format course count
-        final_students = []
-        for student in students_dict.values():
-            student['courses_enrolled_count'] = len(student['courses_enrolled'])
-            student['courses_enrolled'] = f"{len(student['courses_enrolled'])} courses"
-            final_students.append(student)
-
-        return Response(final_students)
-
-    except Exception as e:
-        return Response(
-            {'error': f'Failed to fetch students: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
 
 @api_view(['GET'])
 @permission_classes([IsInstructor])
@@ -221,7 +154,13 @@ def instructor_dashboard(request):
             'error': str(e) if request.user.is_staff else 'Unable to load dashboard data'
         })
 
-class InstructorCourseViewSet(viewsets.ModelViewSet):
+class InstructorCourseViewSet(mixins.CreateModelMixin,
+                              mixins.ListModelMixin,
+                              mixins.RetrieveModelMixin,
+                              mixins.UpdateModelMixin,
+                              viewsets.GenericViewSet):
+    """Instructor course CRUD. There is no plain DELETE: courses are removed with
+    the ``delete-course`` action, which requires a confirmation string."""
     permission_classes = [IsInstructor]
     serializer_class = CourseListSerializer
     
@@ -345,38 +284,7 @@ class InstructorCourseViewSet(viewsets.ModelViewSet):
             'message': 'Course submitted for admin review. You will be notified once it is approved.'
         })
 
-    @action(detail=True, methods=['post'])
-    def publish(self, request, pk=None):
-        """Publish a course - admin only"""
-        course = self.get_object()
-
-        # Check if user is admin
-        if not request.user.is_admin:
-            return Response(
-                {'error': 'Only administrators can publish courses'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Validate course has content
-        if not course.sections.exists():
-            return Response(
-                {'error': 'Course must have at least one section'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        course.status = 'published'
-        course.published_date = timezone.now()
-        course.save()
-
-        return Response({'status': 'published', 'message': 'Course published successfully'})
     
-    @action(detail=True, methods=['post'])
-    def unpublish(self, request, pk=None):
-        """Unpublish a course"""
-        course = self.get_object()
-        course.status = 'draft'
-        course.save()
-        return Response({'status': 'draft', 'message': 'Course unpublished successfully'})
     
     @action(detail=True, methods=['get'])
     def students(self, request, pk=None):
@@ -428,22 +336,6 @@ class InstructorCourseViewSet(viewsets.ModelViewSet):
             course=course
         ).aggregate(Sum('final_amount'))['final_amount__sum'] or 0
         
-        # Recent reviews
-        recent_reviews = CourseReview.objects.filter(
-            course=course
-        ).order_by('-created_at')[:5]
-        
-        reviews_data = [
-            {
-                'student_name': f"{r.student.first_name} {r.student.last_name}",
-                'rating': r.rating,
-                'title': r.title,
-                'comment': r.comment,
-                'created_at': r.created_at.isoformat()
-            }
-            for r in recent_reviews
-        ]
-        
         return Response({
             'total_students': total_students,
             'active_students': active_students,
@@ -452,7 +344,8 @@ class InstructorCourseViewSet(viewsets.ModelViewSet):
             'total_revenue': float(total_revenue),
             'average_rating': float(course.average_rating),
             'total_reviews': course.total_reviews,
-            'recent_reviews': reviews_data
+            # reviews are not implemented; the key is kept for API compatibility
+            'recent_reviews': []
         })
     
     @action(detail=True, methods=['post'], url_path='delete-course')
@@ -501,15 +394,6 @@ class InstructorCourseViewSet(viewsets.ModelViewSet):
             'message': f'Course "{course_title}" has been permanently deleted.'
         }, status=status.HTTP_200_OK)
     
-    @action(detail=True, methods=['get'])
-    def test_endpoint(self, request, pk=None):
-        """Test endpoint to verify API is accessible"""
-        course = self.get_object()
-        return Response({
-            'message': f'Test endpoint working for course: {course.title}',
-            'course_id': str(course.uuid),
-            'user': request.user.email
-        })
 
     @action(detail=False, methods=['get'], url_path='students')
     def students_list(self, request):
@@ -660,24 +544,6 @@ class SectionViewSet(viewsets.ModelViewSet):
 
         serializer.save(course=course, order=next_order)
 
-    def perform_destroy(self, instance):
-        """Delete section and reorder all remaining sections in the course sequentially"""
-        if instance.course.status == 'published':
-            raise ValidationError('Cannot delete sections of published courses. Please unpublish the course first.')
-
-        course = instance.course
-
-        # Delete the instance
-        super().perform_destroy(instance)
-
-        # Reorder ALL remaining sections in the course to ensure sequential numbering (1, 2, 3, ...)
-        remaining_sections = Section.objects.filter(course=course).order_by('order')
-
-        # Update order to be sequential starting from 1
-        for i, section in enumerate(remaining_sections, 1):
-            if section.order != i:
-                section.order = i
-                section.save()
 
     @action(detail=False, methods=['post'], url_path='reorder')
     def reorder_sections(self, request, course_uuid=None):
@@ -865,42 +731,6 @@ class LectureViewSet(viewsets.ModelViewSet):
                 lecture.order = i
                 lecture.save()
 
-    def _update_video_content(self, lecture):
-        """Update or create video content for video lectures"""
-        from content.models import VideoContent, Subtitle
-
-        video_file = self.request.FILES.get('video_file')
-
-        if video_file:
-            # Get or create VideoContent
-            video_content, created = VideoContent.objects.get_or_create(
-                lecture=lecture,
-                defaults={
-                    'video_file': video_file,
-                    'video_url': '',
-                }
-            )
-
-            # If not created, update the video file
-            if not created:
-                video_content.video_file = video_file
-                video_content.save()
-
-            # Handle subtitle file if provided
-            subtitle_file = self.request.FILES.get('subtitle_file')
-            if subtitle_file:
-                # Update or create subtitle
-                subtitle, created = Subtitle.objects.get_or_create(
-                    video=video_content,
-                    language='en',
-                    defaults={
-                        'file': subtitle_file,
-                        'is_auto_generated': False
-                    }
-                )
-                if not created:
-                    subtitle.file = subtitle_file
-                    subtitle.save()
 
     def _update_quiz_data(self, lecture):
         """Update quiz data - for now, we'll recreate it"""
@@ -1590,33 +1420,6 @@ def mark_notification_read(request, notification_id):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def create_test_notification(request):
-    """Create a test notification for the current user (development/testing only)"""
-    try:
-        from django.utils import timezone
-
-        # Create a test notification
-        test_notification = Notification.objects.create(
-            recipient=request.user,
-            notification_type='system',
-            title='Test Notification',
-            message=f'This is a test notification created at {timezone.now().strftime("%Y-%m-%d %H:%M:%S")} for {request.user.email}. The notification system is working correctly!',
-            action_url='/student/notifications'
-        )
-
-        return Response({
-            'message': 'Test notification created successfully',
-            'notification_id': test_notification.id,
-            'title': test_notification.title
-        })
-
-    except Exception as e:
-        return Response(
-            {'error': f'Failed to create test notification: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
 
 # Assignment Management for Instructors
 @api_view(['GET'])

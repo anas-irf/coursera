@@ -67,9 +67,7 @@ EXTERNAL_APPS = [
     'discussions',
     'notifications',
     'analytics',
-    'search',
     'content',
-    'reviews',
     'core',
 ]
 

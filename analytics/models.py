@@ -3,7 +3,6 @@ from django.db import models
 from django.conf import settings
 from core.models import BaseModel
 from courses.models import Course, Lecture
-from enrollments.models import Enrollment
 
 class CourseAnalytics(BaseModel):
     course = models.ForeignKey(Course, on_delete=models.CASCADE,

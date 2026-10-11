@@ -30,8 +30,7 @@ app_name = 'courses'
 urlpatterns = [
     # Put specific paths first to avoid router conflicts
     path('instructor/dashboard/', views.instructor_dashboard, name='instructor-dashboard'),
-    path('instructor/students/', views.instructor_students, name='instructor-students'),
-    
+
     # Section management
     path('instructor/courses/<uuid:course_uuid>/sections/',
          views.SectionViewSet.as_view({'get': 'list', 'post': 'create'}),
@@ -64,11 +63,9 @@ urlpatterns = [
     path('assignments/submissions/<uuid:submission_uuid>/download/', student_views.download_submission_file, name='download-submission-file'),
     path('<uuid:course_uuid>/bookmark/', student_views.bookmark_course, name='bookmark-course'),
 
-     # Student stats and achievements
-    path('student/stats/', student_views.student_stats, name='student-stats'),
+    # Student certificates and achievements
     path('student/certificates/', student_views.student_certificates, name='student-certificates'),
     path('student/achievements/', student_views.student_achievements, name='student-achievements'),
-    path('student/weekly-progress/', student_views.weekly_progress, name='weekly-progress'),
 
     # Admin endpoints for course publishing
     path('admin/pending/', views.admin_pending_courses, name='admin-pending-courses'),
@@ -81,7 +78,6 @@ urlpatterns = [
     path('notifications/', views.get_user_notifications, name='user-notifications'),
     path('notifications/count/', views.get_unread_notification_count, name='notification-count'),
     path('notifications/<int:notification_id>/read/', views.mark_notification_read, name='mark-notification-read'),
-    path('notifications/test/', views.create_test_notification, name='create-test-notification'),
 
     # Quiz attempt endpoints
     path('quizzes/<uuid:quiz_uuid>/attempt/', student_views.attempt_quiz, name='attempt-quiz'),
