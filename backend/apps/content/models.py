@@ -1,6 +1,5 @@
 # content/models.py
 from django.db import models
-from django.conf import settings
 from apps.core.models import BaseModel
 from apps.courses.models import Lecture
 

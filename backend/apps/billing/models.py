@@ -4,7 +4,6 @@ from django.conf import settings
 from django.utils import timezone
 from apps.core.models import BaseModel
 from apps.courses.models import Course
-from decimal import Decimal
 
 class SubscriptionPlan(BaseModel):
     """Coursera Plus subscription plans"""

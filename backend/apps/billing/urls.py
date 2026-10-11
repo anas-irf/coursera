@@ -1,16 +1,19 @@
-# billing/urls.py
+# billing/urls.py - mounted at /api/billing/
 from django.urls import path
 
 from .api import views
 
-app_name = 'payments'
+app_name = 'billing'
 
 urlpatterns = [
-    # Subscription checkout endpoints
-    path('checkout/plans/', views.get_subscription_plans, name='subscription-plans'),
-    path('checkout/data/', views.checkout_page_data, name='checkout-data'),
-    path('checkout/stripe-session/', views.create_stripe_checkout_session, name='stripe-checkout-session'),
-    # NOTE: this path is configured in the Stripe dashboard - do not rename it
-    path('stripe/webhook/', views.stripe_webhook, name='stripe-webhook'),
-    path('verify-session/', views.verify_stripe_session, name='verify-stripe-session'),
+    path('plans/', views.get_subscription_plans, name='subscription-plans'),
+
+    # checkout
+    path('checkout/', views.checkout_page_data, name='checkout-data'),
+    path('checkout/session/', views.create_stripe_checkout_session, name='stripe-checkout-session'),
+    path('checkout/verify/', views.verify_stripe_session, name='verify-stripe-session'),
+
+    # the student's own subscription
+    path('subscription/', views.student_subscription_status, name='student_subscription_status'),
+    path('subscription/cancel/', views.cancel_plus_subscription, name='cancel_plus_subscription'),
 ]

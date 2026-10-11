@@ -22,13 +22,13 @@ import factories as f
 
 pytestmark = pytest.mark.django_db
 
-CHECKOUT_DATA = '/api/payments/checkout/data/'
-CHECKOUT_PLANS = '/api/payments/checkout/plans/'
-STRIPE_SESSION = '/api/payments/checkout/stripe-session/'
+CHECKOUT_DATA = '/api/billing/checkout/'
+CHECKOUT_PLANS = '/api/billing/plans/'
+STRIPE_SESSION = '/api/billing/checkout/session/'
 WEBHOOK = '/api/payments/stripe/webhook/'
-VERIFY_SESSION = '/api/payments/verify-session/'
-SUB_STATUS = '/api/auth/student/subscription-status/'
-SUB_CANCEL = '/api/auth/student/cancel-subscription/'
+VERIFY_SESSION = '/api/billing/checkout/verify/'
+SUB_STATUS = '/api/billing/subscription/'
+SUB_CANCEL = '/api/billing/subscription/cancel/'
 
 StripeError = getattr(stripe, 'StripeError', None) or stripe.error.StripeError
 SignatureVerificationError = (getattr(stripe, 'SignatureVerificationError', None)
@@ -283,7 +283,7 @@ def test_checkout_completed_for_the_yearly_plan(api, student):
 def test_checkout_completed_unlocks_plus_enrolment(api, auth_client, instructor, student):
     """After the webhook a Plus course can be enrolled in."""
     course = f.build_course(instructor, status='published', course_type='coursera_plus').course
-    url = f'/api/courses/{course.uuid}/enroll/'
+    url = f'/api/learning/courses/{course.uuid}/enroll/'
     assert auth_client(student).post(url).status_code == 402
 
     post_webhook(api, event('checkout.session.completed', checkout_session(student)))
@@ -628,7 +628,7 @@ def test_cancel_subscription(auth_client, instructor, student):
     body = client.get(SUB_STATUS).json()
     assert body['status'] == 'cancelled' and body['is_active'] is False
     # Plus access is gone immediately
-    assert client.post(f'/api/courses/{plus_course.uuid}/enroll/').status_code == 402
+    assert client.post(f'/api/learning/courses/{plus_course.uuid}/enroll/').status_code == 402
 
 
 def test_cancel_without_subscription_is_a_404(auth_client, student):

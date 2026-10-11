@@ -12,9 +12,7 @@ class GradeCalculationService:
     @staticmethod
     def calculate_student_course_grade(student, course):
         """Calculate a student's final grade for a course"""
-        try:
-            enrollment = Enrollment.objects.get(student=student, course=course, status='active')
-        except Enrollment.DoesNotExist:
+        if not Enrollment.objects.filter(student=student, course=course, status='active').exists():
             return None
 
         grade_components = []

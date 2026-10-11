@@ -4,8 +4,6 @@ from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
 from django.utils import timezone
 import uuid
-from django.conf import settings
-from apps.core.models import BaseModel
 
 class User(AbstractUser):
     USER_TYPE_CHOICES = (

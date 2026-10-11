@@ -10,7 +10,7 @@ import factories as f
 pytestmark = pytest.mark.django_db
 
 # endpoint -> set of roles that get through (everybody else: 403, anonymous: 401)
-STUDENT_ONLY = '/api/courses/enrolled/'
+STUDENT_ONLY = '/api/learning/enrolled/'
 INSTRUCTOR_ONLY = '/api/courses/instructor/courses/'
 ADMIN_ONLY = '/api/courses/admin/pending/'
 ANY_AUTHENTICATED = '/api/auth/profile/'

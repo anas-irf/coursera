@@ -9,7 +9,7 @@ pytestmark = pytest.mark.django_db
 
 PENDING = '/api/courses/admin/pending/'
 ALL_COURSES = '/api/courses/admin/all/'
-ALL_USERS = '/api/courses/admin/users/'
+ALL_USERS = '/api/insights/admin/users/'
 
 
 def approve_url(course):
@@ -110,11 +110,11 @@ def test_admin_approves_course(auth_client, admin, instructor, pending_bundle):
 
 def test_approved_course_becomes_visible_in_public_catalogue(api, auth_client, admin, pending_bundle):
     """An approved course appears in the public catalogue."""
-    assert api.get('/api/courses/all/').json() == []
+    assert api.get('/api/learning/courses/').json() == []
 
     assert auth_client(admin).post(approve_url(pending_bundle.course)).status_code == 200
 
-    ids = [row['id'] for row in api.get('/api/courses/all/').json()]
+    ids = [row['id'] for row in api.get('/api/learning/courses/').json()]
     assert ids == [str(pending_bundle.course.uuid)]
 
 

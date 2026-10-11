@@ -214,7 +214,7 @@ def test_profile_with_bearer_token_from_real_login(api):
 def test_endpoints_require_a_valid_token(api):
     """Missing or garbage bearer tokens are 401."""
     assert api.get(PROFILE).status_code == 401
-    assert api.get('/api/courses/enrolled/').status_code == 401
+    assert api.get('/api/learning/enrolled/').status_code == 401
 
     api.credentials(HTTP_AUTHORIZATION='Bearer not-a-real-token')
     assert api.get(PROFILE).status_code == 401

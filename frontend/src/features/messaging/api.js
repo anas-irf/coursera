@@ -1,7 +1,6 @@
 import api from '../../shared/api/client';
 
-// served from the "discussions" prefix for historical reasons
-const BASE = '/discussions/messages';
+const BASE = '/messaging';
 
 export const conversations = () =>
   api.get(`${BASE}/conversations/`).then((response) => response.data.conversations || []);

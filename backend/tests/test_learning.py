@@ -10,11 +10,11 @@ pytestmark = pytest.mark.django_db
 
 
 def learn_url(course):
-    return f'/api/courses/{course.uuid}/learn/'
+    return f'/api/learning/courses/{course.uuid}/learn/'
 
 
 def complete_url(course, lecture):
-    return f'/api/courses/{course.uuid}/lectures/{lecture.uuid}/complete/'
+    return f'/api/learning/courses/{course.uuid}/lectures/{lecture.uuid}/complete/'
 
 
 LECTURE_COMMON_KEYS = {'id', 'title', 'description', 'content_type', 'order', 'is_preview',
@@ -51,7 +51,7 @@ def test_learn_requires_an_enrolment(api, auth_client, course_bundle, student, i
     assert r.status_code == 403
     assert 'error' in r.json()
     assert auth_client(instructor).get(learn_url(course)).status_code == 403
-    assert auth_client(student).get(f'/api/courses/{uuid.uuid4()}/learn/').status_code == 404
+    assert auth_client(student).get(f'/api/learning/courses/{uuid.uuid4()}/learn/').status_code == 404
 
 
 def test_learn_is_404_for_unpublished_courses(auth_client, instructor, student):
@@ -272,7 +272,7 @@ def test_mark_complete_requires_enrolment_and_a_lecture_of_the_published_course(
     f.enroll(student, course_bundle.course)
     # lecture of a different course / unknown lecture
     assert client.post(complete_url(course_bundle.course, other.video)).status_code == 404
-    assert client.post(f'/api/courses/{course_bundle.course.uuid}/lectures/{uuid.uuid4()}/complete/'
+    assert client.post(f'/api/learning/courses/{course_bundle.course.uuid}/lectures/{uuid.uuid4()}/complete/'
                        ).status_code == 404
     # instructors cannot complete lectures
     assert auth_client(instructor).post(

@@ -150,7 +150,7 @@ def test_create_course_ignores_privileged_fields(auth_client, api, instructor):
     assert course.is_featured is False
     assert not course.rejection_reason
     # not in the public catalogue
-    listing = api.get('/api/courses/all/').json()
+    listing = api.get('/api/learning/courses/').json()
     assert str(course.uuid) not in [c['id'] for c in listing]
 
 
@@ -251,8 +251,8 @@ def test_instructor_endpoints_reject_students_admins_and_anonymous(api, auth_cli
         ('post', f'{COURSES}{course.uuid}/sections/'),
         ('post', f'/api/courses/instructor/sections/{section.uuid}/lectures/'),
         ('put', f'/api/courses/instructor/lectures/{lecture.uuid}/'),
-        ('get', '/api/courses/instructor/dashboard/'),
-        ('get', '/api/courses/instructor/assignments/'),
+        ('get', '/api/insights/instructor/dashboard/'),
+        ('get', '/api/assessments/instructor/assignments/'),
         ('get', f'{COURSES}students/'),
     ]
     def call(client, method, url):
@@ -704,7 +704,7 @@ def test_reorder_quiz_questions_uses_the_internal_question_ids(auth_client, inst
     quiz = f.make_quiz_lecture(f.make_section(f.make_course(instructor)),
                                questions=[f.mc_question('First'), f.tf_question('Second')])
     first, second = quiz.quiz.questions.order_by('order')
-    url = f'/api/assessments/api/quizzes/{quiz.lecture.uuid}/reorder-questions/'
+    url = f'/api/assessments/quizzes/{quiz.lecture.uuid}/reorder-questions/'
     payload = {'question_orders': [{'id': first.id, 'order': 5}, {'id': second.id, 'order': 2},
                                    {'id': 999999, 'order': 9}]}  # unknown ids are skipped
 

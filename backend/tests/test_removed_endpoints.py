@@ -20,7 +20,7 @@ REMOVED = [
     ('post', '/api/payments/debug/manual-subscription/'),
     ('post', '/api/payments/debug/test-webhook/'),
     ('post', '/api/payments/debug/test-recurring/'),
-    ('post', '/api/courses/notifications/test/'),
+    ('post', '/api/notifications/test/'),
     ('post', f'/api/courses/instructor/courses/{SOME_UUID}/publish/'),
     ('get', f'/api/courses/instructor/courses/{SOME_UUID}/test_endpoint/'),
     ('get', '/api/courses/instructor/students/'),

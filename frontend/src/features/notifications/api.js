@@ -1,7 +1,6 @@
 import api from '../../shared/api/client';
 
-// served below /courses/ for historical reasons
-const BASE = '/courses/notifications';
+const BASE = '/notifications';
 
 export const unreadCount = () =>
   api.get(`${BASE}/count/`).then((response) => response.data.unread_count);

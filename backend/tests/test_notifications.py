@@ -1,6 +1,6 @@
 """Engagement slice: notification list / unread count / mark-as-read.
 
-The endpoints live under ``/api/courses/notifications/`` today (they are part
+The endpoints live under ``/api/notifications/`` today (they are part
 of the courses app)."""
 import pytest
 
@@ -8,12 +8,12 @@ import factories as f
 
 pytestmark = pytest.mark.django_db
 
-LIST = '/api/courses/notifications/'
-COUNT = '/api/courses/notifications/count/'
+LIST = '/api/notifications/'
+COUNT = '/api/notifications/count/'
 
 
 def read_url(notification):
-    return f'/api/courses/notifications/{notification.id}/read/'
+    return f'/api/notifications/{notification.id}/read/'
 
 
 def test_list_returns_only_own_notifications_newest_first(auth_client, student, other_student):
@@ -103,7 +103,7 @@ def test_mark_read_updates_only_the_owners_notification(auth_client, student, ot
     assert 'error' in r.json()
     theirs.refresh_from_db()
     assert theirs.is_read is False
-    assert client.post('/api/courses/notifications/999999/read/').status_code == 404
+    assert client.post('/api/notifications/999999/read/').status_code == 404
 
 
 def test_notification_endpoints_require_authentication_but_no_particular_role(
@@ -111,7 +111,7 @@ def test_notification_endpoints_require_authentication_but_no_particular_role(
     """Any authenticated role may use the notification endpoints."""
     for url in (LIST, COUNT):
         assert api.get(url).status_code == 401
-    assert api.post('/api/courses/notifications/1/read/').status_code == 401
+    assert api.post('/api/notifications/1/read/').status_code == 401
 
     for user in (instructor, admin):
         f.make_notification(user)

@@ -7,8 +7,6 @@ each test is a plain sync test that runs one coroutine through
 ``asgiref.sync.async_to_sync``; they need ``transaction=True`` because the
 consumers talk to the database from other threads.
 """
-import json
-import uuid
 
 import pytest
 from asgiref.sync import async_to_sync, sync_to_async
@@ -19,9 +17,9 @@ from django.utils.module_loading import import_string
 
 import factories as f
 
-SEND = '/api/discussions/messages/send/'
-CONVERSATIONS = '/api/discussions/messages/conversations/'
-USERS = '/api/discussions/messages/users/'
+SEND = '/api/messaging/send/'
+CONVERSATIONS = '/api/messaging/conversations/'
+USERS = '/api/messaging/users/'
 
 
 def conv_id(a, b):

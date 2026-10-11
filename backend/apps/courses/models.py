@@ -4,7 +4,6 @@ from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
 from apps.core.models import BaseModel, Category, Tag, Language
-import uuid
 import os
 
 def validate_course_thumbnail(value):

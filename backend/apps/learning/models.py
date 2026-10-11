@@ -105,7 +105,7 @@ class Enrollment(BaseModel):
 
         try:
             self.save(update_fields=['progress_percentage'])
-        except Exception as e:
+        except Exception:
             raise
 
         # Check if course should be marked complete

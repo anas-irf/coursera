@@ -95,6 +95,5 @@ export const reorderSections = (courseId, sectionOrders) =>
 export const reorderLectures = (sectionId, lectureOrders) =>
   api.post(`${BASE}/sections/${sectionId}/lectures/reorder/`, { lecture_orders: lectureOrders });
 
-// the quiz routes sit below an extra "api/" segment on the server
 export const reorderQuizQuestions = (lectureId, questionOrders) =>
-  api.post(`/assessments/api/quizzes/${lectureId}/reorder-questions/`, { question_orders: questionOrders });
+  api.post(`/assessments/quizzes/${lectureId}/reorder-questions/`, { question_orders: questionOrders });
