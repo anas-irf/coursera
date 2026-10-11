@@ -110,7 +110,7 @@ REACT = Course(
                 'synchronise with something outside React: the network, the DOM, a timer.</p>')),
             Assignment('A searchable course list', 30,
                        'Build a component that loads a JSON list of courses and filters it as the user types. '
-                       'Submit the code and a short note about where the state lives and why.', due=-6),
+                       'Submit the code and a short note about where the state lives and why.', due=3),
         )),
         Section('Shipping it', items=(
             Video('Structure, testing and deployment', YT['react'], 16),

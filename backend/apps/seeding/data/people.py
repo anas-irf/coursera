@@ -51,30 +51,32 @@ INSTRUCTORS = (
            country='United States', city='Austin', years=9, verified_instructor=True,
            bio='Software engineer turned teacher. I like programs that fit on one screen.',
            expertise='Python, software design, machine learning',
-           story='Owns the two demo courses (one free, one Plus) and the Cloud course waiting for approval'),
+           story='Owns the two demo courses (one free, one Plus) and the Cloud course waiting for approval; '
+                 'one hand-in waits for a grade'),
     Person('sofia.martinez@example.com', 'instructor', 'Sofia', 'Martinez', joined=150, login=1,
            country='Spain', city='Madrid', years=12, verified_instructor=True,
            bio='Statistician and data scientist. Ten years of turning messy tables into decisions.',
            expertise='Statistics, data visualisation, Bayesian methods',
-           story='Data science instructor: a free bestseller, a Plus course, a draft that is ready to submit'),
+           story='Data science instructor: a free bestseller, a Plus course, a draft that is ready to '
+                 'submit, one hand-in waiting for a grade'),
     Person('james.okafor@example.com', 'instructor', 'James', 'Okafor', joined=140, login=0,
            country='Nigeria', city='Lagos', years=8, verified_instructor=True,
            bio='Full-stack developer and bootcamp mentor. Ships weekly, teaches what worked.',
            expertise='JavaScript, React, Django, PostgreSQL',
-           story='Busiest instructor: featured free course, learners and ungraded work, one course pending, '
-                 'one taken offline with learners still enrolled'),
+           story='Busiest instructor: the featured free course with most learners, one Plus course, one '
+                 'course pending review, one taken offline with learners still enrolled'),
     Person('lena.fischer@example.com', 'instructor', 'Lena', 'Fischer', joined=120, login=4,
            country='Germany', city='Berlin', years=6, verified_instructor=True,
            bio='Product designer. Believes every interface is a conversation.',
            expertise='UX research, interaction design, design systems',
-           story='Design instructor with free courses only: earnings stay at zero; one draft that cannot be '
-                 'submitted yet (weights are not 100)'),
+           story='Design instructor with free courses only (earnings stay at zero), a late hand-in waiting '
+                 'for a grade and a draft that cannot be submitted yet (weights are not 100)'),
     Person('ravi.shah@example.com', 'instructor', 'Ravi', 'Shah', joined=100, login=3,
            country='India', city='Pune', years=11,
            bio='Ex-consultant. Teaches project management and marketing analytics from real engagements.',
            expertise='Project management, marketing analytics, operations',
-           story='Business instructor: one rejected course with feedback, an empty draft, an old course '
-                 'marked unpublished, two Plus courses with earnings'),
+           story='Business instructor: a rejected course with feedback, an empty draft, an old course '
+                 'marked unpublished, two Plus courses with earnings and one hand-in waiting'),
     Person('noah.bennett@example.com', 'instructor', 'Noah', 'Bennett', joined=9, login=1,
            country='Canada', city='Toronto', years=2,
            bio='Photographer getting ready to publish a first course.',

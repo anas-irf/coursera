@@ -65,15 +65,57 @@ def test_the_password_can_come_from_the_settings(settings):
 @pytest.mark.django_db
 def test_running_it_again_creates_nothing_and_keeps_passwords():
     seed(password='first-password')
-    counts = {model.__name__: model.objects.count() for model in
-              (f.User, f.Course, f.Enrollment, f.QuizAttempt, f.AssignmentSubmission, f.Notification)}
+    counts = row_counts()
     hashes = dict(f.User.objects.values_list('email', 'password'))
 
     seed(password='second-password')
 
-    assert {model.__name__: model.objects.count() for model in
-            (f.User, f.Course, f.Enrollment, f.QuizAttempt, f.AssignmentSubmission, f.Notification)} == counts
+    assert row_counts() == counts
     assert dict(f.User.objects.values_list('email', 'password')) == hashes
+
+
+MODELS = (f.User, f.Course, f.Lecture, f.Enrollment, f.LectureProgress, f.QuizAttempt,
+          f.AssignmentSubmission, f.Certificate, f.CourseBookmark, f.Notification, f.DirectMessage,
+          f.StudentPlusSubscription, f.StudentPlusPayment, f.InstructorEarning)
+
+
+def row_counts():
+    return {model.__name__: model.objects.count() for model in MODELS}
+
+
+@pytest.mark.django_db
+def test_reset_replaces_the_seeded_data_and_leaves_everybody_else_alone():
+    seed(password='first-password')
+    before = row_counts()
+    stranger = f.make_student(email='someone.else@example.org')
+    foreign_course = f.make_course(f.make_instructor(email='teacher.else@example.org'),
+                                   status='published')
+    f.Enrollment.objects.create(student=stranger, course=foreign_course)
+    stranger_note = f.make_notification(stranger, title='Mine')
+
+    output = seed(password='second-password', reset=True)
+
+    assert 'Removed 32 users' in output
+    after = row_counts()
+    # the seeded rows are back; what is left over is exactly what the stranger brought
+    assert after['User'] == before['User'] + 2
+    assert after['Course'] == before['Course'] + 1
+    assert after['Enrollment'] == before['Enrollment'] + 1
+    assert after['Notification'] == before['Notification'] + 1
+    for label in ('Lecture', 'QuizAttempt', 'AssignmentSubmission', 'Certificate', 'DirectMessage',
+                  'InstructorEarning', 'StudentPlusSubscription'):
+        assert after[label] == before[label], label
+    assert f.User.objects.get(email='someone.else@example.org').check_password(f.DEFAULT_PASSWORD)
+    assert f.Notification.objects.filter(pk=stranger_note.pk).exists()
+    assert f.User.objects.get(email='demo.student@example.com').check_password('second-password')
+
+
+def test_the_cast_can_be_listed_without_a_database(capsys):
+    call_command('seed_dev', list_cast=True)
+
+    lines = capsys.readouterr().out.strip().splitlines()
+    assert len(lines) == len(PEOPLE) + 1
+    assert any('demo.student@example.com' in line for line in lines)
 
 
 # --------------------------------------------------------------------------- #
@@ -187,8 +229,13 @@ def test_progress_matches_the_finished_lectures(world):
 
 @pytest.mark.django_db
 def test_enrolment_counters_were_kept_by_the_service(world):
+    showcase = {'javascript-from-scratch', 'statistics-for-data-science', 'introduction-to-python'}
     for course in f.Course.objects.all():
-        assert course.total_enrolled == f.Enrollment.objects.filter(course=course).count(), course.slug
+        enrolled = f.Enrollment.objects.filter(course=course).count()
+        if course.slug in showcase:     # a popularity counter, higher than the learners seeded
+            assert course.total_enrolled > enrolled, course.slug
+        else:
+            assert course.total_enrolled == enrolled, course.slug
 
 
 @pytest.mark.django_db
@@ -249,3 +296,109 @@ def test_notifications_were_created_by_the_events_and_dated_back(world):
     assert {'enrollment', 'assignment_graded', 'certificate_earned', 'payment_success'} <= types
     ages = [(f.Notification.objects.latest('created_at').created_at - n.created_at).days for n in notes]
     assert max(ages) > 30        # the welcome message is from months ago, not from the seed run
+
+
+@pytest.mark.django_db
+def test_conversations_have_read_and_unread_messages(world):
+    demo = f.User.objects.get(email='demo.student@example.com')
+    unread = f.DirectMessage.objects.filter(recipient=demo, is_read=False)
+
+    assert unread.count() == 4
+    assert len(set(unread.values_list('conversation_id', flat=True))) == 2
+    sizes = Counter(f.DirectMessage.objects.values_list('conversation_id', flat=True))
+    assert max(sizes.values()) >= 30 and len(sizes) == 12
+    assert f.DirectMessage.objects.filter(is_read=True, read_at__isnull=False).exists()
+
+
+@pytest.mark.django_db
+def test_the_headline_students_bell_shows_nine_plus(world):
+    demo = f.User.objects.get(email='demo.student@example.com')
+    notes = f.Notification.objects.filter(recipient=demo)
+
+    assert notes.filter(is_read=False).count() >= 10
+    assert notes.filter(is_read=True).exists()
+    assert {'announcement', 'assignment_due', 'quiz_available', 'course_update', 'system'} <= set(
+        notes.values_list('notification_type', flat=True))
+
+
+@pytest.mark.django_db
+def test_the_instructor_screens_are_populated_except_for_the_empty_ones(world):
+    from apps.insights import instructor as insights
+
+    ravi = f.User.objects.get(email='ravi.shah@example.com')
+    dashboard = insights.dashboard(ravi)
+    assert dashboard['stats']['total_revenue'] > 0
+    assert len([c for c in dashboard['top_courses'] if c['total_revenue'] > 0]) == 2
+    assert any(point['revenue'] > 0 for point in dashboard['revenue_chart'])
+
+    earnings = insights.earnings(ravi)
+    assert earnings['summary']['total_earnings'] > 0 and earnings['summary']['pending_earnings'] > 0
+    assert earnings['summary']['monthly_earnings'] > 0
+    assert sum(1 for month in earnings['monthly_chart'] if month['earnings'] > 0) >= 2
+
+    lena = insights.dashboard(f.User.objects.get(email='lena.fischer@example.com'))
+    assert lena['stats']['total_revenue'] == 0 and lena['stats']['published_courses'] == 2
+    noah = insights.dashboard(f.User.objects.get(email='noah.bennett@example.com'))
+    assert noah['stats']['total_courses'] == 0 and noah['recent_enrollments'] == []
+
+
+@pytest.mark.django_db
+def test_earnings_exist_for_plus_courses_only(world):
+    kinds = set(f.InstructorEarning.objects.values_list('course__course_type', flat=True))
+
+    assert kinds == {'coursera_plus'}
+    assert f.InstructorEarning.objects.filter(is_paid=True).exists()
+    assert f.InstructorEarning.objects.filter(is_paid=False).exists()
+    assert f.InstructorEarning.objects.values('month').distinct().count() >= 5
+
+
+@pytest.mark.django_db
+def test_plus_access_follows_the_subscription_stories(world):
+    from apps.billing.selectors import has_plus_access
+
+    def access(email):
+        return has_plus_access(f.User.objects.get(email=email))
+
+    assert access('demo.student@example.com') and access('amara.okoye@example.com')
+    assert access('liam.chen@example.com')
+    assert not access('sara.haddad@example.com')          # cancelled
+    assert not access('mateo.alvarez@example.com')        # lapsed after a failed payment
+    assert not access('ethan.walker@example.com')         # never subscribed
+
+    sara = f.StudentPlusSubscription.objects.get(student__email='sara.haddad@example.com')
+    assert sara.status == 'cancelled' and not sara.auto_renew and sara.end_date > sara.updated_at
+    mateo = f.StudentPlusSubscription.objects.get(student__email='mateo.alvarez@example.com')
+    assert mateo.status == 'active' and mateo.payments.filter(status='failed').count() == 1
+    assert f.StudentPlusSubscription.objects.count() == 5
+
+
+@pytest.mark.django_db
+def test_deadlines_and_late_hand_ins(world):
+    from django.utils import timezone
+
+    late = f.AssignmentSubmission.objects.filter(is_late=True)
+    assert set(late.values_list('student__email', flat=True)) == {
+        'chloe.dubois@example.com', 'oliver.smith@example.com', 'hannah.weiss@example.com'}
+    assert late.filter(grade__isnull=True).count() == 1          # Chloe's, still waiting
+
+    now = timezone.now()
+    assert f.Assignment.objects.filter(due_date__lt=now).exists()
+    assert f.Assignment.objects.filter(due_date__gt=now).exists()
+    assert f.Assignment.objects.filter(due_date__isnull=True).exists()
+    assert f.Assignment.objects.filter(allow_late_submission=False).exists()
+
+
+@pytest.mark.django_db
+def test_a_course_taken_offline_keeps_its_learners(world):
+    course = f.Course.objects.get(slug='html-and-css-crash-course')
+
+    assert course.status == 'draft' and course.published_date is None
+    assert f.Enrollment.objects.filter(course=course, status='active').count() == 2
+
+
+@pytest.mark.django_db
+def test_showcase_courses_show_their_popularity(world):
+    assert f.Course.objects.get(slug='javascript-from-scratch').total_enrolled == 5310
+    assert f.Course.objects.get(slug='introduction-to-python').total_enrolled == 2140
+    smaller = f.Course.objects.get(slug='project-management-essentials')
+    assert smaller.total_enrolled == f.Enrollment.objects.filter(course=smaller).count()
