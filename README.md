@@ -71,7 +71,7 @@ All seeded accounts share one password and use `@example.com` addresses. The one
 
 | Account | Role | Why |
 |---|---|---|
-| `demo.student@example.com` | student | Plus member, five enrolments from 0 to 100 percent, a certificate, 10+ unread notifications, three conversations |
+| `demo.student@example.com` | student | Plus member, five enrolments from 0 to 100 percent, a certificate, 10+ unread notifications, four conversations |
 | `amara.okoye@example.com` | student | yearly Plus, an eight-day streak, two certificates |
 | `mei.lin@example.com` | student | registered, nothing else: the empty states |
 | `demo.instructor@example.com` | instructor | the two demo courses and a course waiting for approval |

@@ -3,7 +3,8 @@
 Only the e-mail addresses listed in ``data/people.py`` are touched.  Their
 courses go with them (so do the enrolments of anybody in those courses), and
 so do the notifications that point at those courses and enrolments and the
-files that were uploaded.  Reference data (categories, languages, plans) stays.
+files that were uploaded.  Reference data (categories, languages, plans) stays.  Revenue
+pools of the months the removed earnings belonged to go with them.
 """
 from django.core.files.storage import default_storage
 from django.db import transaction
@@ -11,6 +12,7 @@ from django.db.models import Q
 
 from apps.accounts.models import User
 from apps.assessments.models import AssignmentSubmission
+from apps.billing.models import CourseraRevenuePool, InstructorEarning
 from apps.certificates.models import Certificate
 from apps.courses.models import Course
 from apps.learning.models import Enrollment
@@ -41,9 +43,15 @@ def reset():
                   .filter(Q(student__in=users) | Q(assignment__course__in=courses))
                   .exclude(submission_file='').values_list('submission_file', flat=True))
 
+    # a monthly pool is derived from the earnings of that month
+    pool_months = set(InstructorEarning.objects.filter(instructor__in=users).values_list('month', flat=True))
+
     counts = {'users': users.count(), 'courses': courses.count(), 'enrolments': enrollments.count(),
               'notifications': notifications, 'files': len(files)}
     users.delete()      # cascades: profiles, courses, enrolments, attempts, messages, ...
+
+    CourseraRevenuePool.objects.filter(month__in=pool_months).exclude(
+        month__in=InstructorEarning.objects.values('month')).delete()
 
     for name in files:
         default_storage.delete(name)

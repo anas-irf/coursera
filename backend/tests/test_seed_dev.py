@@ -8,6 +8,7 @@ from django.core.management.base import CommandError
 from PIL import Image
 
 import factories as f
+from apps.billing.models import CourseraRevenuePool
 from apps.seeding import assets
 from apps.seeding.data.courses import BY_SLUG, COURSES
 from apps.seeding.data.people import PEOPLE
@@ -21,6 +22,12 @@ def seed(**options):
     options.setdefault('force', True)   # the test settings run with DEBUG=False
     call_command('seed_dev', stdout=out, **options)
     return out.getvalue()
+
+
+@pytest.fixture(autouse=True)
+def _no_seed_password_from_the_environment(settings):
+    """A developer's backend/.env may set SEED_PASSWORD; the tests must not depend on it."""
+    settings.SEED_PASSWORD = ''
 
 
 @pytest.fixture(scope='module')
@@ -102,6 +109,7 @@ def test_reset_replaces_the_seeded_data_and_leaves_everybody_else_alone():
     assert after['Course'] == before['Course'] + 1
     assert after['Enrollment'] == before['Enrollment'] + 1
     assert after['Notification'] == before['Notification'] + 1
+    assert CourseraRevenuePool.objects.count() == 6          # replaced, not duplicated
     for label in ('Lecture', 'QuizAttempt', 'AssignmentSubmission', 'Certificate', 'DirectMessage',
                   'InstructorEarning', 'StudentPlusSubscription'):
         assert after[label] == before[label], label
@@ -253,13 +261,13 @@ def test_certificates_belong_to_completed_enrolments(world):
 @pytest.mark.django_db
 def test_quiz_outcomes_cover_pass_fail_and_exhausted_attempts(world):
     oliver = f.User.objects.get(email='oliver.smith@example.com')
-    attempts = f.QuizAttempt.objects.filter(student=oliver, quiz__title='Check your understanding')
+    attempts = f.QuizAttempt.objects.filter(student=oliver, quiz__course__slug='introduction-to-python')
     assert attempts.count() == 3 and not attempts.filter(passed=True).exists()
     assert attempts.first().quiz.max_attempts == 3
 
     demo = f.User.objects.get(email='demo.student@example.com')
     first, second = f.QuizAttempt.objects.filter(
-        student=demo, quiz__title='Check your understanding').order_by('attempt_number')
+        student=demo, quiz__course__slug='introduction-to-python').order_by('attempt_number')
     assert not first.passed and second.passed and second.score == 100
 
     assert f.QuizAttempt.objects.filter(score=100).count() >= 3
@@ -422,7 +430,7 @@ def test_the_student_screens_are_populated(world, auth_client):
     assert stats['has_plus_subscription'] is True and stats['total_learning_hours'] > 0
 
     enrolled = api_get(auth_client, demo, '/api/learning/enrolled/')      # the completed course is not listed
-    assert sorted(round(course['progress']) for course in enrolled) == [0, 25, 50, 75]
+    assert sorted(round(course['progress']) for course in enrolled) == [0, 20, 50, 75]
 
     catalogue = api_get(auth_client, demo, '/api/learning/courses/')
     assert len(catalogue) >= 9

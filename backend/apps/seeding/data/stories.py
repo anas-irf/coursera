@@ -38,8 +38,15 @@ STORIES = (
                              'steps, and a loop saves you from writing the same line twice.',
                         grade=88,
                         feedback='Clear and accurate. Next time give one concrete example of a function.')}),
-              Enrol(JS, days=40, done=5, last=1, quiz={'Check: values and types': [4]}),
-              Enrol(ML, days=25, done=2, last=6),
+              Enrol(JS, days=40, done=2, last=1),
+              Enrol(ML, days=25, done=4, last=6,
+                    quiz={PY_QUIZ: [3]},
+                    work={PY_WORK: Submit(
+                        text='A model is a function learned from examples: you show it inputs with known '
+                             'answers and it adjusts until its guesses are close.',
+                        grade=85,
+                        feedback='Good plain-language summary. Mention what "close" means for a '
+                                 'classifier next time.')}),
               Enrol(ANALYTICS, days=18, done=6, last=2,
                     quiz={'Check: attribution': [4]},
                     work={'Attribution comparison': Submit(

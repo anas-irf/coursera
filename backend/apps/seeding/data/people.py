@@ -90,7 +90,7 @@ STUDENTS = (
            interests=('Python', 'Data science', 'Web development'),
            goals='Move from spreadsheets to Python and build a portfolio of small data projects.',
            story='Headline learner: Plus member, five enrolments from 0 to 100 percent, a certificate, '
-                 'unread notifications and three conversations'),
+                 'unread notifications and four conversations'),
     Person('amara.okoye@example.com', 'student', 'Amara', 'Okoye', joined=140, login=0, hours=118.0,
            country='Nigeria', city='Abuja',
            interests=('Web development', 'JavaScript'),
