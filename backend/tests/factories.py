@@ -22,10 +22,7 @@ from PIL import Image
 # --------------------------------------------------------------------------- #
 # MODEL IMPORT BLOCK - the only place where application packages are imported #
 # --------------------------------------------------------------------------- #
-from apps.accounts.models import (  # noqa: E402,F401
-    User, StudentProfile, InstructorProfile,
-    StudentPlusSubscription, StudentPlusPayment,
-)
+from apps.accounts.models import User, StudentProfile, InstructorProfile  # noqa: E402,F401
 from apps.core.models import Category, Language  # noqa: E402,F401
 from apps.courses.models import Course, Section, Lecture  # noqa: E402,F401
 from apps.content.models import VideoContent, Reading, Subtitle  # noqa: E402,F401
@@ -37,7 +34,9 @@ from apps.assessments.models import (  # noqa: E402,F401
     Assignment, AssignmentSubmission,
 )
 from apps.notifications.models import Notification  # noqa: E402,F401
-from apps.billing.models import InstructorEarning, SubscriptionPlan  # noqa: E402,F401
+from apps.billing.models import (  # noqa: E402,F401
+    InstructorEarning, SubscriptionPlan, StudentPlusSubscription, StudentPlusPayment,
+)
 from apps.certificates.models import Certificate  # noqa: E402,F401
 from apps.messaging.models import DirectMessage  # noqa: E402,F401
 # --------------------------------------------------------------------------- #

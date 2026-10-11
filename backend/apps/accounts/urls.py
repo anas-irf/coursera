@@ -10,10 +10,4 @@ urlpatterns = [
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('profile/', views.get_user_profile, name='user_profile'),
     path('verify-email/<str:token>/', views.verify_email, name='verify_email'),
-
-    # Student Plus subscription endpoints
-    path('student/subscription-status/', views.student_subscription_status, name='student_subscription_status'),
-    path('student/cancel-subscription/', views.cancel_plus_subscription, name='cancel_plus_subscription'),
-    path('student/stats/', views.student_stats, name='student_stats'),
-    path('student/weekly-progress/', views.student_weekly_progress, name='student_weekly_progress'),
 ]

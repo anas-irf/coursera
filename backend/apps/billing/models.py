@@ -1,6 +1,7 @@
 # payments/models.py
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 from apps.core.models import BaseModel
 from apps.courses.models import Course
 from decimal import Decimal
@@ -94,3 +95,74 @@ class CourseraRevenuePool(BaseModel):
     
     class Meta:
         db_table = 'revenue_pools'
+
+
+class StudentPlusSubscription(BaseModel):
+    SUBSCRIPTION_STATUS_CHOICES = (
+        ('active', 'Active'),
+        ('cancelled', 'Cancelled'),
+        ('expired', 'Expired'),
+        ('pending', 'Pending Payment'),
+    )
+
+    SUBSCRIPTION_TYPE_CHOICES = (
+        ('monthly', 'Monthly'),
+        ('yearly', 'Yearly'),
+    )
+
+    student = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='plus_subscription',
+        limit_choices_to={'user_type': 'student'}
+    )
+
+    subscription_type = models.CharField(max_length=20, choices=SUBSCRIPTION_TYPE_CHOICES)
+    status = models.CharField(max_length=20, choices=SUBSCRIPTION_STATUS_CHOICES, default='pending')
+
+    start_date = models.DateTimeField(default=timezone.now)
+    end_date = models.DateTimeField(null=True, blank=True)
+    auto_renew = models.BooleanField(default=True)
+
+    # Payment tracking
+    payment_method = models.CharField(max_length=50, blank=True)
+    last_payment_date = models.DateTimeField(null=True, blank=True)
+    next_billing_date = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'student_plus_subscriptions'
+
+    def is_active(self):
+        """Check if subscription is currently active"""
+        if self.status != 'active':
+            return False
+        if self.end_date and self.end_date < timezone.now():
+            return False
+        return True
+
+    def can_access_plus_courses(self):
+        """Check if student can access coursera plus courses"""
+        return self.is_active()
+
+
+class StudentPlusPayment(BaseModel):
+    PAYMENT_STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('refunded', 'Refunded'),
+    )
+
+    subscription = models.ForeignKey(StudentPlusSubscription, on_delete=models.CASCADE,
+                                    related_name='payments')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default='USD')
+    status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='pending')
+
+    payment_date = models.DateTimeField(auto_now_add=True)
+    payment_method = models.CharField(max_length=50)
+    transaction_id = models.CharField(max_length=100, unique=True, null=True, blank=True)
+
+    class Meta:
+        db_table = 'student_plus_payments'
+        ordering = ['-payment_date']

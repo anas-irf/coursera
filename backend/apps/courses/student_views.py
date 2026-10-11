@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, date
 from decimal import Decimal
 
 from apps.accounts.permissions import IsStudent
+from apps.billing.selectors import has_plus_access as student_has_plus_access
 
 from . import extensions
 from .models import Course, Section, Lecture
@@ -37,7 +38,7 @@ def all_courses(request):
     # Check subscription status for enrollment permissions (but show all courses)
     has_plus_access = False
     if request.user.is_authenticated and request.user.user_type == 'student':
-        has_plus_access = request.user.has_plus_access
+        has_plus_access = student_has_plus_access(request.user)
     
     # Apply filters
     if category != 'all':
@@ -535,7 +536,7 @@ def enroll_course(request, course_uuid):
     # Check if course is free or student has subscription
     if course.course_type == 'coursera_plus':
         # Check if student has active Plus subscription
-        if not student.has_plus_access:
+        if not student_has_plus_access(student):
             return Response(
                 {
                     'error': 'Coursera Plus subscription required',
@@ -1024,7 +1025,7 @@ def plus_courses_preview(request):
     student = request.user
 
     # Check current subscription status
-    if student.has_plus_access:
+    if student_has_plus_access(student):
         return Response(
             {'message': 'You already have Plus access'},
             status=status.HTTP_200_OK

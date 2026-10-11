@@ -631,11 +631,9 @@ def test_cancel_subscription(auth_client, instructor, student):
     assert client.post(f'/api/courses/{plus_course.uuid}/enroll/').status_code == 402
 
 
-@pytest.mark.pinned_bug
-def test_cancel_without_subscription_is_a_500_current_behaviour(auth_client, student):
-    """Current behaviour (bug): ``get_object_or_404`` raises Http404 which the
-    view's ``except Exception`` turns into a 500 (the 404 branch is unreachable)."""
+def test_cancel_without_subscription_is_a_404(auth_client, student):
+    """There is nothing to cancel: 404 with a readable message (used to be a 500)."""
     r = auth_client(student).post(SUB_CANCEL)
 
-    assert r.status_code == 500
-    assert 'error' in r.json()
+    assert r.status_code == 404
+    assert r.json() == {'error': 'No active subscription found'}

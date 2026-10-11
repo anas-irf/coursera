@@ -3,6 +3,7 @@ from django.db import models
 from django.conf import settings
 from django.utils import timezone
 from django.core.exceptions import ValidationError
+from apps.billing.selectors import has_plus_access
 from apps.core.models import BaseModel
 from apps.courses.models import Course, Lecture, Section
 
@@ -57,7 +58,7 @@ class Enrollment(BaseModel):
 
         # Check subscription access for Plus courses
         if self.course.course_type == 'coursera_plus':
-            if not self.student.has_plus_access:
+            if not has_plus_access(self.student):
                 raise ValidationError("Active Plus subscription required to enroll in this course")
 
     def save(self, *args, **kwargs):
