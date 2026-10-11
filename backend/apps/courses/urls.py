@@ -56,8 +56,6 @@ urlpatterns = [
          name='lecture-detail'),
     
     # student URLs (discovery and learning are served by the learning slice)
-    path('assignments/<uuid:assignment_uuid>/submit/', student_views.submit_assignment, name='submit-assignment'),
-    path('assignments/submissions/<uuid:submission_uuid>/download/', student_views.download_submission_file, name='download-submission-file'),
 
     # Student certificates and achievements
     path('student/certificates/', student_views.student_certificates, name='student-certificates'),
@@ -69,18 +67,6 @@ urlpatterns = [
     path('admin/users/', views.admin_all_users, name='admin-all-users'),
     path('admin/<uuid:course_id>/approve/', moderation.admin_approve_course, name='admin-approve-course'),
     path('admin/<uuid:course_id>/reject/', moderation.admin_reject_course, name='admin-reject-course'),
-
-    # Quiz attempt endpoints
-    path('quizzes/<uuid:quiz_uuid>/attempt/', student_views.attempt_quiz, name='attempt-quiz'),
-
-    # Instructor assignment management
-    path('instructor/assignments/', views.instructor_assignments, name='instructor-assignments'),
-    path('instructor/assignments/<uuid:assignment_uuid>/submissions/', views.instructor_assignment_submissions, name='instructor-assignment-submissions'),
-    path('instructor/assignments/submissions/<uuid:submission_uuid>/grade/', views.grade_assignment_submission, name='grade-assignment-submission'),
-
-    # Gradebook management
-    path('instructor/courses/<uuid:course_uuid>/gradebook/', views.instructor_course_gradebook, name='instructor-course-gradebook'),
-    path('student/gradebook/', views.student_gradebook, name='student-gradebook'),
 
     # Router paths (must come after all specific paths to avoid conflicts)
     path('', include(router.urls)),

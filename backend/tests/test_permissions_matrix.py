@@ -45,13 +45,34 @@ def test_superuser_counts_as_admin_whatever_the_user_type(auth_client):
 
 
 def test_permission_classes_are_defined_once():
-    """The role classes used by the views are the ones from accounts.permissions."""
-    from apps.accounts import permissions
-    from apps.assessments import views as assessment_views
-    from apps.courses import student_views, views as course_views
+    """The role classes exist only in accounts.permissions (they used to be copied into four modules)."""
+    import re
+    from pathlib import Path
 
-    assert course_views.IsInstructor is permissions.IsInstructor
-    assert course_views.IsStudent is permissions.IsStudent
-    assert course_views.IsAdmin is permissions.IsAdmin
-    assert student_views.IsStudent is permissions.IsStudent
-    assert assessment_views.IsInstructor is permissions.IsInstructor
+    apps_dir = Path(__file__).resolve().parents[1] / 'apps'
+    definitions = []
+    for path in apps_dir.rglob('*.py'):
+        if 'migrations' in path.parts:
+            continue
+        text = path.read_text(encoding='utf-8')
+        for name in ('IsStudent', 'IsInstructor', 'IsAdmin'):
+            if re.search(rf'^class {name}\b', text, re.MULTILINE):
+                definitions.append((path.relative_to(apps_dir).as_posix(), name))
+
+    assert sorted(definitions) == [
+        ('accounts/permissions.py', 'IsAdmin'),
+        ('accounts/permissions.py', 'IsInstructor'),
+        ('accounts/permissions.py', 'IsStudent'),
+    ]
+
+
+def test_slices_import_the_shared_permission_classes():
+    from apps.accounts import permissions
+    from apps.assessments.api import instructor as assessment_instructor
+    from apps.assessments.api import student as assessment_student
+    from apps.learning.api import views as learning_views
+
+    assert assessment_instructor.IsInstructor is permissions.IsInstructor
+    assert assessment_student.IsStudent is permissions.IsStudent
+    assert learning_views.IsStudent is permissions.IsStudent
+    assert learning_views.IsInstructor is permissions.IsInstructor

@@ -196,11 +196,8 @@ def test_multiple_select_needs_the_exact_set_and_fill_blank_is_case_insensitive(
     assert r.json()['results']['earned_points'] == 1
 
 
-@pytest.mark.xfail(strict=True,
-                   reason='500: float score into DecimalField(5,2); fixed in refactor step S8')
-@pytest.mark.pinned_bug
-def test_submit_two_of_three_correct_should_return_the_rounded_score(auth_client, instructor, student):
-    """DESIRED behaviour: 2 of 3 correct -> 200 and score 66.67."""
+def test_submit_two_of_three_correct_returns_the_rounded_score(auth_client, instructor, student):
+    """2 of 3 correct -> 200 and a score rounded to the two decimals the column stores."""
     bundle = f.build_course(instructor, status='published',
                             quiz_questions=[f.mc_question(), f.tf_question(), f.ms_question()])
     f.enroll(student, bundle.course)
@@ -212,28 +209,27 @@ def test_submit_two_of_three_correct_should_return_the_rounded_score(auth_client
     assert r.json()['results']['score'] == pytest.approx(66.67, abs=0.005)
 
 
-@pytest.mark.pinned_bug
-def test_submit_with_a_fractional_score_is_a_500_and_leaves_the_attempt_open(
-        auth_client, instructor, student):
-    """Current behaviour (bug): 66.666... is assigned to ``DecimalField(5,2)`` and
-    ``QuizAttempt.save()`` runs ``full_clean()``, which raises ValidationError ->
-    500.  The question responses were already written and the attempt stays open.
-    The plan fixes this in step S8 (score rounded to two decimals)."""
+def test_a_fractional_score_is_stored_rounded_and_closes_the_attempt(auth_client, instructor, student):
+    """2 of 3 correct stores 66.67 (66.666... used to fail validation and left the attempt open)."""
     bundle = f.build_course(instructor, status='published',
                             quiz_questions=[f.mc_question(), f.tf_question(), f.ms_question()])
     f.enroll(student, bundle.course)
-    client = auth_client(student, raise_exceptions=False)
+    client = auth_client(student)
     attempt_id = start(client, bundle.quiz).json()['attempt_id']
 
     r = submit(client, bundle.quiz, attempt_id, f.build_answers(bundle.quiz, [0, 1]))
 
-    assert r.status_code == 500
+    assert r.status_code == 200
+    results = r.json()['results']
+    assert (results['earned_points'], results['total_points']) == (2, 3)
+    assert results['score'] == pytest.approx(66.67)
+    assert results['passed'] is True  # passing score is 60
     attempt = f.QuizAttempt.objects.get(uuid=attempt_id)
-    assert attempt.end_time is None and attempt.score is None
+    assert attempt.end_time is not None
+    assert attempt.score == Decimal('66.67')
     assert f.QuestionResponse.objects.filter(attempt=attempt).count() == 3
-    # and the very same attempt can never be submitted again (unique responses)
-    r = submit(client, bundle.quiz, attempt_id, f.build_answers(bundle.quiz, [0, 1, 2]))
-    assert r.status_code == 500
+    # a finished attempt cannot be submitted again
+    assert submit(client, bundle.quiz, attempt_id, f.build_answers(bundle.quiz, [0, 1, 2])).status_code == 400
 
 
 # --------------------------------------------------------------------------- #
@@ -282,15 +278,12 @@ def test_submit_with_unknown_missing_foreign_or_finished_attempt_is_400(
     assert submit(client, quiz, own, {}).status_code == 400
 
 
-@pytest.mark.pinned_bug
-def test_submit_with_a_malformed_attempt_id_is_a_500_current_behaviour(auth_client, student, two_question_quiz):
-    """Current behaviour (bug): a non-UUID ``attempt_id`` raises a ValidationError
-    from the ORM lookup that nobody catches."""
-    client = auth_client(student, raise_exceptions=False)
+def test_submit_with_a_malformed_attempt_id_is_a_400(auth_client, student, two_question_quiz):
+    """A non-UUID ``attempt_id`` is as invalid as an unknown one (it used to be a 500)."""
+    r = submit(auth_client(student), two_question_quiz.quiz, 'not-a-uuid', {})
 
-    r = submit(client, two_question_quiz.quiz, 'not-a-uuid', {})
-
-    assert r.status_code == 500
+    assert r.status_code == 400
+    assert 'error' in r.json()
 
 
 def test_first_attempt_completes_the_lecture_even_when_failed(auth_client, student, two_question_quiz):

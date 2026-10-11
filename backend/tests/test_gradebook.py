@@ -149,12 +149,8 @@ def test_instructor_gradebook_is_for_instructors_only(api, auth_client, student,
     assert auth_client(student).get(url).status_code == 403
 
 
-@pytest.mark.pinned_bug
-def test_instructor_gradebook_of_a_foreign_course_is_a_500_current_behaviour(
-        auth_client, other_instructor, graded):
-    """Current behaviour (bug): 500 instead of 404 for somebody else's course
-    (Http404 swallowed by the view's ``except Exception``)."""
+def test_instructor_gradebook_of_a_foreign_course_is_a_404(auth_client, other_instructor, graded):
+    """Somebody else's course does not exist for you (it used to be a 500)."""
     r = auth_client(other_instructor).get(instructor_gradebook(graded.course))
 
-    assert r.status_code == 500
-    assert 'error' in r.json()
+    assert r.status_code == 404

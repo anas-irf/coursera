@@ -717,10 +717,9 @@ def test_reorder_quiz_questions_uses_the_internal_question_ids(auth_client, inst
     assert (first.order, second.order) == (5, 2)
 
     assert auth_client(student).post(url, payload, format='json').status_code == 403
-    # current behaviour: another instructor gets a 400 (404 swallowed by ``except Exception``)
+    # another instructor's quiz does not exist for you
     r = auth_client(other_instructor).post(url, payload, format='json')
-    assert r.status_code == 400
-    assert 'error' in r.json()
+    assert r.status_code == 404
 
 
 # --------------------------------------------------------------------------- #

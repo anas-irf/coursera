@@ -36,6 +36,7 @@ urlpatterns = [
     path('api/courses/notifications/', include('apps.notifications.urls')),
     # learning is mounted first so its fixed paths win over the courses router
     path('api/courses/', include('apps.learning.urls')),
+    path('api/courses/', include('apps.assessments.course_urls')),
     path('api/courses/', include('apps.courses.urls')),
     path('api/assessments/', include('apps.assessments.urls')),
     path('api/certificates/', include('apps.certificates.urls')),

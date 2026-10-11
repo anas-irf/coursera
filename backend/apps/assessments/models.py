@@ -8,7 +8,6 @@ from apps.courses.models import Course, Section, Lecture
 from apps.learning.models import Enrollment
 import os
 import uuid
-from django.core.files.storage import default_storage
 
 def assignment_upload_path(instance, filename):
     """Generate secure upload path for assignment submissions"""
@@ -104,7 +103,6 @@ class QuizAttempt(BaseModel):
     def clean(self):
         """Validate quiz attempt rules"""
         # Check if student is enrolled in the course
-        from apps.learning.models import Enrollment
         try:
             enrollment = Enrollment.objects.get(
                 student=self.student,
@@ -203,7 +201,6 @@ class AssignmentSubmission(BaseModel):
     def clean(self):
         """Validate assignment submission rules"""
         # Check if student is enrolled in the course
-        from apps.learning.models import Enrollment
         try:
             enrollment = Enrollment.objects.get(
                 student=self.student,

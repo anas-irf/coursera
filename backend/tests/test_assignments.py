@@ -271,15 +271,11 @@ def test_instructor_lists_submissions_of_an_assignment(auth_client, instructor, 
     assert rows[0]['submission_text'] == 'my text'
 
 
-@pytest.mark.pinned_bug
-def test_submission_listing_of_a_foreign_assignment_is_a_500_current_behaviour(
-        auth_client, other_instructor, setup):
-    """Current behaviour (bug): ``get_object_or_404`` raises Http404 inside the
-    view's blanket ``except Exception``, so another instructor gets a 500."""
+def test_submission_listing_of_a_foreign_assignment_is_a_404(auth_client, other_instructor, setup):
+    """Another instructor's assignment does not exist for you (it used to be a 500)."""
     r = auth_client(other_instructor).get(submissions_url(setup.assignment))
 
-    assert r.status_code == 500
-    assert 'error' in r.json()
+    assert r.status_code == 404
 
 
 # --------------------------------------------------------------------------- #
@@ -359,15 +355,12 @@ def test_grading_is_for_instructors_only(api, auth_client, student, setup):
     assert submission.grade is None
 
 
-@pytest.mark.pinned_bug
-def test_grading_a_foreign_submission_is_a_500_current_behaviour(auth_client, student,
-                                                                 other_instructor, setup):
-    """Current behaviour (bug): 500 rather than 404 - Http404 is swallowed by the
-    view's ``except Exception``.  The submission stays ungraded."""
+def test_grading_a_foreign_submission_is_a_404(auth_client, student, other_instructor, setup):
+    """Another instructor's submission does not exist for you; it stays ungraded."""
     submission = f.make_submission(setup.assignment, student, enrollment=setup.enrollment)
 
     r = auth_client(other_instructor).post(grade_url(submission), {'grade': 50}, format='json')
 
-    assert r.status_code == 500
+    assert r.status_code == 404
     submission.refresh_from_db()
     assert submission.grade is None

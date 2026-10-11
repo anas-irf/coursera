@@ -1,6 +1,10 @@
-# assessments/services.py
-from django.db.models import Avg, Sum, Count, Q
+"""Grade calculation for students and courses."""
 from decimal import Decimal, ROUND_HALF_UP
+
+from apps.learning.models import Enrollment
+
+from .. import selectors
+from ..models import Assignment, AssignmentSubmission, Quiz, QuizAttempt
 
 class GradeCalculationService:
     """Service for calculating student grades and course progress"""
@@ -8,9 +12,6 @@ class GradeCalculationService:
     @staticmethod
     def calculate_student_course_grade(student, course):
         """Calculate a student's final grade for a course"""
-        from .models import Assignment, Quiz, AssignmentSubmission, QuizAttempt
-        from apps.learning.models import Enrollment
-
         try:
             enrollment = Enrollment.objects.get(student=student, course=course, status='active')
         except Enrollment.DoesNotExist:
@@ -136,9 +137,6 @@ class GradeCalculationService:
     @staticmethod
     def calculate_course_statistics(course):
         """Calculate statistics for all students in a course"""
-        from .models import Assignment, Quiz, AssignmentSubmission, QuizAttempt
-        from apps.learning.models import Enrollment
-
         enrollments = Enrollment.objects.filter(course=course, status='active')
         student_grades = []
 
@@ -193,8 +191,6 @@ class GradeCalculationService:
     @staticmethod
     def get_student_gradebook(student):
         """Get comprehensive gradebook for a student across all courses"""
-        from apps.learning.models import Enrollment
-
         enrollments = Enrollment.objects.filter(student=student, status='active')
         gradebook = []
 
@@ -214,3 +210,42 @@ class GradeCalculationService:
                 })
 
         return gradebook
+
+
+def course_gradebook(course):
+    """Every active student of ``course`` with their grade, plus course statistics."""
+    students = []
+    for enrollment in selectors.active_enrollments(course):
+        grade_data = GradeCalculationService.calculate_student_course_grade(
+            enrollment.student, course
+        )
+
+        row = {
+            'student_id': str(enrollment.student.uuid),
+            'student_name': f"{enrollment.student.first_name} {enrollment.student.last_name}",
+            'student_email': enrollment.student.email,
+            'enrollment_date': enrollment.enrolled_date.isoformat(),
+            'progress_percentage': enrollment.progress_percentage,
+        }
+
+        if grade_data:
+            row.update(grade_data)
+        else:
+            row.update({
+                'final_grade': 0,
+                'letter_grade': 'F',
+                'components': [],
+                'is_passing': False
+            })
+
+        students.append(row)
+
+    return {
+        'course': {
+            'id': str(course.uuid),
+            'title': course.title,
+            'instructor': f"{course.instructor.first_name} {course.instructor.last_name}",
+        },
+        'students': students,
+        'statistics': GradeCalculationService.calculate_course_statistics(course),
+    }

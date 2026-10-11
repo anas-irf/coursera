@@ -19,7 +19,5 @@ ignore_imports =
     apps.courses.student_views -> apps.assessments.models
     apps.courses.student_views -> apps.certificates.models
     apps.courses.student_views -> apps.learning.models
-    apps.courses.views -> apps.assessments.models
-    apps.courses.views -> apps.assessments.services
     apps.courses.views -> apps.billing.models
     apps.courses.views -> apps.learning.models
