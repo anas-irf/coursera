@@ -13,13 +13,15 @@ import {
   Star,
   AlertTriangle
 } from 'lucide-react';
-import api from '../../services/api';
-import { useToast } from '../../shared/ui/Toast';
+import { errorMessage } from '../../../shared/api/errors';
+import { saveBlob } from '../../../shared/lib/download';
+import { useToast } from '../../../shared/ui/Toast';
+import * as assessmentsApi from '../api';
 
-const AssignmentsView = () => {
+const InstructorAssignmentsPage = () => {
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { success, error } = useToast();
+  const toast = useToast();
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [submissions, setSubmissions] = useState([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
@@ -36,10 +38,9 @@ const AssignmentsView = () => {
   const fetchAssignments = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/courses/instructor/assignments/');
-      setAssignments(response.data);
-    } catch (error) {
-      console.error('Error fetching assignments:', error);
+      setAssignments(await assessmentsApi.instructorAssignments());
+    } catch (err) {
+      setAssignments([]);
     } finally {
       setLoading(false);
     }
@@ -48,10 +49,8 @@ const AssignmentsView = () => {
   const fetchSubmissions = async (assignmentId) => {
     setLoadingSubmissions(true);
     try {
-      const response = await api.get(`/courses/instructor/assignments/${assignmentId}/submissions/`);
-      setSubmissions(response.data);
-    } catch (error) {
-      console.error('Error fetching submissions:', error);
+      setSubmissions(await assessmentsApi.assignmentSubmissions(assignmentId));
+    } catch (err) {
       setSubmissions([]);
     } finally {
       setLoadingSubmissions(false);
@@ -77,25 +76,24 @@ const AssignmentsView = () => {
 
     setGradingSubmission(true);
     try {
-      const response = await api.post(`/courses/instructor/assignments/submissions/${selectedSubmission.id}/grade/`, {
-        grade: parseFloat(gradingData.grade),
-        feedback: gradingData.feedback
-      });
+      const data = await assessmentsApi.gradeSubmission(
+        selectedSubmission.id,
+        parseFloat(gradingData.grade),
+        gradingData.feedback
+      );
 
       // Update the submission in the list
       setSubmissions(prev => prev.map(sub =>
         sub.id === selectedSubmission.id
-          ? { ...sub, ...response.data.submission }
+          ? { ...sub, ...data.submission }
           : sub
       ));
 
-      setSelectedSubmission(prev => ({ ...prev, ...response.data.submission }));
+      setSelectedSubmission(prev => ({ ...prev, ...data.submission }));
 
-      // Show success message
-      success('Assignment graded successfully!', 'Grade Submitted');
+      toast.success('Assignment graded successfully!', 'Grade Submitted');
     } catch (err) {
-      console.error('Error grading submission:', err);
-      error('Error grading assignment. Please try again.', 'Grading Failed');
+      toast.error(errorMessage(err, 'Error grading assignment. Please try again.'), 'Grading Failed');
     } finally {
       setGradingSubmission(false);
     }
@@ -103,20 +101,10 @@ const AssignmentsView = () => {
 
   const downloadSubmissionFile = async (submission) => {
     try {
-      const response = await api.get(`/courses/assignments/submissions/${submission.id}/download/`, {
-        responseType: 'blob'
-      });
-
-      const blob = new Blob([response.data]);
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = submission.original_filename || 'assignment.pdf';
-      link.click();
-      window.URL.revokeObjectURL(url);
+      const blob = await assessmentsApi.downloadSubmission(submission.id);
+      saveBlob(blob, submission.original_filename || 'assignment.pdf');
     } catch (err) {
-      console.error('Error downloading file:', err);
-      error('Error downloading file', 'Download Failed');
+      toast.error('Error downloading file', 'Download Failed');
     }
   };
 
@@ -530,4 +518,4 @@ const AssignmentsView = () => {
   );
 };
 
-export default AssignmentsView;
+export default InstructorAssignmentsPage;

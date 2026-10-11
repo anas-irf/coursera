@@ -1,47 +1,43 @@
-import React, { useState, useEffect } from 'react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
+import React, { useEffect, useState } from 'react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { BookOpen, Users, DollarSign, TrendingUp, Star, Calendar, Download } from 'lucide-react';
-import api from '../../services/api';
 
-const DashboardOverview = () => {
+import { mediaUrl } from '../../../shared/lib/media';
+import { PageSpinner } from '../../../shared/ui/Spinner';
+import * as insightsApi from '../api';
+
+const EMPTY_DASHBOARD = {
+  stats: {
+    total_courses: 0,
+    total_students: 0,
+    total_revenue: 0,
+    average_rating: 0,
+    published_courses: 0,
+    draft_courses: 0,
+  },
+  recent_enrollments: [],
+  revenue_chart: [],
+  top_courses: [],
+};
+
+const InstructorOverviewPage = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchDashboardData();
+    let cancelled = false;
+    insightsApi
+      .fetchInstructorDashboard()
+      .then((data) => !cancelled && setDashboardData(data))
+      .catch(() => !cancelled && setDashboardData(EMPTY_DASHBOARD))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const fetchDashboardData = async () => {
-    try {
-      const response = await api.get('/courses/instructor/dashboard/');
-      setDashboardData(response.data);
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      // Set fallback data to prevent infinite reload
-      setDashboardData({
-        stats: {
-          total_courses: 0,
-          total_students: 0,
-          total_revenue: 0,
-          average_rating: 0,
-          published_courses: 0,
-          draft_courses: 0,
-        },
-        recent_enrollments: [],
-        revenue_chart: [],
-        top_courses: []
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-      </div>
-    );
+    return <PageSpinner />;
   }
 
   const stats = [
@@ -175,7 +171,7 @@ const DashboardOverview = () => {
             {(dashboardData?.top_courses || []).map((course, index) => (
               <div key={index} className="flex items-center space-x-4">
                 <img
-                  src={course.thumbnail || 'https://via.placeholder.com/300x200/4F46E5/ffffff?text=Course'}
+                  src={mediaUrl(course.thumbnail) || 'https://via.placeholder.com/300x200/4F46E5/ffffff?text=Course'}
                   alt={course.title || 'Course'}
                   className="w-16 h-12 object-cover rounded-lg"
                 />
@@ -199,4 +195,4 @@ const DashboardOverview = () => {
   );
 };
 
-export default DashboardOverview;
+export default InstructorOverviewPage;

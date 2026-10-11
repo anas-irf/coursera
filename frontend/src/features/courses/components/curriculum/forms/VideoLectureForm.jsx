@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, Loader2 } from 'lucide-react';
-import { useToast } from '../../../../shared/ui/Toast';
-import { useConfirm } from '../../../../shared/ui/ConfirmDialog';
+import { useToast } from '../../../../../shared/ui/Toast';
+import { useConfirm } from '../../../../../shared/ui/ConfirmDialog';
 
 const VideoLectureForm = ({ formData, setFormData, isUploading, setIsUploading }) => {
-  const { error, warning } = useToast();
+  const { error } = useToast();
   const { confirmWarning } = useConfirm();
   const [videoSource, setVideoSource] = useState('url');
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStartTime, setUploadStartTime] = useState(null);
 
   // Initialize video source based on existing data
@@ -81,7 +80,6 @@ const VideoLectureForm = ({ formData, setFormData, isUploading, setIsUploading }
     if (confirmed) {
       setIsUploading && setIsUploading(false);
       setFormData({ ...formData, video_file: null });
-      setUploadProgress(0);
       setUploadStartTime(null);
       // Reset the file input
       const fileInput = document.getElementById('video-upload');

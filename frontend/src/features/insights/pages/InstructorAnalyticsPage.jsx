@@ -2,7 +2,7 @@ import React from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Star } from 'lucide-react';
 
-const AnalyticsView = () => {
+const InstructorAnalyticsPage = () => {
   const monthlyData = [
     { month: 'Jan', students: 450, revenue: 12500, completion: 78 },
     { month: 'Feb', students: 520, revenue: 14200, completion: 82 },
@@ -23,6 +23,11 @@ const AnalyticsView = () => {
         </select>
       </div>
       
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
+        These charts show sample data. Course analytics are not connected to your real figures yet; the
+        per-course numbers are available in the course list.
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Students Growth */}
         <div className="bg-white rounded-xl shadow-sm p-6">
@@ -92,4 +97,4 @@ const AnalyticsView = () => {
   );
 };
 
-export default AnalyticsView;
+export default InstructorAnalyticsPage;

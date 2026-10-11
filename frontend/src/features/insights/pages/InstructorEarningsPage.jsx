@@ -1,44 +1,39 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { DollarSign, Clock, TrendingUp } from 'lucide-react';
-import api from '../../services/api';
 
-const EarningsView = () => {
+import { PageSpinner } from '../../../shared/ui/Spinner';
+import * as insightsApi from '../api';
+
+const EMPTY_EARNINGS = {
+  summary: {
+    total_earnings: 0,
+    pending_earnings: 0,
+    monthly_earnings: 0,
+    platform_fee_rate: 30,
+  },
+  recent_transactions: [],
+  monthly_chart: [],
+};
+
+const InstructorEarningsPage = () => {
   const [earningsData, setEarningsData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchEarnings();
+    let cancelled = false;
+    insightsApi
+      .fetchInstructorEarnings()
+      .then((data) => !cancelled && setEarningsData(data))
+      .catch(() => !cancelled && setEarningsData(EMPTY_EARNINGS))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const fetchEarnings = async () => {
-    try {
-      const response = await api.get('/payments/instructor/earnings/');
-      setEarningsData(response.data);
-    } catch (error) {
-      console.error('Error fetching earnings:', error);
-      // Set fallback data to prevent infinite reload
-      setEarningsData({
-        summary: {
-          total_earnings: 0,
-          pending_earnings: 0,
-          monthly_earnings: 0,
-          platform_fee_rate: 30
-        },
-        recent_transactions: [],
-        monthly_chart: []
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-      </div>
-    );
+    return <PageSpinner />;
   }
 
   return (
@@ -155,4 +150,4 @@ const EarningsView = () => {
   );
 };
 
-export default EarningsView;
+export default InstructorEarningsPage;

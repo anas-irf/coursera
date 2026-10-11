@@ -19,7 +19,6 @@ const CurriculumHeader = ({ onAddSection, sections = [] }) => {
 
   const totalWeight = calculateTotalWeight();
   const isComplete = totalWeight === 100;
-  const canPublish = isComplete;
 
   return (
     <div className="flex items-center justify-between">

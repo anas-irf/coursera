@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, FileText, Type } from 'lucide-react';
+import { mediaUrl } from '../../../../../shared/lib/media';
 
 const ReadingForm = ({ formData, setFormData, readingFile, setReadingFile }) => {
   // Determine initial content type based on existing data
@@ -23,6 +24,7 @@ const ReadingForm = ({ formData, setFormData, readingFile, setReadingFile }) => 
   // Update content type when formData changes (important for editing)
   useEffect(() => {
     setContentType(getInitialContentType());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.reading_document, formData.article_content]);
 
   const handleContentTypeChange = (type) => {
@@ -129,7 +131,7 @@ const ReadingForm = ({ formData, setFormData, readingFile, setReadingFile }) => 
                 </span>
                 {formData.reading_document?.existing_file && (
                   <a
-                    href={formData.reading_document.existing_file}
+                    href={mediaUrl(formData.reading_document.existing_file)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-blue-600 hover:text-blue-800 underline"
@@ -189,7 +191,7 @@ const ReadingForm = ({ formData, setFormData, readingFile, setReadingFile }) => 
                 </span>
                 {formData.reading_document?.existing_file && (
                   <a
-                    href={formData.reading_document.existing_file}
+                    href={mediaUrl(formData.reading_document.existing_file)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-blue-600 hover:text-blue-800 underline"

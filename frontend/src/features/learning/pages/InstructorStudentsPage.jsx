@@ -1,29 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Filter } from 'lucide-react';
-import courseService from '../../services/courseService';
 
-const StudentsView = () => {
+import { instructorStudents } from '../api';
+
+const InstructorStudentsPage = () => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchStudents = async () => {
-      try {
-        setLoading(true);
-        const data = await courseService.getInstructorStudents();
-        setStudents(data);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching students:', err);
-        setError('Failed to load students');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchStudents();
+  const fetchStudents = useCallback(async () => {
+    try {
+      setLoading(true);
+      setStudents(await instructorStudents());
+      setError(null);
+    } catch (err) {
+      setError('Failed to load students');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchStudents();
+  }, [fetchStudents]);
 
   const formatLastActive = (lastActiveStr) => {
     if (!lastActiveStr) return 'Never';
@@ -78,7 +77,7 @@ const StudentsView = () => {
           <div className="text-center text-red-600">
             <p>Error: {error}</p>
             <button
-              onClick={() => window.location.reload()}
+              onClick={fetchStudents}
               className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
             >
               Retry
@@ -184,4 +183,4 @@ const StudentsView = () => {
   );
 };
 
-export default StudentsView;
+export default InstructorStudentsPage;

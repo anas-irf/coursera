@@ -2,19 +2,24 @@ import React from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import AdminDashboard from '../components/AdminDashboard';
-import InstructorDashboard from '../components/InstructorDashboard';
-import { LoginPage } from '../features/accounts';
-import { GradesPage } from '../features/assessments';
+import { InstructorSettingsPage, LoginPage } from '../features/accounts';
+import { GradesPage, InstructorAssignmentsPage } from '../features/assessments';
 import { CheckoutPage } from '../features/billing';
 import { CertificatesPage } from '../features/certificates';
-import { AchievementsPage, StudentHomePage } from '../features/insights';
-import { CoursePlayerPage, ExplorePage, MyLearningPage } from '../features/learning';
+import { CoursesPage } from '../features/courses';
+import {
+  AchievementsPage, InstructorAnalyticsPage, InstructorEarningsPage, InstructorOverviewPage, StudentHomePage,
+} from '../features/insights';
+import {
+  CoursePlayerPage, ExplorePage, InstructorStudentsPage, MyLearningPage,
+} from '../features/learning';
 import { MessagesPage } from '../features/messaging';
 import { NotificationsPage } from '../features/notifications';
 import { ConfirmProvider } from '../shared/ui/ConfirmDialog';
 import { ToastProvider } from '../shared/ui/Toast';
 import { AuthProvider, useAuth } from './AuthProvider';
 import { HomeRedirect, RedirectKeepingSearch, RequireAuth, RequireRole, homePathFor } from './guards';
+import InstructorLayout from './layouts/InstructorLayout';
 import StudentLayout from './layouts/StudentLayout';
 
 // "/login" for visitors; users that are already logged in go to their own home
@@ -51,8 +56,17 @@ function App() {
                 </Route>
 
                 <Route element={<RequireRole role="instructor" />}>
-                  <Route path="/instructor" element={<Navigate to="/instructor/dashboard" replace />} />
-                  <Route path="/instructor/dashboard" element={<InstructorDashboard />} />
+                  <Route path="/instructor" element={<InstructorLayout />}>
+                    <Route index element={<InstructorOverviewPage />} />
+                    <Route path="courses" element={<CoursesPage />} />
+                    <Route path="assignments" element={<InstructorAssignmentsPage />} />
+                    <Route path="students" element={<InstructorStudentsPage />} />
+                    <Route path="analytics" element={<InstructorAnalyticsPage />} />
+                    <Route path="earnings" element={<InstructorEarningsPage />} />
+                    <Route path="messages" element={<MessagesPage />} />
+                    <Route path="settings" element={<InstructorSettingsPage />} />
+                  </Route>
+                  <Route path="/instructor/dashboard" element={<Navigate to="/instructor" replace />} />
                 </Route>
 
                 <Route element={<RequireRole role="admin" />}>

@@ -13,7 +13,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import useCurriculum from './curriculum/useCurriculum';
+import useCurriculum from '../hooks/useCurriculum';
 import CurriculumHeader from './curriculum/CurriculumHeader';
 import EmptyState from './curriculum/EmptyState';
 import SectionComponent from './curriculum/SectionComponent';

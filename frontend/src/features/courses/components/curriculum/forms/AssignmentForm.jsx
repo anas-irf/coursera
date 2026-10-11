@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Upload } from 'lucide-react';
+import { mediaUrl } from '../../../../../shared/lib/media';
 
 const AssignmentForm = ({ formData, setFormData, assignmentAttachment, setAssignmentAttachment }) => {
   // Determine assignment type based on weight (0 = practice, > 0 = graded)
@@ -181,7 +182,7 @@ const AssignmentForm = ({ formData, setFormData, assignmentAttachment, setAssign
                 {formData.assignment_settings.existing_attachment.split('/').pop()}
               </span>
               <a
-                href={formData.assignment_settings.existing_attachment}
+                href={mediaUrl(formData.assignment_settings.existing_attachment)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-blue-600 hover:text-blue-800 underline"

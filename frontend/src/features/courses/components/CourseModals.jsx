@@ -1,22 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import api from '../../services/api';
+import { mediaUrl } from '../../../shared/lib/media';
+import { useToast } from '../../../shared/ui/Toast';
+import * as coursesApi from '../api';
 import CurriculumTab from './CurriculumTab';
-import { useToast } from '../../shared/ui/Toast';
 
 // Create Course Modal
 export const CreateCourseModal = ({ onClose, onSave }) => {
   const { success, error: showError, warning } = useToast();
-
-  // Language mapping - we'll use IDs that should exist or can be created
-  const languageMap = {
-    'en': 1, 'es': 2, 'zh': 3, 'hi': 4, 'ar': 5,
-    'pt': 6, 'ru': 7, 'ja': 8, 'fr': 9, 'de': 10,
-    'ko': 11, 'it': 12, 'tr': 13, 'pl': 14, 'nl': 15,
-    'sv': 16, 'da': 17, 'no': 18, 'fi': 19, 'he': 20,
-    'th': 21, 'vi': 22, 'id': 23, 'ms': 24, 'tl': 25,
-    'uk': 26, 'cs': 27, 'hu': 28, 'ro': 29, 'el': 30
-  };
 
   const [courseData, setCourseData] = useState({
     title: '',
@@ -115,22 +106,13 @@ export const CreateCourseModal = ({ onClose, onSave }) => {
       // Add the uploaded thumbnail file
       formData.append('thumbnail', thumbnailFile);
         
-      console.log('Creating course with FormData');
-      const response = await api.post('/courses/instructor/courses/', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      console.log('Course created successfully:', response.data);
+      await coursesApi.createCourse(formData);
       
       // Show success message
       success('Course created successfully! You can now edit it and add content.', 'Course Created');
 
       onSave(); // This will refresh the courses list and close the modal
     } catch (err) {
-      console.error('Error creating course:', err);
-      console.error('Error response:', err.response?.data);
-      console.error('Error status:', err.response?.status);
 
       // Show more specific error message
       let errorMessage = 'Unknown error occurred';
@@ -410,8 +392,7 @@ export const EditCourseModal = ({ course, onClose, onSave }) => {
 
       setFetchingDetails(true);
       try {
-        const response = await api.get(`/courses/instructor/courses/${course.id}/`);
-        const fullCourseData = response.data;
+        const fullCourseData = await coursesApi.getCourse(course.id);
 
         setCourseData({
           title: fullCourseData.title || '',
@@ -422,8 +403,7 @@ export const EditCourseModal = ({ course, onClose, onSave }) => {
           estimated_hours: fullCourseData.estimated_hours || 10,
         });
 
-      } catch (error) {
-        console.error('Error fetching course details:', error);
+      } catch (err) {
         // Fallback to whatever data we have
         setCourseData({
           title: course.title || '',
@@ -439,6 +419,7 @@ export const EditCourseModal = ({ course, onClose, onSave }) => {
     };
 
     fetchCourseDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [course?.id]);
 
   const [thumbnailFile, setThumbnailFile] = useState(null);
@@ -518,11 +499,7 @@ export const EditCourseModal = ({ course, onClose, onSave }) => {
           slug: slug, // Include the generated slug
         };
 
-        const response = await api.patch(`/courses/instructor/courses/${course.id}/`, updateData, {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
+        await coursesApi.updateCourse(course.id, updateData);
       } else {
         // Only use FormData when uploading a new thumbnail
         const formData = new FormData();
@@ -535,18 +512,12 @@ export const EditCourseModal = ({ course, onClose, onSave }) => {
         formData.append('slug', slug); // Include the generated slug
         formData.append('thumbnail', thumbnailFile);
 
-        const response = await api.patch(`/courses/instructor/courses/${course.id}/`, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        });
+        await coursesApi.updateCourse(course.id, formData);
       }
 
       success('Course updated successfully!', 'Course Updated');
       onSave(); // This will refresh the courses list and close the modal
     } catch (err) {
-      console.error('Error updating course:', err);
-
       // Show more specific error message
       let errorMessage = 'Unknown error occurred';
 
@@ -699,7 +670,7 @@ export const EditCourseModal = ({ course, onClose, onSave }) => {
                   <div className="mb-4">
                     <p className="text-sm text-gray-600 mb-2">Current thumbnail:</p>
                     <img
-                      src={course.thumbnail}
+                      src={mediaUrl(course.thumbnail)}
                       alt="Current course thumbnail"
                       className="h-24 w-auto rounded-lg border border-gray-200"
                     />

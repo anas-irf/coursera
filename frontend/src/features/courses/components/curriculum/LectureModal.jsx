@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Play, FileText, HelpCircle, ClipboardList, X, BookOpen } from 'lucide-react';
-import { useToast } from '../../../shared/ui/Toast';
+import { Play, HelpCircle, ClipboardList, X, BookOpen } from 'lucide-react';
+import { useToast } from '../../../../shared/ui/Toast';
 import VideoLectureForm from './forms/VideoLectureForm';
 import QuizForm from './forms/QuizForm';
 import AssignmentForm from './forms/AssignmentForm';
 import ReadingForm from './forms/ReadingForm';
 
 const LectureModal = ({ lecture, onClose, onSave, title }) => {
-  const { error, warning } = useToast();
+  const { error } = useToast();
   const [isUploading, setIsUploading] = useState(false);
   const [assignmentAttachment, setAssignmentAttachment] = useState(null); // Store file separately
   const [readingFile, setReadingFile] = useState(null); // Store reading file separately
