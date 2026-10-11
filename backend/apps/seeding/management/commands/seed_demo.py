@@ -1,9 +1,11 @@
-# insights/management/commands/seed_demo.py
+# seeding/management/commands/seed_demo.py
 """Fill an empty database with a small, complete demo.
 
 Idempotent: running it again only creates what is missing.  Users get a
 random password that is printed once, when the user is created (or the one
 given with ``--password``); nothing is stored in the repository.
+
+``seed_dev`` builds on this: it runs it first and adds the rest of the cast.
 """
 import io
 import secrets
@@ -23,7 +25,8 @@ from apps.content.models import Reading, VideoContent
 from apps.core.models import Category, Language
 from apps.courses.models import Course, Lecture, Section
 
-CATEGORIES = ['Development', 'Data Science', 'Business', 'Design']
+# the slugs are the ones the Explore filter of the frontend offers
+CATEGORIES = ['Programming', 'Data Science', 'Business', 'Design']
 LANGUAGES = [('en', 'English'), ('es', 'Spanish')]
 
 DEMO_USERS = [
@@ -35,7 +38,7 @@ DEMO_USERS = [
 
 COURSES = [
     # (title, course_type, level, category)
-    ('Introduction to Python', 'free', 'beginner', 'Development'),
+    ('Introduction to Python', 'free', 'beginner', 'Programming'),
     ('Applied Machine Learning', 'coursera_plus', 'intermediate', 'Data Science'),
 ]
 
