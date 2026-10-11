@@ -402,3 +402,88 @@ def test_showcase_courses_show_their_popularity(world):
     assert f.Course.objects.get(slug='introduction-to-python').total_enrolled == 2140
     smaller = f.Course.objects.get(slug='project-management-essentials')
     assert smaller.total_enrolled == f.Enrollment.objects.filter(course=smaller).count()
+
+
+# --------------------------------------------------------------------------- #
+# the screens: what each persona's pages receive from the API
+# --------------------------------------------------------------------------- #
+def api_get(auth_client, email, path):
+    response = auth_client(f.User.objects.get(email=email)).get(path)
+    assert response.status_code == 200, (email, path, response.status_code)
+    return response.json()
+
+
+@pytest.mark.django_db
+def test_the_student_screens_are_populated(world, auth_client):
+    demo = 'demo.student@example.com'
+
+    stats = api_get(auth_client, demo, '/api/insights/student/stats/')
+    assert (stats['courses_enrolled'], stats['courses_completed'], stats['certificates_earned']) == (5, 1, 1)
+    assert stats['has_plus_subscription'] is True and stats['total_learning_hours'] > 0
+
+    enrolled = api_get(auth_client, demo, '/api/learning/enrolled/')      # the completed course is not listed
+    assert sorted(round(course['progress']) for course in enrolled) == [0, 25, 50, 75]
+
+    catalogue = api_get(auth_client, demo, '/api/learning/courses/')
+    assert len(catalogue) >= 9
+    assert {course['course_type'] for course in catalogue} == {'free', 'coursera_plus'}
+    assert any(course['is_bookmarked'] for course in catalogue)
+
+    gradebook = api_get(auth_client, demo, '/api/assessments/student/gradebook/')
+    assert len(gradebook['courses']) == 4
+    achievements = api_get(auth_client, demo, '/api/insights/student/achievements/')
+    assert achievements['total_points'] > 0 and any(a['earned'] for a in achievements['achievements'])
+    assert len(api_get(auth_client, demo, '/api/certificates/')) == 1
+    assert api_get(auth_client, demo, '/api/billing/subscription/')['can_access_plus_courses'] is True
+    assert api_get(auth_client, demo, '/api/notifications/count/')['unread_count'] >= 10
+    conversations = api_get(auth_client, demo, '/api/messaging/conversations/')['conversations']
+    assert len(conversations) == 4 and sum(c['unread_count'] for c in conversations) == 4
+
+
+@pytest.mark.django_db
+def test_every_category_of_the_explore_filter_has_a_course(world, auth_client):
+    for category in ('programming', 'web-development', 'data-science', 'design', 'marketing', 'business'):
+        courses = api_get(auth_client, 'demo.student@example.com',
+                          f'/api/learning/courses/?category={category}')
+        assert courses, category
+    assert api_get(auth_client, 'demo.student@example.com', '/api/learning/courses/?search=python')
+
+
+@pytest.mark.django_db
+def test_the_empty_states_really_are_empty(world, auth_client):
+    mei = 'mei.lin@example.com'
+
+    assert api_get(auth_client, mei, '/api/learning/enrolled/') == []
+    assert api_get(auth_client, mei, '/api/certificates/') == []
+    assert api_get(auth_client, mei, '/api/insights/student/stats/')['courses_enrolled'] == 0
+    assert api_get(auth_client, mei, '/api/billing/subscription/')['has_subscription'] is False
+    assert api_get(auth_client, 'ethan.walker@example.com', '/api/learning/enrolled/') == []
+    assert api_get(auth_client, 'noah.bennett@example.com', '/api/courses/instructor/courses/') == []
+    assert api_get(auth_client, 'noah.bennett@example.com', '/api/learning/instructor/students/') == []
+
+
+@pytest.mark.django_db
+def test_the_instructor_screens_are_populated(world, auth_client):
+    james = 'james.okafor@example.com'
+
+    courses = api_get(auth_client, james, '/api/courses/instructor/courses/')
+    assert {course['status'] for course in courses} == {'published', 'pending_review', 'draft'}
+    assert max(course['total_revenue'] for course in courses) > 0
+    students = api_get(auth_client, james, '/api/learning/instructor/students/')
+    assert any(student['courses_enrolled_count'] == 2 for student in students)
+
+    assignments = api_get(auth_client, 'ravi.shah@example.com', '/api/assessments/instructor/assignments/')
+    assert any(a['pending_submissions'] for a in assignments) and any(a['graded_submissions'] for a in assignments)
+
+
+@pytest.mark.django_db
+def test_the_admin_screens_are_populated(world, auth_client):
+    admin = 'demo.admin@example.com'
+
+    pending = api_get(auth_client, admin, '/api/courses/admin/pending/')
+    assert len(pending) == 2
+    assert sorted(course['total_weight'] for course in pending) == [90.0, 100.0]
+    assert len(api_get(auth_client, admin, '/api/courses/admin/all/')) == 18
+    users = api_get(auth_client, admin, '/api/insights/admin/users/')
+    assert len(users) == len(PEOPLE) and {u['user_type'] for u in users} == {'admin', 'instructor', 'student'}
+    assert any(not user['is_active'] for user in users) and any(not user['email_verified'] for user in users)

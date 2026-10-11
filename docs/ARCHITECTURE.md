@@ -20,7 +20,8 @@ docs/       this file
 | Assessment | `assessments` | `assessments` | quizzes, attempts, assignments, submissions, grading, gradebooks | `features/assessments` |
 | Engagement | `messaging`, `notifications` | `discussions`, `notifications` | direct messages (REST and WebSocket), notifications | `features/messaging`, `features/notifications` |
 | Recognition | `certificates` | `certificates` | certificates (listing) | `features/certificates` |
-| Insight | `insights` | `analytics` | read models across slices: dashboards, earnings, student statistics, achievements, admin user directory; `seed_demo` | `features/insights`, `features/admin` |
+| Insight | `insights` | `analytics` | read models across slices: dashboards, earnings, student statistics, achievements, admin user directory | `features/insights`, `features/admin` |
+| Tooling | `seeding` | `seeding` | no models: `seed_demo`, `seed_dev` (development data), `create_dev_database`; installed by the dev and test settings only | |
 
 The database app labels are pinned in each `AppConfig.label`: the packages were renamed after the slices, the tables and migrations were not. `db_table` is set on every model.
 
@@ -29,6 +30,7 @@ The database app labels are pinned in each `AppConfig.label`: the packages were 
 Backend, enforced by `lint-imports` (`backend/.importlinter`, CI):
 
 ```
+seeding                    development tooling: may import anything, nothing imports it
 insights | notifications
 assessments | certificates
 learning
@@ -94,6 +96,28 @@ Screens without a backend (instructor analytics, instructor settings, admin reve
 5. Frontend: `features/<slice>/api.js` for the requests, pages and components beside it, export the public parts from `index.js`, add the route in `app/App.jsx`.
 6. `lint-imports`, `eslint`, `pytest`, `npm test` must pass; CI runs all of them.
 
+## Development data
+
+`apps/seeding` is tooling, not a slice: it has no models, sits on top of every slice and is installed by the dev and test settings only. `python manage.py seed_dev` builds a cast of 32 people, 18 courses and months of activity; `--reset` removes exactly the people listed in `data/people.py` (and what cascades from them), `--list` prints the cast.
+
+```
+data/      the seed files: people, catalogue, courses (curricula), stories (what students do), messages
+steps/     one module per phase, run in order: people, catalogue, courses, subscriptions, learning,
+           engagement, earnings, finishing
+```
+
+Rules the seed follows:
+
+* **Through the services.** Enrolling, finishing a lecture, attempting a quiz, handing in and grading, submitting and approving a course all call the application's own use-cases, so counters, grades and notifications are the real ones. A rule change that makes a story impossible fails `tests/test_seed_dev.py` instead of leaving stale demo data.
+* **Directly only where nothing writes the row**: certificates (explicit numbers), instructor earnings and revenue pools, ratings, subscriptions and their payments, the notification kinds no event emits, `StudentProfile` hours, `last_login`. Direct writes live in the steps named for them.
+* **Then back-dated.** A service stamps "now"; `clock.py` moves the dates of what a step created into the past with queryset updates.
+* **Units are idempotent.** A course, an enrolment, a conversation is skipped when it exists, so a second run creates nothing and keeps passwords.
+* **Stories are validated.** A student cannot enrol before the course was published or before the account existed; a finished quiz needs an outcome; retakes of the last lecture of a completed course cannot happen. Authoring mistakes raise while seeding.
+
+To add a person, a course or a story edit the data files and run `seed_dev`; to add an activity that has a service, call it from a step.
+
+What the seed cannot show, because the application cannot (see *Known gaps*): the "Completed" filter of My learning (completed enrolments are not listed), the rejection reason on the instructor's course card, four of the six achievement badges (hard-coded as unearned), the weekly progress chart, instructor analytics and the admin revenue / reports / settings screens (static sample data).
+
 ## Testing
 
 * `cd backend && python -m pytest` (SQLite by default; `TEST_DB_ENGINE=postgres` plus the `DB_*` variables runs the same suite on PostgreSQL, which CI does). Uploads go to a temporary `MEDIA_ROOT`.
@@ -105,5 +129,5 @@ Screens without a backend (instructor analytics, instructor settings, admin reve
 Documented, not fixed in the restructuring:
 
 * **Security**: the Stripe webhook accepts unsigned bodies when `STRIPE_WEBHOOK_SECRET` is empty; some default secrets / keys exist in settings; quiz options are not checked to belong to the answered question and the quiz time limit is not enforced on the server; reading HTML is rendered unsanitised; tokens live in `localStorage` and the WebSocket token is in the query string; `/api/messaging/users/` lists every user; the rate limiter's path prefixes never match.
-* **Logic**: editing a quiz or assignment recreates it and cascades to attempts / submissions; a completed enrolment can no longer open the player; the subscription end date is not moved on renewal; certificates are never issued and `Certificate.save()` cannot build its number; nothing creates `InstructorEarning` rows; watch time is not recorded so the weekly chart is a placeholder.
+* **Logic**: editing a quiz or assignment recreates it and cascades to attempts / submissions; a completed enrolment can no longer open the player; the subscription end date is not moved on renewal; certificates are never issued and `Certificate.save()` cannot build its number; nothing creates `InstructorEarning` rows (the seed writes them); watch time is not recorded so the weekly chart is a placeholder.
 * **Product**: instructor analytics, instructor settings, admin revenue / reports / settings have no backend.
