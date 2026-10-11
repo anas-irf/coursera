@@ -2,13 +2,13 @@
 __pycache__/
 *.pyc
 *.pyo
-
-# Django migrations
-*/migrations/
+.pytest_cache/
+.ruff_cache/
 
 # Virtual environment
 venv/
 env/
+.venv/
 
 # IDE settings
 .vscode/
@@ -22,9 +22,10 @@ env/
 
 # Database
 db.sqlite3
+*.sqlite3
 
 # claude
 .claude/
 
-#media
+# uploaded media
 media
