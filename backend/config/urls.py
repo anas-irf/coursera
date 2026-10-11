@@ -16,9 +16,9 @@ from apps.insights.api import views as insights_views
 urlpatterns = [
     path('admin/', admin.site.urls),
 
-    # Student endpoints that historically lived under /api/auth/ and /api/payments/
-    # although they belong to billing and insights.  Paths are frozen until the
-    # URL clean-up; only the code moved.
+    # Endpoints that historically lived under /api/auth/, /api/payments/ and
+    # /api/courses/ although they belong to billing and insights.  Paths are
+    # frozen until the URL clean-up; only the code moved.
     path('api/auth/student/subscription-status/', billing_views.student_subscription_status,
          name='student_subscription_status'),
     path('api/auth/student/cancel-subscription/', billing_views.cancel_plus_subscription,
@@ -28,12 +28,15 @@ urlpatterns = [
          name='student_weekly_progress'),
     path('api/payments/instructor/earnings/', insights_views.instructor_earnings,
          name='instructor-earnings'),
+    path('api/courses/instructor/courses/<uuid:course_uuid>/analytics/', insights_views.course_analytics,
+         name='instructor-courses-analytics'),
 
     path('api/auth/', include('apps.accounts.urls')),
     # notifications are still served below /api/courses/ (frontend contract)
     path('api/courses/notifications/', include('apps.notifications.urls')),
+    # learning is mounted first so its fixed paths win over the courses router
+    path('api/courses/', include('apps.learning.urls')),
     path('api/courses/', include('apps.courses.urls')),
-    path('api/enrollments/', include('apps.learning.urls')),
     path('api/assessments/', include('apps.assessments.urls')),
     path('api/certificates/', include('apps.certificates.urls')),
     path('api/payments/', include('apps.billing.urls')),

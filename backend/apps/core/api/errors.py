@@ -15,7 +15,7 @@ class ServiceError(Exception):
 
     status_code = status.HTTP_400_BAD_REQUEST
 
-    def __init__(self, message, *, status_code=None, **extra):
+    def __init__(self, message, /, *, status_code=None, **extra):
         super().__init__(message)
         self.message = message
         if status_code is not None:

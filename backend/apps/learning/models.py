@@ -1,11 +1,9 @@
-# enrollments/models.py
+# learning/models.py (database label: enrollments)
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
-from django.core.exceptions import ValidationError
-from apps.billing.selectors import has_plus_access
 from apps.core.models import BaseModel
-from apps.courses.models import Course, Lecture, Section
+from apps.courses.models import Course, Lecture
 
 class Enrollment(BaseModel):
     STATUS_CHOICES = (
@@ -46,23 +44,8 @@ class Enrollment(BaseModel):
     def __str__(self):
         return f"{self.student.email} - {self.course.title}"
 
-    def clean(self):
-        """Validate enrollment rules"""
-        # Check for duplicate active enrollment
-        if Enrollment.objects.filter(
-            student=self.student,
-            course=self.course,
-            status__in=['active', 'completed']
-        ).exclude(pk=self.pk).exists():
-            raise ValidationError("Student is already enrolled in this course")
-
-        # Check subscription access for Plus courses
-        if self.course.course_type == 'coursera_plus':
-            if not has_plus_access(self.student):
-                raise ValidationError("Active Plus subscription required to enroll in this course")
-
     def save(self, *args, **kwargs):
-        self.full_clean()  # This calls clean() method
+        self.full_clean()
         is_new = self.pk is None
         super().save(*args, **kwargs)
 

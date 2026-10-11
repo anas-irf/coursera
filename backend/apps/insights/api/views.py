@@ -4,14 +4,17 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.db.models import Avg, Sum
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from apps.accounts.permissions import IsInstructor
 from apps.billing.models import InstructorEarning
 from apps.billing.selectors import has_plus_access
+from apps.courses.models import Course
 from apps.learning.models import Enrollment
 
 
@@ -269,3 +272,39 @@ def student_weekly_progress(request):
             {'error': f'Failed to get weekly progress: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(['GET'])
+@permission_classes([IsInstructor])
+def course_analytics(request, course_uuid):
+    """Get course-specific analytics"""
+    course = get_object_or_404(Course, uuid=course_uuid, instructor=request.user)
+
+    enrollments = Enrollment.objects.filter(course=course)
+    total_students = enrollments.count()
+    active_students = enrollments.filter(
+        last_accessed__gte=timezone.now() - timedelta(days=7)
+    ).count()
+
+    completion_rate = 0
+    if total_students > 0:
+        completed = enrollments.filter(status='completed').count()
+        completion_rate = (completed / total_students) * 100
+
+    avg_progress = enrollments.aggregate(Avg('progress_percentage'))['progress_percentage__avg'] or 0
+
+    total_revenue = InstructorEarning.objects.filter(
+        course=course
+    ).aggregate(Sum('final_amount'))['final_amount__sum'] or 0
+
+    return Response({
+        'total_students': total_students,
+        'active_students': active_students,
+        'completion_rate': float(completion_rate),
+        'average_progress': float(avg_progress),
+        'total_revenue': float(total_revenue),
+        'average_rating': float(course.average_rating),
+        'total_reviews': course.total_reviews,
+        # reviews are not implemented; the key is kept for API compatibility
+        'recent_reviews': []
+    })

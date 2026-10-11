@@ -27,14 +27,14 @@ api/courses/instructor/assignments/<uuid:assignment_uuid>/submissions/ | GET | i
 api/courses/instructor/assignments/submissions/<uuid:submission_uuid>/grade/ | POST | grade-assignment-submission
 api/courses/instructor/courses/ | GET,POST | instructor-courses-list
 api/courses/instructor/courses/(?P<pk>[^/.]+)/ | GET,PATCH,PUT | instructor-courses-detail
-api/courses/instructor/courses/(?P<pk>[^/.]+)/analytics/ | GET | instructor-courses-analytics
 api/courses/instructor/courses/(?P<pk>[^/.]+)/apply_for_publish/ | POST | instructor-courses-apply-for-publish
 api/courses/instructor/courses/(?P<pk>[^/.]+)/delete-course/ | POST | instructor-courses-delete-course
-api/courses/instructor/courses/(?P<pk>[^/.]+)/students/ | GET | instructor-courses-students
 api/courses/instructor/courses/(?P<pk>[^/.]+)/unpublish/ | POST | instructor-courses-unpublish
+api/courses/instructor/courses/<uuid:course_uuid>/analytics/ | GET | instructor-courses-analytics
 api/courses/instructor/courses/<uuid:course_uuid>/gradebook/ | GET | instructor-course-gradebook
 api/courses/instructor/courses/<uuid:course_uuid>/sections/ | GET,POST | course-sections
 api/courses/instructor/courses/<uuid:course_uuid>/sections/reorder/ | POST | reorder-sections
+api/courses/instructor/courses/<uuid:course_uuid>/students/ | GET | instructor-courses-students
 api/courses/instructor/courses/students/ | GET | instructor-courses-students-list
 api/courses/instructor/dashboard/ | GET | instructor-dashboard
 api/courses/instructor/lectures/<uuid:uuid>/ | DELETE,GET,PUT | lecture-detail

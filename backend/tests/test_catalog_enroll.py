@@ -226,21 +226,20 @@ def test_plus_course_with_active_subscription_can_be_enrolled(auth_client, instr
     assert f.Enrollment.objects.filter(student=student, course=course, status='active').exists()
 
 
-@pytest.mark.pinned_bug
-def test_enrolling_in_an_unpublished_course_succeeds_current_behaviour(auth_client, instructor, student):
-    """Current behaviour (bug): the enroll view never checks ``course.status`` so a
-    draft course can be enrolled in (the learn endpoint then answers 404).
-    The plan changes this in step S7 (enroll rejects unpublished courses)."""
-    course = f.build_course(instructor, status='draft').course
+def test_enrolling_in_an_unpublished_course_is_a_404(auth_client, instructor, student):
+    """Only published courses exist for students: draft, pending and rejected ones
+    cannot be enrolled in (they used to be, and then could not be opened)."""
     client = auth_client(student)
 
-    r = client.post(enroll_url(course))
+    for status in ('draft', 'pending_review', 'rejected'):
+        course = f.build_course(instructor, status=status).course
 
-    assert r.status_code == 201
-    assert f.Enrollment.objects.filter(student=student, course=course).exists()
-    course.refresh_from_db()
-    assert course.total_enrolled == 1
-    assert client.get(f'/api/courses/{course.uuid}/learn/').status_code == 404
+        r = client.post(enroll_url(course))
+
+        assert r.status_code == 404, status
+        assert not f.Enrollment.objects.filter(student=student, course=course).exists()
+        course.refresh_from_db()
+        assert course.total_enrolled == 0
 
 
 def test_only_students_can_enroll_and_unknown_course_is_404(api, auth_client, instructor, student):

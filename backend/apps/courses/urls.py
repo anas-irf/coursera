@@ -55,15 +55,9 @@ urlpatterns = [
          curriculum.LectureViewSet.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}),
          name='lecture-detail'),
     
-    #student URLs
-    path('all/', student_views.all_courses, name='all-courses'),
-    path('enrolled/', student_views.student_enrolled_courses, name='enrolled-courses'),
-    path('<uuid:course_uuid>/enroll/', student_views.enroll_course, name='enroll-course'),
-    path('<uuid:course_uuid>/learn/', student_views.course_learn_view, name='course-learn'),
-    path('<uuid:course_uuid>/lectures/<uuid:lecture_uuid>/complete/', student_views.mark_lecture_complete, name='mark-lecture-complete'),
+    # student URLs (discovery and learning are served by the learning slice)
     path('assignments/<uuid:assignment_uuid>/submit/', student_views.submit_assignment, name='submit-assignment'),
     path('assignments/submissions/<uuid:submission_uuid>/download/', student_views.download_submission_file, name='download-submission-file'),
-    path('<uuid:course_uuid>/bookmark/', student_views.bookmark_course, name='bookmark-course'),
 
     # Student certificates and achievements
     path('student/certificates/', student_views.student_certificates, name='student-certificates'),
@@ -78,9 +72,6 @@ urlpatterns = [
 
     # Quiz attempt endpoints
     path('quizzes/<uuid:quiz_uuid>/attempt/', student_views.attempt_quiz, name='attempt-quiz'),
-
-    # Plus courses preview for upgrade promotion
-    path('plus-preview/', student_views.plus_courses_preview, name='plus-courses-preview'),
 
     # Instructor assignment management
     path('instructor/assignments/', views.instructor_assignments, name='instructor-assignments'),

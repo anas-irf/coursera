@@ -41,10 +41,15 @@ REMOVED_LINES = {
     'api/payments/debug/test-recurring/ | POST | test-recurring-payment',
     'api/payments/debug/test-webhook/ | POST | test-webhook',
 }
-# ... and the one line whose methods changed (plain DELETE of a course is gone).
+# ... and the lines that changed: plain DELETE of a course is gone (S1a), the learner
+# roster and per-course analytics left the router for explicit UUID routes (S7).
 CHANGED_LINES = {
     'api/courses/instructor/courses/(?P<pk>[^/.]+)/ | DELETE,GET,PATCH,PUT | instructor-courses-detail':
         'api/courses/instructor/courses/(?P<pk>[^/.]+)/ | GET,PATCH,PUT | instructor-courses-detail',
+    'api/courses/instructor/courses/(?P<pk>[^/.]+)/analytics/ | GET | instructor-courses-analytics':
+        'api/courses/instructor/courses/<uuid:course_uuid>/analytics/ | GET | instructor-courses-analytics',
+    'api/courses/instructor/courses/(?P<pk>[^/.]+)/students/ | GET | instructor-courses-students':
+        'api/courses/instructor/courses/<uuid:course_uuid>/students/ | GET | instructor-courses-students',
 }
 
 

@@ -216,18 +216,16 @@ def test_mark_lecture_complete_is_idempotent(auth_client, student, enrolled):
     assert f.LectureProgress.objects.filter(enrollment=enrollment).count() == 4
 
 
-@pytest.mark.pinned_bug
-def test_mark_complete_response_reports_the_stale_progress_current_behaviour(auth_client, student, enrolled):
-    """Current behaviour (bug): the response echoes the enrollment object loaded
-    *before* the progress was recalculated, so it lags one call behind the
-    database (0 after the first completion, 25 after the second call)."""
+def test_mark_complete_response_reports_the_new_progress(auth_client, student, enrolled):
+    """The response carries the progress *after* the lecture was completed (it used to
+    lag one call behind the database)."""
     bundle, enrollment = enrolled
     client = auth_client(student)
 
     first = client.post(complete_url(bundle.course, bundle.video)).json()
-    assert first['progress_percentage'] == pytest.approx(0.0)
+    assert first['progress_percentage'] == pytest.approx(25.0)
     enrollment.refresh_from_db()
-    assert enrollment.progress_percentage == 25  # the database is correct
+    assert enrollment.progress_percentage == 25
 
     second = client.post(complete_url(bundle.course, bundle.video)).json()
     assert second['progress_percentage'] == pytest.approx(25.0)
@@ -281,24 +279,23 @@ def test_mark_complete_requires_enrolment_and_a_lecture_of_the_published_course(
         complete_url(course_bundle.course, course_bundle.video)).status_code == 403
 
 
-@pytest.mark.pinned_bug
-def test_mark_complete_with_a_lapsed_plus_subscription_is_a_500_current_behaviour(
+def test_a_lapsed_plus_subscription_does_not_block_completing_lectures(
         auth_client, instructor, student):
-    """Current behaviour (bug): recalculating progress re-validates the Enrollment,
-    whose ``clean()`` demands an active Plus subscription for Plus courses, so a
-    student whose subscription lapsed gets a 500 when completing a lecture.
-    The plan changes this in step S7 (lapsed-Plus students may complete)."""
+    """Plus is checked when enrolling, not on every save: a student whose subscription
+    lapsed keeps their enrolments and can finish them (this used to be a 500)."""
     bundle = f.build_course(instructor, status='published', course_type='coursera_plus')
     enrollment = f.enroll(student, bundle.course)  # creates an active subscription
     subscription = f.get_subscription(student)
     subscription.status = 'cancelled'
     subscription.save()
+    client = auth_client(student)
 
-    r = auth_client(student, raise_exceptions=False).post(complete_url(bundle.course, bundle.video))
+    assert client.get(learn_url(bundle.course)).status_code == 200
+    r = client.post(complete_url(bundle.course, bundle.video))
 
-    assert r.status_code == 500
+    assert r.status_code == 200
     enrollment.refresh_from_db()
-    assert enrollment.progress_percentage == 0
+    assert enrollment.progress_percentage == 25
 
 
 @pytest.mark.pinned_bug
