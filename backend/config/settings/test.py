@@ -16,7 +16,7 @@ DATABASES = {
 }
 
 # the in-memory limiter is shared between tests and would produce flaky 403s
-MIDDLEWARE = [m for m in _BASE_MIDDLEWARE if m != 'apps.core.security.RateLimitMiddleware']
+MIDDLEWARE = [m for m in _BASE_MIDDLEWARE if m != 'apps.core.middleware.RateLimitMiddleware']
 
 # uploads go to a throw-away folder, never into the real media directory
 MEDIA_ROOT = tempfile.mkdtemp(prefix='coursera_test_media_')

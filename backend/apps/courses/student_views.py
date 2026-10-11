@@ -9,16 +9,14 @@ from django.utils import timezone
 from datetime import datetime, timedelta, date
 from decimal import Decimal
 
+from apps.accounts.permissions import IsStudent
+
 from .models import Course, Section, Lecture
 from apps.learning.models import Enrollment, LectureProgress, CourseBookmark
 from apps.certificates.models import Certificate
 from apps.accounts.models import User, StudentProfile
 from apps.assessments.models import QuizAttempt, AssignmentSubmission, Quiz, Question, QuestionResponse, QuestionOption, Assignment
 
-class IsStudent(IsAuthenticated):
-    """Permission class for students only"""
-    def has_permission(self, request, view):
-        return super().has_permission(request, view) and request.user.user_type == 'student'
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -52,7 +50,7 @@ def all_courses(request):
     
     if search:
         # Sanitize search input for security
-        from apps.core.security import sanitize_search_query
+        from apps.core.utils import sanitize_search_query
         search = sanitize_search_query(search)
         if search:  # Only search if we have valid input after sanitization
             courses = courses.filter(

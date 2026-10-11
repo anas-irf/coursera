@@ -1,28 +1,23 @@
-# accounts/permissions.py
-from rest_framework import permissions
+"""Role based permission classes - the single definition used by every slice."""
+from rest_framework.permissions import IsAuthenticated
 
-class IsInstructor(permissions.BasePermission):
-    """
-    Custom permission to only allow instructors to access certain views.
-    """
+
+class IsStudent(IsAuthenticated):
+    """Authenticated users whose ``user_type`` is ``student``."""
+
     def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated and request.user.user_type == 'instructor'
+        return super().has_permission(request, view) and request.user.user_type == 'student'
 
-class IsStudent(permissions.BasePermission):
-    """
-    Custom permission to only allow students to access certain views.
-    """
+
+class IsInstructor(IsAuthenticated):
+    """Authenticated users whose ``user_type`` is ``instructor``."""
+
     def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated and request.user.user_type == 'student'
+        return super().has_permission(request, view) and request.user.user_type == 'instructor'
 
-class IsOwnerOrReadOnly(permissions.BasePermission):
-    """
-    Custom permission to only allow owners of an object to edit it.
-    """
-    def has_object_permission(self, request, view, obj):
-        # Read permissions are allowed to any request
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        
-        # Write permissions are only allowed to the owner
-        return obj.instructor == request.user
+
+class IsAdmin(IsAuthenticated):
+    """Platform administrators (``user_type == 'admin'`` or a Django superuser)."""
+
+    def has_permission(self, request, view):
+        return super().has_permission(request, view) and request.user.is_admin

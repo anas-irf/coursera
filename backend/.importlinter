@@ -16,7 +16,7 @@ layers =
 ignore_imports =
     # RATCHET: every entry is an upward import that still has to be removed.
     # The list may only shrink; it must be empty once the refactor is finished.
-    apps.accounts.views -> apps.learning.models
+    apps.accounts.api.views -> apps.learning.models
     apps.billing.services -> apps.learning.models
     apps.billing.views -> apps.learning.models
     apps.billing.views -> apps.notifications.models

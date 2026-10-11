@@ -3,12 +3,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
+from apps.accounts.permissions import IsInstructor
 from .models import Quiz, Question
 
-class IsInstructor(IsAuthenticated):
-    """Custom permission for instructors only"""
-    def has_permission(self, request, view):
-        return super().has_permission(request, view) and request.user.user_type == 'instructor'
 
 class QuizViewSet(viewsets.ViewSet):
     permission_classes = [IsInstructor]

@@ -97,19 +97,22 @@ def test_catalogue_reports_module_count_and_video_hours(api, instructor):
     assert row['duration'] == '5 hours'
 
 
-def test_catalogue_search_currently_crashes_with_a_500(auth_client, instructor):
-    """Current behaviour (bug): ``sanitize_search_query`` runs ``re.sub('*/', ...)``
-    which is an invalid regular expression, so *any* non-empty ``search`` raises
-    ``re.error`` and the endpoint answers 500.  Without ``search`` it works."""
+def test_catalogue_search_filters_by_title(api, instructor):
+    """``search`` matches title/description/instructor name (it used to crash with a 500
+    because the sanitizer ran an invalid regular expression; fixed in refactor step S2)."""
     f.make_course(instructor, status='published', title='Searchable django course')
-    client = auth_client(raise_exceptions=False)
+    f.make_course(instructor, status='published', title='Cooking basics')
 
-    for term in ('django', 'select', 'x'):
-        r = client.get(ALL, {'search': term})
-        assert r.status_code == 500, term
+    hit = api.get(ALL, {'search': 'django'})
+    assert hit.status_code == 200
+    assert [row['title'] for row in hit.json()] == ['Searchable django course']
 
-    assert client.get(ALL, {'search': ''}).status_code == 200
-    assert client.get(ALL).status_code == 200
+    assert api.get(ALL, {'search': 'no-such-course'}).json() == []
+    # words the sanitizer strips must not break the request
+    assert api.get(ALL, {'search': 'select'}).status_code == 200
+    assert api.get(ALL, {'search': '/* x */ --'}).status_code == 200
+    assert api.get(ALL, {'search': ''}).status_code == 200
+    assert api.get(ALL).status_code == 200
 
 
 def test_catalogue_enrolment_flags_for_a_student(auth_client, instructor, student):

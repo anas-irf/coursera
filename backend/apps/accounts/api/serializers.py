@@ -1,8 +1,8 @@
-# accounts/serializers.py
+# accounts/api/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from .models import StudentProfile, InstructorProfile
+from ..models import StudentProfile, InstructorProfile
 
 User = get_user_model()
 
@@ -73,3 +73,12 @@ class InstructorProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = InstructorProfile
         fields = '__all__'
+
+
+def profile_payload(user):
+    """Role profile of ``user`` serialized for API responses (``None`` for admins)."""
+    if user.user_type == 'student' and hasattr(user, 'student_profile'):
+        return StudentProfileSerializer(user.student_profile).data
+    if user.user_type == 'instructor' and hasattr(user, 'instructor_profile'):
+        return InstructorProfileSerializer(user.instructor_profile).data
+    return None

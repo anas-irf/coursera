@@ -73,10 +73,10 @@ EXTERNAL_APPS = [
 INSTALLED_APPS += EXTERNAL_APPS
 
 MIDDLEWARE = [
-    'apps.core.security.RateLimitMiddleware',
+    'apps.core.middleware.RateLimitMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'apps.core.security.SecurityMiddleware',
+    'apps.core.middleware.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -203,6 +203,7 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    'EXCEPTION_HANDLER': 'apps.core.api.errors.exception_handler',
 }
 
 # JWT Settings

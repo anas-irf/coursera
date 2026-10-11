@@ -2,6 +2,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework.decorators import api_view, permission_classes
+from apps.accounts.permissions import IsInstructor
 from . import views
 from . import student_views
 
@@ -10,7 +11,7 @@ router.register('instructor/courses', views.InstructorCourseViewSet, basename='i
 
 # Create wrapper functions for reordering endpoints
 @api_view(['POST'])
-@permission_classes([views.IsInstructor])
+@permission_classes([IsInstructor])
 def reorder_sections_wrapper(request, course_uuid):
     viewset = views.SectionViewSet()
     viewset.request = request
@@ -18,7 +19,7 @@ def reorder_sections_wrapper(request, course_uuid):
     return viewset.reorder_sections(request, course_uuid)
 
 @api_view(['POST'])
-@permission_classes([views.IsInstructor])
+@permission_classes([IsInstructor])
 def reorder_lectures_wrapper(request, section_uuid):
     viewset = views.LectureViewSet()
     viewset.request = request

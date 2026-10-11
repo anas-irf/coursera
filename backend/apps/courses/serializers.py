@@ -5,7 +5,6 @@ from .models import Course, Section, Lecture, LectureResource, CourseAnnouncemen
 from apps.learning.models import Enrollment, LectureProgress
 from apps.assessments.models import Quiz, Assignment, Question, QuestionOption
 from apps.billing.models import InstructorEarning
-from apps.accounts.serializers import UserSerializer
 
 class LectureResourceSerializer(serializers.ModelSerializer):
     class Meta:

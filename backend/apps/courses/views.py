@@ -11,6 +11,8 @@ from django.utils import timezone
 from django.utils.text import slugify
 from decimal import Decimal
 
+from apps.accounts.permissions import IsAdmin, IsInstructor, IsStudent
+
 from .models import Course, Section, Lecture, CourseAnnouncement
 from .serializers import (
     CourseListSerializer, CourseDetailSerializer, CourseCreateSerializer,
@@ -21,21 +23,6 @@ from apps.billing.models import InstructorEarning
 from apps.notifications.services import NotificationService
 from apps.notifications.models import Notification
 from apps.assessments.models import Quiz, Question, QuestionOption, Assignment
-
-class IsInstructor(IsAuthenticated):
-    """Custom permission for instructors only"""
-    def has_permission(self, request, view):
-        return super().has_permission(request, view) and request.user.user_type == 'instructor'
-
-class IsAdmin(IsAuthenticated):
-    """Custom permission for admins only"""
-    def has_permission(self, request, view):
-        return super().has_permission(request, view) and request.user.is_admin
-
-class IsStudent(IsAuthenticated):
-    """Custom permission for students only"""
-    def has_permission(self, request, view):
-        return super().has_permission(request, view) and request.user.user_type == 'student'
 
 
 @api_view(['GET'])

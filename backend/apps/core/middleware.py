@@ -1,16 +1,15 @@
 """
-Security utilities and middleware for the Coursera application.
+HTTP middleware: extra security headers and a simple in-process rate limiter.
 """
-import re
 import logging
-from django.http import HttpResponseBadRequest, HttpResponseForbidden
-from django.core.exceptions import PermissionDenied
-from django.utils.deprecation import MiddlewareMixin
-from django.conf import settings
-from collections import defaultdict
 import time
+from collections import defaultdict
+
+from django.http import HttpResponseForbidden
+from django.utils.deprecation import MiddlewareMixin
 
 logger = logging.getLogger(__name__)
+
 
 class SecurityMiddleware(MiddlewareMixin):
     """
@@ -84,7 +83,7 @@ class RateLimitMiddleware(MiddlewareMixin):
 
                 # Check limit
                 if len(self.request_counts[key]) >= max_requests:
-                    logger.warning(f"Rate limit exceeded for {ip} on {path}")
+                    logger.warning("Rate limit exceeded for %s on %s", ip, path)
                     return HttpResponseForbidden("Rate limit exceeded")
 
                 # Add current request
@@ -92,21 +91,3 @@ class RateLimitMiddleware(MiddlewareMixin):
 
         response = self.get_response(request)
         return response
-
-
-def sanitize_search_query(query):
-    """
-    Sanitize search queries to prevent injection attacks
-    """
-    if not query:
-        return ""
-
-    # Remove dangerous characters and limit length
-    query = re.sub(r'[<>"\';\\&]', '', str(query)[:100])
-
-    # Remove SQL injection patterns
-    sql_patterns = ['union', 'select', 'insert', 'update', 'delete', 'drop', '--', '/*', '*/', 'xp_']
-    for pattern in sql_patterns:
-        query = re.sub(pattern, '', query, flags=re.IGNORECASE)
-
-    return query.strip()
