@@ -9,7 +9,7 @@ import CoursesManagement from './instructor/CoursesManagement';
 import StudentsView from './instructor/StudentsView';
 import AnalyticsView from './instructor/AnalyticsView';
 import EarningsView from './instructor/EarningsView';
-import NotificationDropdown from './shared/NotificationDropdown';
+import { NotificationDropdown } from '../features/notifications';
 import MessagesView from './instructor/MessagesView';
 import SettingsView from './instructor/SettingsView';
 import AssignmentsView from './instructor/AssignmentsView';

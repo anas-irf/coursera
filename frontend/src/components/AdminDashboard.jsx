@@ -8,7 +8,7 @@ import OverviewDashboard from './admin/OverviewDashboard';
 import CourseApprovals from './admin/CourseApprovals';
 import CourseManagement from './admin/CourseManagement';
 import UserManagement from './admin/UserManagement';
-import NotificationDropdown from './shared/NotificationDropdown';
+import { NotificationDropdown } from '../features/notifications';
 import RevenueAnalytics from './admin/RevenueAnalytics';
 import Reports from './admin/Reports';
 import PlatformSettings from './admin/PlatformSettings';

@@ -383,9 +383,9 @@ const LoginPage = () => {
                       Password
                     </label>
                     {isLogin && (
-                      <a href="#" className="text-sm text-blue-600 hover:underline">
+                      <button type="button" className="text-sm text-blue-600 hover:underline">
                         Forgot password?
-                      </a>
+                      </button>
                     )}
                   </div>
                   <div className="relative">
@@ -473,11 +473,11 @@ const LoginPage = () => {
                     />
                     <label htmlFor="terms" className="ml-2 text-xs text-gray-600">
                       I accept Coursera's{' '}
-                      <a href="#" className="text-blue-600 hover:underline">Terms of Use</a> and{' '}
-                      <a href="#" className="text-blue-600 hover:underline">Privacy Notice</a>. 
+                      <button type="button" className="text-blue-600 hover:underline">Terms of Use</button> and{' '}
+                      <button type="button" className="text-blue-600 hover:underline">Privacy Notice</button>. 
                       {formData.userType === 'instructor' && (
                         <span> I also agree to the{' '}
-                          <a href="#" className="text-blue-600 hover:underline">Instructor Terms</a>.
+                          <button type="button" className="text-blue-600 hover:underline">Instructor Terms</button>.
                         </span>
                       )}
                     </label>
@@ -510,9 +510,9 @@ const LoginPage = () => {
               
               {isLogin && (
                 <div className="mt-4 text-center">
-                  <a href="#" className="text-sm text-blue-600 hover:underline">
+                  <button type="button" className="text-sm text-blue-600 hover:underline">
                     Log in with your organization
-                  </a>
+                  </button>
                 </div>
               )}
               
@@ -521,11 +521,11 @@ const LoginPage = () => {
           
           {/* Footer Links */}
           <div className="mt-6 text-center space-x-4 text-xs text-gray-500">
-            <a href="#" className="hover:underline">Terms</a>
+            <button type="button" className="hover:underline">Terms</button>
             <span>•</span>
-            <a href="#" className="hover:underline">Privacy</a>
+            <button type="button" className="hover:underline">Privacy</button>
             <span>•</span>
-            <a href="#" className="hover:underline">Help</a>
+            <button type="button" className="hover:underline">Help</button>
           </div>
         </div>
       </div>
