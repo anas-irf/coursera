@@ -376,14 +376,18 @@ def test_chat_message_frame_is_persisted_and_broadcast():
     assert dm.conversation_id == cid
     assert f.DirectMessage.objects.count() == 2  # the earlier one + the new one
 
-    # websocket-originated messages use the "flat" frame shape
+    # a socket-originated message goes through the same service as a REST one,
+    # so the frames have the same shape
     for frame in (echo, pushed):
         assert frame['type'] == 'chat_message'
-        assert frame['message'] == 'hello over ws'
-        assert frame['message_id'] == dm.id
-        assert frame['sender_id'] == student.id
-        assert frame['conversation_id'] == cid
-        assert {'sender_name', 'timestamp'} <= set(frame)
+        assert set(frame['message']) == {'id', 'sender', 'content', 'created_at',
+                                         'conversation_id', 'is_own_message'}
+        assert frame['message']['id'] == dm.id
+        assert frame['message']['content'] == 'hello over ws'
+        assert frame['message']['sender']['id'] == student.id
+        assert frame['message']['conversation_id'] == cid
+    assert echo['message']['is_own_message'] is True
+    assert pushed['message']['is_own_message'] is False
 
 
 @pytest.mark.django_db(transaction=True)
