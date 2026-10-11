@@ -2,6 +2,10 @@
 root_package = apps
 include_external_packages = False
 
+# Slices depend downwards only: a slice may import the slices below it and never the
+# ones above it.  Slices on the same line are independent of each other.  Upward
+# interaction goes through domain events (apps.core.events) and the lecture-content
+# registry (apps.courses.extensions), never through imports.
 [importlinter:contract:slices]
 name = Slices depend downwards only
 type = layers
@@ -13,11 +17,26 @@ layers =
     apps.courses
     apps.accounts
     apps.core
-ignore_imports =
-    # RATCHET: every entry is an upward import that still has to be removed.
-    # The list may only shrink; it must be empty once the refactor is finished.
-    apps.courses.student_views -> apps.assessments.models
-    apps.courses.student_views -> apps.certificates.models
-    apps.courses.student_views -> apps.learning.models
-    apps.courses.views -> apps.billing.models
-    apps.courses.views -> apps.learning.models
+
+# Inside a slice: HTTP adapters call services, services use selectors, everything
+# ends up in the models.
+[importlinter:contract:inside-slices]
+name = Inside a slice: api -> services -> selectors -> models
+type = layers
+containers =
+    apps.accounts
+    apps.assessments
+    apps.billing
+    apps.certificates
+    apps.content
+    apps.core
+    apps.courses
+    apps.insights
+    apps.learning
+    apps.messaging
+    apps.notifications
+layers =
+    (api)
+    (services)
+    (selectors)
+    (models)

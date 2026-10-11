@@ -351,7 +351,7 @@ def build_course(instructor, *, status='published', course_type='free',
 def enroll(student, course, *, status='active'):
     """Create an Enrollment through the ORM (creates LectureProgress rows)."""
     if course.course_type == 'coursera_plus' and get_subscription(student) is None:
-        # Enrollment.clean() demands an active Plus subscription for Plus courses
+        # a Plus course can only be enrolled in with a subscription, as in the app
         give_plus(student)
     enrollment = Enrollment.objects.create(
         student=student, course=course, enrolled_date=timezone.now(),

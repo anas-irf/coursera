@@ -4,8 +4,6 @@ from rest_framework.routers import DefaultRouter
 from rest_framework.decorators import api_view, permission_classes
 from apps.accounts.permissions import IsInstructor
 from .api import curriculum, instructor, moderation
-from . import views
-from . import student_views
 
 router = DefaultRouter()
 router.register('instructor/courses', instructor.InstructorCourseViewSet, basename='instructor-courses')
@@ -31,7 +29,6 @@ app_name = 'courses'
 
 urlpatterns = [
     # Put specific paths first to avoid router conflicts
-    path('instructor/dashboard/', views.instructor_dashboard, name='instructor-dashboard'),
 
     # Section management
     path('instructor/courses/<uuid:course_uuid>/sections/',
@@ -55,16 +52,9 @@ urlpatterns = [
          curriculum.LectureViewSet.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}),
          name='lecture-detail'),
     
-    # student URLs (discovery and learning are served by the learning slice)
-
-    # Student certificates and achievements
-    path('student/certificates/', student_views.student_certificates, name='student-certificates'),
-    path('student/achievements/', student_views.student_achievements, name='student-achievements'),
-
     # Admin endpoints for course publishing
     path('admin/pending/', moderation.admin_pending_courses, name='admin-pending-courses'),
     path('admin/all/', moderation.admin_all_courses, name='admin-all-courses'),
-    path('admin/users/', views.admin_all_users, name='admin-all-users'),
     path('admin/<uuid:course_id>/approve/', moderation.admin_approve_course, name='admin-approve-course'),
     path('admin/<uuid:course_id>/reject/', moderation.admin_reject_course, name='admin-reject-course'),
 

@@ -50,25 +50,41 @@ def test_instructor_dashboard_top_level_keys(api, auth_client, instructor, stude
     assert auth_client(student).get(DASHBOARD).status_code == 403
 
 
-@pytest.mark.pinned_bug
-def test_instructor_dashboard_returns_the_zero_fallback_current_behaviour(auth_client, instructor, student):
-    """Current behaviour (bug): the per-course revenue annotation uses the invalid
-    lookup ``earnings__final_amount`` (the reverse name is ``instructorearning``),
-    so the view always lands in its ``except`` branch and answers 200 with an
-    all-zero payload plus an ``error`` message - even for an instructor with
-    published courses and enrolled students.  The plan fixes it in step S9."""
-    course = f.make_course(instructor, status='published')
-    f.make_course(instructor, status='draft')
+def test_instructor_dashboard_is_populated(auth_client, instructor, student):
+    """Counts, recent enrolments and top courses reflect the data (the view used to
+    fail on an invalid lookup and always answered with an all-zero fallback)."""
+    course = f.make_course(instructor, status='published', title='Popular')
+    f.make_course(instructor, status='draft', title='Draft one')
     f.enroll(student, course)
 
     body = auth_client(instructor).get(DASHBOARD).json()
 
-    assert body['error']  # an explanatory message accompanies the zeros
-    assert body['stats'] == {'total_courses': 0, 'total_students': 0, 'total_revenue': 0,
-                             'average_rating': 0, 'published_courses': 0, 'draft_courses': 0}
-    assert body['recent_enrollments'] == []
-    assert body['revenue_chart'] == []
-    assert body['top_courses'] == []
+    assert 'error' not in body
+    assert body['stats']['total_courses'] == 2
+    assert body['stats']['published_courses'] == 1
+    assert body['stats']['draft_courses'] == 1
+    assert body['stats']['total_students'] == 1
+    assert body['stats']['total_revenue'] == 0  # nothing creates earnings yet
+    (recent,) = body['recent_enrollments']
+    assert recent['student_email'] == student.email
+    assert recent['course_title'] == 'Popular'
+    assert len(body['revenue_chart']) == 30
+    assert {row['title'] for row in body['top_courses']} == {'Popular', 'Draft one'}
+
+
+def test_dashboard_ranks_courses_by_revenue_and_charts_recent_earnings(auth_client, instructor):
+    cheap = f.make_course(instructor, status='published', title='Cheap')
+    best = f.make_course(instructor, status='published', title='Best')
+    f.make_course(instructor, status='published', title='Unpaid')
+    f.make_earning(instructor, cheap, amount=Decimal('10.00'))
+    f.make_earning(instructor, best, amount=Decimal('90.00'))
+
+    body = auth_client(instructor).get(DASHBOARD).json()
+
+    assert [row['title'] for row in body['top_courses']][:2] == ['Best', 'Cheap']
+    assert body['top_courses'][0]['total_revenue'] == pytest.approx(90.0)
+    assert body['stats']['total_revenue'] == pytest.approx(100.0)
+    assert sum(point['revenue'] for point in body['revenue_chart']) == pytest.approx(100.0)
 
 
 # --------------------------------------------------------------------------- #
