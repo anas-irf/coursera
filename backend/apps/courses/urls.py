@@ -3,17 +3,18 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework.decorators import api_view, permission_classes
 from apps.accounts.permissions import IsInstructor
+from .api import curriculum, instructor, moderation
 from . import views
 from . import student_views
 
 router = DefaultRouter()
-router.register('instructor/courses', views.InstructorCourseViewSet, basename='instructor-courses')
+router.register('instructor/courses', instructor.InstructorCourseViewSet, basename='instructor-courses')
 
 # Create wrapper functions for reordering endpoints
 @api_view(['POST'])
 @permission_classes([IsInstructor])
 def reorder_sections_wrapper(request, course_uuid):
-    viewset = views.SectionViewSet()
+    viewset = curriculum.SectionViewSet()
     viewset.request = request
     viewset.kwargs = {'course_uuid': course_uuid}
     return viewset.reorder_sections(request, course_uuid)
@@ -21,7 +22,7 @@ def reorder_sections_wrapper(request, course_uuid):
 @api_view(['POST'])
 @permission_classes([IsInstructor])
 def reorder_lectures_wrapper(request, section_uuid):
-    viewset = views.LectureViewSet()
+    viewset = curriculum.LectureViewSet()
     viewset.request = request
     viewset.kwargs = {'section_uuid': section_uuid}
     return viewset.reorder_lectures(request, section_uuid)
@@ -34,24 +35,24 @@ urlpatterns = [
 
     # Section management
     path('instructor/courses/<uuid:course_uuid>/sections/',
-         views.SectionViewSet.as_view({'get': 'list', 'post': 'create'}),
+         curriculum.SectionViewSet.as_view({'get': 'list', 'post': 'create'}),
          name='course-sections'),
     path('instructor/courses/<uuid:course_uuid>/sections/reorder/',
          reorder_sections_wrapper,
          name='reorder-sections'),
     path('instructor/sections/<uuid:uuid>/',
-         views.SectionViewSet.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}),
+         curriculum.SectionViewSet.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}),
          name='section-detail'),
 
     # Lecture management
     path('instructor/sections/<uuid:section_uuid>/lectures/',
-         views.LectureViewSet.as_view({'get': 'list', 'post': 'create'}),
+         curriculum.LectureViewSet.as_view({'get': 'list', 'post': 'create'}),
          name='section-lectures'),
     path('instructor/sections/<uuid:section_uuid>/lectures/reorder/',
          reorder_lectures_wrapper,
          name='reorder-lectures'),
     path('instructor/lectures/<uuid:uuid>/',
-         views.LectureViewSet.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}),
+         curriculum.LectureViewSet.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}),
          name='lecture-detail'),
     
     #student URLs
@@ -69,11 +70,11 @@ urlpatterns = [
     path('student/achievements/', student_views.student_achievements, name='student-achievements'),
 
     # Admin endpoints for course publishing
-    path('admin/pending/', views.admin_pending_courses, name='admin-pending-courses'),
-    path('admin/all/', views.admin_all_courses, name='admin-all-courses'),
+    path('admin/pending/', moderation.admin_pending_courses, name='admin-pending-courses'),
+    path('admin/all/', moderation.admin_all_courses, name='admin-all-courses'),
     path('admin/users/', views.admin_all_users, name='admin-all-users'),
-    path('admin/<uuid:course_id>/approve/', views.admin_approve_course, name='admin-approve-course'),
-    path('admin/<uuid:course_id>/reject/', views.admin_reject_course, name='admin-reject-course'),
+    path('admin/<uuid:course_id>/approve/', moderation.admin_approve_course, name='admin-approve-course'),
+    path('admin/<uuid:course_id>/reject/', moderation.admin_reject_course, name='admin-reject-course'),
 
     # Quiz attempt endpoints
     path('quizzes/<uuid:quiz_uuid>/attempt/', student_views.attempt_quiz, name='attempt-quiz'),

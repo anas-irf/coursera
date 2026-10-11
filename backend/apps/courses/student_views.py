@@ -11,6 +11,7 @@ from decimal import Decimal
 
 from apps.accounts.permissions import IsStudent
 
+from . import extensions
 from .models import Course, Section, Lecture
 from apps.learning.models import Enrollment, LectureProgress, CourseBookmark
 from apps.certificates.models import Certificate
@@ -197,170 +198,11 @@ def course_learn_view(request, course_uuid):
                 'watch_count': lecture_progress.watch_count,
             }
 
-            # Add content-specific data
-            if lecture.content_type == 'video':
-                try:
-                    from apps.content.models import VideoContent
-                    video_content = VideoContent.objects.get(lecture=lecture)
-
-                    # Get subtitles
-                    subtitles = []
-                    for subtitle in video_content.subtitles.all():
-                        subtitles.append({
-                            'language': subtitle.language,
-                            'language_name': subtitle.get_language_display(),
-                            'url': subtitle.file.url if subtitle.file else None,
-                            'is_auto_generated': subtitle.is_auto_generated
-                        })
-
-                    lecture_data.update({
-                        'video_type': 'youtube' if video_content.video_url else 'local',
-                        'video_file_url': video_content.video_file.url if video_content.video_file else None,
-                        'video_url': video_content.video_url if video_content.video_url else None,
-                        'duration': video_content.duration,
-                        'thumbnail': None,  # VideoContent doesn't have thumbnail field yet
-                        'subtitles': subtitles,
-                    })
-                except VideoContent.DoesNotExist:
-                    lecture_data.update({
-                        'video_type': 'local',
-                        'video_file_url': None,
-                        'video_url': None,
-                        'duration': 0,
-                        'thumbnail': None,
-                        'subtitles': [],
-                    })
-
-            elif lecture.content_type == 'reading':
-                try:
-                    from apps.content.models import Reading
-                    reading_content = Reading.objects.get(lecture=lecture)
-                    lecture_data.update({
-                        'content': reading_content.content,
-                        'estimated_reading_time': 10,  # Default estimated time in minutes
-                        'file_url': reading_content.file.url if reading_content.file else None,
-                        'is_downloadable': reading_content.is_downloadable,
-                    })
-                except Reading.DoesNotExist:
-                    lecture_data.update({
-                        'content': '',
-                        'estimated_reading_time': 0,
-                        'file_url': None,
-                        'is_downloadable': False,
-                    })
-
-            elif lecture.content_type == 'quiz':
-                try:
-                    quiz = lecture.quiz.first()  # Get the first quiz for this lecture
-                    if not quiz:
-                        raise Quiz.DoesNotExist("No quiz found for this lecture")
-
-                    # Get student's attempts
-                    attempts = QuizAttempt.objects.filter(
-                        student=student,
-                        quiz=quiz
-                    ).order_by('-attempt_number')
-
-                    attempts_count = attempts.count()
-                    best_score = 0
-                    if attempts.exists():
-                        best_score = max(attempt.score or 0 for attempt in attempts)
-
-                    can_attempt = attempts_count < quiz.max_attempts
-
-                    lecture_data.update({
-                        'quiz_id': str(quiz.uuid),
-                        'max_attempts': quiz.max_attempts,
-                        'passing_score': quiz.passing_score,
-                        'attempts_taken': attempts_count,
-                        'best_score': float(best_score),
-                        'passed': best_score >= quiz.passing_score,
-                        'can_attempt': can_attempt,
-                    })
-                except Exception as e:
-                    lecture_data.update({
-                        'quiz_id': None,
-                        'max_attempts': 0,
-                        'passing_score': 0,
-                        'attempts_taken': 0,
-                        'best_score': 0,
-                        'passed': False,
-                        'can_attempt': False,
-                    })
-
-            elif lecture.content_type == 'assignment':
-                try:
-                    from apps.assessments.models import Assignment, AssignmentSubmission
-                    assignment = Assignment.objects.get(lecture=lecture)
-                    # Get student's submission
-                    try:
-                        submission = AssignmentSubmission.objects.get(
-                            assignment=assignment,
-                            student=student
-                        )
-                        submission_data = {
-                            'id': str(submission.uuid),
-                            'submitted': True,
-                            'submission_date': submission.submitted_at.isoformat(),
-                            'is_late': submission.is_late,
-                            'grade': float(submission.grade) if submission.grade else None,
-                            'feedback': submission.feedback,
-                            'graded': submission.grade is not None,
-                            'submission_text': submission.submission_text,
-                            'has_file': bool(submission.submission_file),
-                            'file_url': submission.submission_file.url if submission.submission_file else None,
-                            'original_filename': submission.original_filename,
-                        }
-                        # Debug logging
-                        if submission.grade is not None:
-                            print(f"Assignment {assignment.title} - Student {student.username} - Grade: {submission.grade}, Graded: {submission.grade is not None}, Feedback: {submission.feedback}")
-                        else:
-                            print(f"Assignment {assignment.title} - Student {student.username} - No grade yet")
-                    except AssignmentSubmission.DoesNotExist:
-                        submission_data = {
-                            'submitted': False,
-                            'submission_date': None,
-                            'is_late': False,
-                            'grade': None,
-                            'feedback': '',
-                            'graded': False,
-                        }
-
-                    lecture_data.update({
-                        'assignment_id': str(assignment.uuid),
-                        'title': assignment.title,
-                        'description': assignment.description,
-                        'instructions': assignment.instructions,
-                        'due_date': assignment.due_date.isoformat() if assignment.due_date else None,
-                        'max_points': assignment.max_points,
-                        'passing_score': assignment.passing_score,
-                        'allow_late_submission': assignment.allow_late_submission,
-                        'attachment': assignment.attachment.url if assignment.attachment else None,
-                        'attachment_name': assignment.attachment.name.split('/')[-1] if assignment.attachment else None,
-                        'submission': submission_data,
-                    })
-                except (Assignment.DoesNotExist, Exception) as e:
-                    print(f"Error getting assignment for lecture {lecture.id}: {str(e)}")
-                    lecture_data.update({
-                        'assignment_id': None,
-                        'title': '',
-                        'description': '',
-                        'instructions': '',
-                        'due_date': None,
-                        'max_points': 0,
-                        'passing_score': 0,
-                        'allow_late_submission': False,
-                        'attachment': None,
-                        'attachment_name': None,
-                        'submission': {
-                            'submitted': False,
-                            'submission_date': None,
-                            'is_late': False,
-                            'grade': None,
-                            'feedback': '',
-                            'graded': False,
-                        },
-                    })
+            # content specific part: video, reading, quiz, assignment ... are
+            # presented by the slice that owns the lecture type
+            handler = extensions.get_content_handler(lecture.content_type)
+            if handler is not None:
+                lecture_data.update(handler.serialize_for_student(lecture, student))
 
             lectures.append(lecture_data)
 

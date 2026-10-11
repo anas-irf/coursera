@@ -135,22 +135,23 @@ def test_create_course_validation_errors(auth_client, instructor):
     assert 'slug' in r.json()
 
 
-@pytest.mark.pinned_bug
-def test_create_course_accepts_privileged_fields_current_behaviour(auth_client, api, instructor):
-    """Current behaviour (bug): CourseCreateSerializer lets the instructor set
-    ``status='published'`` and ``is_featured`` on create, bypassing moderation.
-    The plan makes these fields read-only in step S4."""
+def test_create_course_ignores_privileged_fields(auth_client, api, instructor):
+    """``status`` / ``is_featured`` / rejection fields are read-only: a course only
+    becomes visible through the moderation workflow.  (The serializer used to
+    accept ``status='published'``; fixed in refactor step S4.)"""
     client = auth_client(instructor)
     r = create_course(client, title='Self published', slug='self-published',
-                      status='published', is_featured='true')
+                      status='published', is_featured='true',
+                      rejection_reason='nope')
 
     assert r.status_code == 201
     course = f.Course.objects.get(uuid=r.json()['id'])
-    assert course.status == 'published'
-    assert course.is_featured is True
-    # ... and it is immediately visible in the public catalogue
+    assert course.status == 'draft'
+    assert course.is_featured is False
+    assert not course.rejection_reason
+    # not in the public catalogue
     listing = api.get('/api/courses/all/').json()
-    assert str(course.uuid) in [c['id'] for c in listing]
+    assert str(course.uuid) not in [c['id'] for c in listing]
 
 
 def test_instructor_lists_only_own_courses_with_revenue(auth_client, instructor, other_instructor):
@@ -224,19 +225,15 @@ def test_instructor_cannot_see_or_touch_another_instructors_course(auth_client, 
     assert theirs.title == 'Theirs'
 
 
-@pytest.mark.pinned_bug
-def test_delete_course_of_another_instructor_is_a_500_current_behaviour(auth_client, instructor, other_instructor):
-    """Current behaviour (bug): get_object() raises Http404 inside a blanket
-    ``except Exception`` of the delete-course action, which turns it into a 500
-    (every other action answers 404 for a foreign course)."""
+def test_delete_course_of_another_instructor_is_a_404(auth_client, instructor, other_instructor):
+    """A foreign course is 404 like on every other action (it used to be a 500)."""
     theirs = f.make_course(other_instructor, title='Theirs')
 
     r = auth_client(instructor).post(
         f'{COURSES}{theirs.uuid}/delete-course/',
         {'confirmation': f'{instructor.email}/{theirs.title}'}, format='json')
 
-    assert r.status_code == 500
-    assert 'error' in r.json()
+    assert r.status_code == 404
     assert f.Course.objects.filter(pk=theirs.pk).exists()
 
 

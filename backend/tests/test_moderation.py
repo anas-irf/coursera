@@ -174,37 +174,25 @@ def test_rejected_course_can_be_resubmitted_and_approved(auth_client, admin, ins
 # --------------------------------------------------------------------------- #
 # non-pending / unknown courses
 # --------------------------------------------------------------------------- #
-@pytest.mark.pinned_bug
 @pytest.mark.parametrize('status', ['draft', 'published', 'rejected'])
-def test_approve_and_reject_non_pending_course_is_a_500_current_behaviour(auth_client, admin, instructor, status):
-    """Current behaviour (bug): ``get_object_or_404`` raises Http404 inside the
-    view's blanket ``except Exception`` so the API answers 500 instead of 404.
-    The plan changes this to 404 in step S4."""
+def test_approve_and_reject_non_pending_course_is_a_404(auth_client, admin, instructor, status):
+    """Only courses waiting for review can be approved / rejected.  (The views
+    used to answer 500 because Http404 was swallowed; fixed in refactor step S4.)"""
     course = f.make_course(instructor, status=status)
-    client = auth_client(admin, raise_exceptions=False)
+    client = auth_client(admin)
 
-    r = client.post(approve_url(course))
-    assert r.status_code == 500
-    assert 'error' in r.json()
-
-    r = client.post(reject_url(course), {'reason': 'because'}, format='json')
-    assert r.status_code == 500
-    assert 'error' in r.json()
+    assert client.post(approve_url(course)).status_code == 404
+    assert client.post(reject_url(course), {'reason': 'because'}, format='json').status_code == 404
 
     course.refresh_from_db()
     assert course.status == status
     assert f.Notification.objects.filter(recipient=instructor).count() == 0
 
 
-@pytest.mark.pinned_bug
-def test_approve_unknown_course_is_a_500_current_behaviour(auth_client, admin):
-    """Unknown course id -> 500 (Http404 swallowed)."""
-    client = auth_client(admin, raise_exceptions=False)
+def test_approve_unknown_course_is_a_404(auth_client, admin):
+    r = auth_client(admin).post(f'/api/courses/admin/{uuid.uuid4()}/approve/')
 
-    r = client.post(f'/api/courses/admin/{uuid.uuid4()}/approve/')
-
-    assert r.status_code == 500
-    assert 'error' in r.json()
+    assert r.status_code == 404
 
 
 # --------------------------------------------------------------------------- #
