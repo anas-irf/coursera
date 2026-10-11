@@ -1,0 +1,38 @@
+[importlinter]
+root_package = apps
+include_external_packages = False
+
+[importlinter:contract:slices]
+name = Slices depend downwards only
+type = layers
+layers =
+    apps.insights | apps.notifications
+    apps.assessments | apps.certificates
+    apps.learning
+    apps.billing | apps.messaging | apps.content
+    apps.courses
+    apps.accounts
+    apps.core
+ignore_imports =
+    # RATCHET: every entry is an upward import that still has to be removed.
+    # The list may only shrink; it must be empty once the refactor is finished.
+    apps.accounts.views -> apps.learning.models
+    apps.billing.services -> apps.learning.models
+    apps.billing.views -> apps.learning.models
+    apps.billing.views -> apps.notifications.models
+    apps.courses.serializers -> apps.assessments.models
+    apps.courses.serializers -> apps.billing.models
+    apps.courses.serializers -> apps.content.models
+    apps.courses.serializers -> apps.learning.models
+    apps.courses.student_views -> apps.assessments.models
+    apps.courses.student_views -> apps.certificates.models
+    apps.courses.student_views -> apps.content.models
+    apps.courses.student_views -> apps.learning.models
+    apps.courses.student_views -> apps.notifications.services
+    apps.courses.views -> apps.assessments.models
+    apps.courses.views -> apps.assessments.services
+    apps.courses.views -> apps.billing.models
+    apps.courses.views -> apps.content.models
+    apps.courses.views -> apps.learning.models
+    apps.courses.views -> apps.notifications.models
+    apps.courses.views -> apps.notifications.services
