@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 import secrets
 import stripe
 
+from apps.core.events import emit, subscription_activated, subscription_renewed, payment_failed
+
 from .models import InstructorEarning, SubscriptionPlan
 from apps.learning.models import Enrollment
 from apps.accounts.models import User, StudentPlusSubscription, StudentPlusPayment
@@ -570,34 +572,9 @@ def handle_successful_payment(session):
             transaction_id=session['payment_intent'] or session['id']  # Use payment_intent or session_id
         )
 
-        # Create notification for user
-        from apps.notifications.models import Notification
-        try:
-            Notification.objects.create(
-                user=user,
-                title="🎉 Welcome to Coursera Plus!",
-                message=f"Your {subscription_type} subscription has been activated. You now have access to all Plus courses!",
-                notification_type='subscription_activated',
-                is_read=False
-            )
-            print(f"Created success notification for user {user.email}")
-        except Exception as e:
-            print(f"Failed to create notification: {e}")
-
-        # Create notification for admin
-        try:
-            admin_users = User.objects.filter(is_superuser=True)
-            for admin in admin_users:
-                Notification.objects.create(
-                    user=admin,
-                    title="💰 New Plus Subscription",
-                    message=f"User {user.email} just subscribed to Coursera Plus ({subscription_type} plan)",
-                    notification_type='new_subscription',
-                    is_read=False
-                )
-            print(f"Created admin notifications for new subscription")
-        except Exception as e:
-            print(f"Failed to create admin notification: {e}")
+        # tell the student (and the admins) about the new subscription
+        emit(subscription_activated, user=user, subscription=subscription,
+             amount=session['amount_total'] / 100)
 
         print(f"Successfully processed payment for user {user.email}")
 
@@ -651,19 +628,8 @@ def handle_subscription_renewal(invoice):
                 transaction_id=invoice.get('payment_intent') or invoice.get('id')
             )
 
-            # Create renewal notification
-            from apps.notifications.models import Notification
-            try:
-                Notification.objects.create(
-                    user=user,
-                    title="✅ Subscription Renewed",
-                    message=f"Your Coursera Plus subscription has been renewed for another {subscription.subscription_type.replace('ly', '')}. Next billing: {end_date.strftime('%B %d, %Y')}",
-                    notification_type='subscription_renewed',
-                    is_read=False
-                )
-                print(f"✅ Created renewal notification for user {user.email}")
-            except Exception as e:
-                print(f"Failed to create renewal notification: {e}")
+            emit(subscription_renewed, user=user, subscription=subscription,
+                 next_billing_date=end_date)
 
             print(f"✅ Subscription renewed successfully for {user.email}")
 
@@ -717,58 +683,25 @@ def handle_payment_failed(invoice):
 
             # Handle different failure scenarios
             if attempt_count == 1:
-                # First failure - send warning notification
-                notification_title = "⚠️ Payment Failed"
-                notification_message = f"We couldn't process your payment of ${amount_due}. Your subscription is still active, but we'll try again soon."
-
-                # Keep subscription active for now
-                subscription.status = 'active'  # Give them grace period
+                # First failure - warn the user, keep the subscription active (grace period)
+                outcome = 'warning'
+                subscription.status = 'active'
                 subscription.save()
 
             elif attempt_count >= 3:
                 # Multiple failures - suspend subscription
-                notification_title = "🚨 Subscription Suspended"
-                notification_message = f"Your payment of ${amount_due} has failed {attempt_count} times. Your subscription has been suspended. Please update your payment method."
-
-                # Suspend subscription
+                outcome = 'suspended'
                 subscription.status = 'suspended'
                 subscription.save()
 
-                # Create admin notification
-                try:
-                    admin_users = User.objects.filter(is_superuser=True)
-                    for admin in admin_users:
-                        Notification.objects.create(
-                            user=admin,
-                            title="🚨 Subscription Suspended",
-                            message=f"User {user.email} subscription suspended due to payment failures ({attempt_count} attempts)",
-                            notification_type='subscription_suspended',
-                            is_read=False
-                        )
-                except Exception as e:
-                    print(f"Failed to create admin notification: {e}")
-
             else:
-                # Intermediate failure
-                notification_title = "⚠️ Payment Retry Failed"
-                notification_message = f"Payment attempt #{attempt_count} failed. We'll keep trying. Your subscription remains active."
-
-                subscription.status = 'active'  # Keep active during retry period
+                # Intermediate failure - keep active during the retry period
+                outcome = 'retrying'
+                subscription.status = 'active'
                 subscription.save()
 
-            # Create user notification
-            from apps.notifications.models import Notification
-            try:
-                Notification.objects.create(
-                    user=user,
-                    title=notification_title,
-                    message=notification_message,
-                    notification_type='payment_failed',
-                    is_read=False
-                )
-                print(f"✅ Created payment failure notification for user {user.email}")
-            except Exception as e:
-                print(f"Failed to create payment failure notification: {e}")
+            emit(payment_failed, user=user, subscription=subscription,
+                 attempt_count=attempt_count, amount_due=amount_due, outcome=outcome)
 
             print(f"✅ Failed payment handled for {user.email}")
 

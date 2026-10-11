@@ -424,17 +424,44 @@ def test_invoice_events_for_unknown_customers_are_acknowledged(api, student):
     assert f.StudentPlusPayment.objects.count() == 0
 
 
-@pytest.mark.pinned_bug
-def test_stripe_lifecycle_events_persist_no_notifications_current_behaviour(api, student):
-    """Current behaviour (bug): the handlers create ``Notification(user=...)`` - a
-    wrong keyword - inside a swallowed ``try``, so no notification is ever stored.
-    The plan persists them in steps S3 / S5."""
+def test_stripe_lifecycle_events_create_notifications(api, student):
+    """Activation, renewal and a failed payment notify the student (and the
+    superusers on activation).  They used to be lost because the handlers passed
+    a wrong keyword to ``Notification``; fixed in refactor step S3."""
+    admin = f.make_user('admin', email='root@example.com')
+    admin.is_superuser = True
+    admin.save()
+
     post_webhook(api, event('checkout.session.completed', checkout_session(student)))
+
+    activated = f.Notification.objects.filter(recipient=student)
+    assert [n.notification_type for n in activated] == ['payment_success']
+    assert 'Welcome to Coursera Plus' in activated[0].title
+    (for_admin,) = f.Notification.objects.filter(recipient=admin)
+    assert for_admin.notification_type == 'system'
+    assert student.email in for_admin.message
+
     post_invoice_event(api, 'invoice.payment_succeeded', student, invoice_id='in_n1')
     post_invoice_event(api, 'invoice.payment_failed', student, invoice_id='in_n2', attempt_count=2)
 
-    assert f.StudentPlusSubscription.objects.filter(student=student).count() == 1
-    assert f.Notification.objects.count() == 0
+    types = sorted(n.notification_type for n in f.Notification.objects.filter(recipient=student))
+    assert types == ['payment_failed', 'payment_success', 'payment_success']
+    titles = ' | '.join(n.title for n in f.Notification.objects.filter(recipient=student))
+    assert 'Subscription Renewed' in titles
+    assert 'Payment Retry Failed' in titles
+
+
+def test_suspension_notifies_the_student_and_the_superusers(api, student):
+    admin = f.make_user('admin', email='root2@example.com')
+    admin.is_superuser = True
+    admin.save()
+    f.give_plus(student)
+
+    post_invoice_event(api, 'invoice.payment_failed', student, invoice_id='in_n3', attempt_count=3)
+
+    assert f.get_subscription(student).status == 'suspended'
+    assert any('Subscription Suspended' in n.title for n in f.Notification.objects.filter(recipient=student))
+    assert any('suspended' in n.message for n in f.Notification.objects.filter(recipient=admin))
 
 
 # --------------------------------------------------------------------------- #

@@ -19,7 +19,6 @@ ignore_imports =
     apps.accounts.api.views -> apps.learning.models
     apps.billing.services -> apps.learning.models
     apps.billing.views -> apps.learning.models
-    apps.billing.views -> apps.notifications.models
     apps.courses.serializers -> apps.assessments.models
     apps.courses.serializers -> apps.billing.models
     apps.courses.serializers -> apps.content.models
@@ -28,11 +27,8 @@ ignore_imports =
     apps.courses.student_views -> apps.certificates.models
     apps.courses.student_views -> apps.content.models
     apps.courses.student_views -> apps.learning.models
-    apps.courses.student_views -> apps.notifications.services
     apps.courses.views -> apps.assessments.models
     apps.courses.views -> apps.assessments.services
     apps.courses.views -> apps.billing.models
     apps.courses.views -> apps.content.models
     apps.courses.views -> apps.learning.models
-    apps.courses.views -> apps.notifications.models
-    apps.courses.views -> apps.notifications.services

@@ -13,13 +13,14 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('apps.accounts.urls')),
+    # notifications are still served below /api/courses/ (frontend contract)
+    path('api/courses/notifications/', include('apps.notifications.urls')),
     path('api/courses/', include('apps.courses.urls')),
     path('api/enrollments/', include('apps.learning.urls')),
     path('api/assessments/', include('apps.assessments.urls')),
     path('api/certificates/', include('apps.certificates.urls')),
     path('api/payments/', include('apps.billing.urls')),
     path('api/discussions/', include('apps.messaging.urls')),
-    path('api/notifications/', include('apps.notifications.urls')),
     path('api/analytics/', include('apps.insights.urls')),
     path('api/content/', include('apps.content.urls')),
 ]

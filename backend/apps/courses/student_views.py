@@ -718,8 +718,8 @@ def enroll_course(request, course_uuid):
     course.save()
 
     # Create enrollment notifications
-    from apps.notifications.services import NotificationService
-    notification_result = NotificationService.create_enrollment_notification(enrollment)
+    from apps.core.events import emit, student_enrolled
+    emit(student_enrolled, enrollment=enrollment)
 
     return Response({
         'message': 'Successfully enrolled in course',

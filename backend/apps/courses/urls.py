@@ -75,11 +75,6 @@ urlpatterns = [
     path('admin/<uuid:course_id>/approve/', views.admin_approve_course, name='admin-approve-course'),
     path('admin/<uuid:course_id>/reject/', views.admin_reject_course, name='admin-reject-course'),
 
-    # Notification endpoints
-    path('notifications/', views.get_user_notifications, name='user-notifications'),
-    path('notifications/count/', views.get_unread_notification_count, name='notification-count'),
-    path('notifications/<int:notification_id>/read/', views.mark_notification_read, name='mark-notification-read'),
-
     # Quiz attempt endpoints
     path('quizzes/<uuid:quiz_uuid>/attempt/', student_views.attempt_quiz, name='attempt-quiz'),
 

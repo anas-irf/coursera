@@ -20,8 +20,9 @@ from .serializers import (
 )
 from apps.learning.models import Enrollment
 from apps.billing.models import InstructorEarning
-from apps.notifications.services import NotificationService
-from apps.notifications.models import Notification
+from apps.core.events import (
+    emit, course_submitted, course_approved, course_rejected, assignment_graded,
+)
 from apps.assessments.models import Quiz, Question, QuestionOption, Assignment
 
 
@@ -263,8 +264,8 @@ class InstructorCourseViewSet(mixins.CreateModelMixin,
         course.rejected_by = None
         course.save()
 
-        # Send notification to all admin users about course submission
-        notification_result = NotificationService.create_course_submission_notification(course=course)
+        # let the admins know that a course waits for review
+        emit(course_submitted, course=course)
 
         return Response({
             'status': 'pending_review',
@@ -1150,11 +1151,8 @@ def admin_approve_course(request, course_id):
         course.rejected_by = None
         course.save()
 
-        # Send notification to instructor about approval
-        notification_result = NotificationService.create_course_approval_notification(
-            course=course,
-            approved_by=request.user
-        )
+        # tell the instructor (and keep a record for the admin)
+        emit(course_approved, course=course, approved_by=request.user)
 
         return Response({
             'message': f'Course "{course.title}" has been approved and published',
@@ -1194,12 +1192,8 @@ def admin_reject_course(request, course_id):
         course.rejected_by = request.user
         course.save()
 
-        # Send notification to instructor with rejection reason
-        notification_result = NotificationService.create_course_rejection_notification(
-            course=course,
-            rejection_reason=reason.strip(),
-            rejected_by=request.user
-        )
+        # tell the instructor why (and keep a record for the admin)
+        emit(course_rejected, course=course, rejected_by=request.user, reason=reason.strip())
 
         return Response({
             'message': f'Course "{course.title}" has been rejected',
@@ -1340,72 +1334,6 @@ def admin_all_users(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-# Notification API endpoints
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_user_notifications(request):
-    """Get notifications for the current user"""
-    try:
-        notifications = NotificationService.get_user_notifications(
-            user=request.user,
-            limit=int(request.GET.get('limit', 20)),
-            include_read=request.GET.get('include_read', 'true').lower() == 'true'
-        )
-
-        data = []
-        for notification in notifications:
-            data.append({
-                'id': notification.id,
-                'type': notification.notification_type,
-                'title': notification.title,
-                'message': notification.message,
-                'is_read': notification.is_read,
-                'created_at': notification.created_at.isoformat(),
-                'read_at': notification.read_at.isoformat() if notification.read_at else None,
-                'action_url': notification.action_url,
-            })
-
-        return Response(data)
-
-    except Exception as e:
-        return Response(
-            {'error': f'Failed to get notifications: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_unread_notification_count(request):
-    """Get count of unread notifications for the current user"""
-    try:
-        count = NotificationService.get_unread_count(request.user)
-        return Response({'unread_count': count})
-
-    except Exception as e:
-        return Response(
-            {'error': f'Failed to get notification count: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def mark_notification_read(request, notification_id):
-    """Mark a notification as read"""
-    try:
-        notification = NotificationService.mark_as_read(notification_id, request.user)
-        if notification:
-            return Response({'message': 'Notification marked as read'})
-        else:
-            return Response(
-                {'error': 'Notification not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-    except Exception as e:
-        return Response(
-            {'error': f'Failed to mark notification as read: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
 
 
 # Assignment Management for Instructors
@@ -1561,19 +1489,8 @@ def grade_assignment_submission(request, submission_uuid):
             print(f"Error type: {type(save_error)}")
             raise save_error
 
-        # Create notification for student
-        try:
-            percentage = int((grade / submission.assignment.max_points) * 100)
-            notification = Notification.objects.create(
-                recipient=submission.student,
-                notification_type='assignment_graded',
-                title=f'Assignment "{submission.assignment.title}" has been graded',
-                message=f'Your assignment "{submission.assignment.title}" has been graded. You received {grade}/{submission.assignment.max_points} points ({percentage}%).',
-                action_url=f'/courses/{submission.assignment.course.uuid}/learn'
-            )
-        except Exception as e:
-            print(f"Error creating grading notification: {str(e)}")
-            # Don't fail the grading if notification fails
+        # tell the student (best effort - never fails the grading)
+        emit(assignment_graded, submission=submission, grade=grade, graded_by=request.user)
 
         return Response({
             'message': 'Assignment graded successfully',
