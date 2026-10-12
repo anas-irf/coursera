@@ -101,7 +101,7 @@ def submit_attempt(student, quiz, enrollment, attempt_uuid, answers):
             end_time__isnull=True,
         )
     except (QuizAttempt.DoesNotExist, ValidationError, ValueError):
-        raise ServiceError('Invalid or completed attempt')
+        raise ServiceError('Invalid or completed attempt') from None
 
     earned, total = _grade_responses(attempt, quiz, answers)
     score = _percentage(earned, total)

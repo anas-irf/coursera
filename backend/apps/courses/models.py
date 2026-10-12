@@ -29,7 +29,7 @@ def validate_course_thumbnail(value):
         image = Image.open(value)
         image.verify()
     except Exception:
-        raise ValidationError('Invalid image file. Please upload a valid image.')
+        raise ValidationError('Invalid image file. Please upload a valid image.') from None
 
 class Course(BaseModel):
     LEVEL_CHOICES = (

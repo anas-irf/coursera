@@ -1,0 +1,14 @@
+# Coverage of the backend. `pytest --cov` reads this file; CI fails below fail_under.
+[run]
+branch = True
+source = apps
+omit =
+    */migrations/*
+
+[report]
+# the suite sits at ~93 %; the gate leaves room for a little churn, raise it when it grows
+fail_under = 90
+skip_covered = True
+exclude_also =
+    raise NotImplementedError
+    if TYPE_CHECKING:

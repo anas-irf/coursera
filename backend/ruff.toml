@@ -1,0 +1,20 @@
+# Lint rules of the backend (CI runs `ruff check apps config tests` from here).
+target-version = "py313"
+line-length = 120
+
+[lint]
+select = [
+    "F",    # pyflakes: unused imports / names, undefined names
+    "E9",   # syntax and io errors
+    "E7",   # comparison and statement style bugs (E711, E712, E731 ...)
+    "B",    # bugbear: likely bugs (mutable defaults, raise without from ...)
+    "UP",   # pyupgrade
+    "C4",   # comprehensions
+    "SIM",  # simplifications
+    "S",    # bandit-style security checks
+]
+
+[lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S311"]   # asserts, fixture passwords, random in tests
+"apps/seeding/**" = ["S311"]                    # seeded variation is deliberately not cryptographic
+"config/settings/test.py" = ["S105"]            # test-only webhook secret

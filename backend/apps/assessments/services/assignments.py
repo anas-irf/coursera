@@ -43,7 +43,7 @@ def submit(student, assignment, text, file):
         )
     except Exception as e:
         # model validation (file type, size, name) reports through the same channel
-        raise ServiceError(f'Failed to create submission: {str(e)}')
+        raise ServiceError(f'Failed to create submission: {str(e)}') from e
 
     if assignment.lecture:
         learning.complete_lecture_once(enrollment, assignment.lecture)
@@ -59,7 +59,7 @@ def grade(submission, grader, grade_value, feedback):
     try:
         points = float(grade_value)
     except (TypeError, ValueError):
-        raise ServiceError('Grade must be a valid number')
+        raise ServiceError('Grade must be a valid number') from None
     if not math.isfinite(points):
         raise ServiceError('Grade must be a valid number')
 
@@ -118,7 +118,7 @@ def read_submission_file(submission):
         with default_storage.open(path) as stored:
             content = stored.read()
     except Exception:
-        raise Http404('Error reading file')
+        raise Http404('Error reading file') from None
 
     content_type, _ = mimetypes.guess_type(submission.original_filename)
     return content, content_type or 'application/octet-stream', submission.original_filename

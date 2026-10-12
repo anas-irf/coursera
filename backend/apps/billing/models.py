@@ -135,9 +135,7 @@ class StudentPlusSubscription(BaseModel):
         """Check if subscription is currently active"""
         if self.status != 'active':
             return False
-        if self.end_date and self.end_date < timezone.now():
-            return False
-        return True
+        return not (self.end_date and self.end_date < timezone.now())
 
     def can_access_plus_courses(self):
         """Check if student can access coursera plus courses"""

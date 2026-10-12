@@ -66,7 +66,7 @@ def _enrol(ctx, student, spec):
 
     moments = _moments(ctx, spec, start)
     seconds = 0
-    for lecture, when in zip(lectures, moments):
+    for lecture, when in zip(lectures, moments, strict=False):
         seconds += _finish(ctx, student, course.instructor, enrollment, lecture, when, spec)
 
     enrollment.refresh_from_db()

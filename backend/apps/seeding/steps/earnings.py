@@ -7,7 +7,7 @@ row per Plus course and month, paid for the older months, pending for the last
 two.  Only Plus courses earn; free courses pay nothing.
 """
 import random
-from datetime import datetime, time, timedelta, timezone
+from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
 
 from django.db.models import Count, Sum
@@ -43,7 +43,7 @@ def _next_month(month):
 
 
 def _at(day, hour=9):
-    return datetime.combine(day, time(hour), tzinfo=timezone.utc)
+    return datetime.combine(day, time(hour), tzinfo=UTC)
 
 
 def run(ctx):

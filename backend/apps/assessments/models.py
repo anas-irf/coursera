@@ -111,7 +111,7 @@ class QuizAttempt(BaseModel):
             )
             self.enrollment = enrollment
         except Enrollment.DoesNotExist:
-            raise ValidationError("Must be enrolled in course to attempt quiz")
+            raise ValidationError("Must be enrolled in course to attempt quiz") from None
 
         # Check max attempts (exclude current instance if updating)
         existing_attempts = QuizAttempt.objects.filter(
@@ -209,7 +209,7 @@ class AssignmentSubmission(BaseModel):
             )
             self.enrollment = enrollment
         except Enrollment.DoesNotExist:
-            raise ValidationError("Must be enrolled in course to submit assignment")
+            raise ValidationError("Must be enrolled in course to submit assignment") from None
 
         # Check file size (50MB limit)
         if self.submission_file and self.submission_file.size > 50 * 1024 * 1024:

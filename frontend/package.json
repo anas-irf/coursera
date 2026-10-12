@@ -23,14 +23,35 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
+    "test:ci": "react-scripts test --watchAll=false --ci --coverage --reporters=default --reporters=jest-ctrf-json-reporter",
     "eject": "react-scripts eject",
-    "tailwind-init": "tailwindcss init -p"
+    "tailwind-init": "tailwindcss init -p",
+    "lint": "eslint --ext .js,.jsx --max-warnings=0 src"
   },
   "jest": {
     "moduleNameMapper": {
       "^axios$": "<rootDir>/node_modules/axios/dist/browser/axios.cjs",
       "^react-router-dom$": "<rootDir>/node_modules/react-router-dom/dist/index.js",
       "^react-router/dom$": "<rootDir>/node_modules/react-router/dist/development/dom-export.js"
+    },
+    "collectCoverageFrom": [
+      "src/**/*.{js,jsx}",
+      "!src/**/*.test.{js,jsx}",
+      "!src/index.js",
+      "!src/setupTests.js"
+    ],
+    "coverageReporters": [
+      "text-summary",
+      "lcov",
+      "json-summary"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "statements": 12,
+        "branches": 7,
+        "functions": 8,
+        "lines": 12
+      }
     }
   },
   "proxy": "http://localhost:8000",
@@ -48,6 +69,7 @@
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",
+    "jest-ctrf-json-reporter": "0.0.9",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17"
   }

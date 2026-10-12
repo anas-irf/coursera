@@ -62,7 +62,7 @@ def _stripe_never_uses_the_configured_key():
     import stripe
     from django.urls import get_resolver
 
-    get_resolver().url_patterns  # import the URLconf now: the payment views set the key on import
+    list(get_resolver().url_patterns)  # import the URLconf now: the payment views set the key on import
     original = stripe.api_key
     stripe.api_key = 'sk_test_disabled_by_the_test_suite'
     yield

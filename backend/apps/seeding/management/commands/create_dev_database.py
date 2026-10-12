@@ -106,6 +106,6 @@ class Command(BaseCommand):
             provision(target, admin_user=admin_user, admin_password=admin_password,
                       maintenance_db=options['maintenance_db'], log=self.stdout.write)
         except psycopg2.OperationalError as error:
-            raise CommandError(f'Could not connect as "{admin_user}": {str(error).strip()}')
+            raise CommandError(f'Could not connect as "{admin_user}": {str(error).strip()}') from error
 
         self.stdout.write(self.style.SUCCESS('Done. Next: python manage.py migrate'))

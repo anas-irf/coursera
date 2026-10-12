@@ -77,7 +77,7 @@ def test_route_table_matches_the_expected_table():
 def test_every_endpoint_of_the_baseline_survived_under_its_name():
     """Moving endpoints to slice prefixes must not lose or add an endpoint."""
     baseline = _read(BASELINE)
-    assert REMOVED_LINES <= set(baseline), 'removed lines must exist in the baseline'
+    assert set(baseline) >= REMOVED_LINES, 'removed lines must exist in the baseline'
 
     kept = {METHODS_CHANGED.get(_signature(line), _signature(line))
             for line in baseline if line not in REMOVED_LINES}

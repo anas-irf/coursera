@@ -33,7 +33,7 @@ def send_message(sender, recipient_id, content):
     try:
         recipient = User.objects.get(id=recipient_id)
     except (User.DoesNotExist, TypeError, ValueError):
-        raise NotFound('Recipient not found')
+        raise NotFound('Recipient not found') from None
 
     message = DirectMessage.objects.create(sender=sender, recipient=recipient, content=content)
     publish(message)

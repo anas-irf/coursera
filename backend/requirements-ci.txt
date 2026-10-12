@@ -1,0 +1,5 @@
+# What the CI jobs install on top of the development requirements.
+-r requirements-dev.txt
+bandit==1.9.4
+diff-cover==10.6.0
+pip-audit==2.10.1

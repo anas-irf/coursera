@@ -8,9 +8,9 @@ DEMO_INSTRUCTOR = 'demo.instructor@example.com'
 # videos and a reading (no grade weight, so their 40 + 60 stay as they are) and the numbers a
 # live catalogue would show.
 EXTENSIONS = {
-    'introduction-to-python': dict(
-        rating=4.7, reviews=64, popularity=2140, created=160, published=150,
-        sections=(
+    'introduction-to-python': {
+        'rating': 4.7, 'reviews': 64, 'popularity': 2140, 'created': 160, 'published': 150,
+        'sections': (
             Section('Going further', description='Functions, files and a first small project', items=(
                 Video('Functions and modules', YT['python'], 22),
                 Video('Working with files', YT['python'], 18),
@@ -23,10 +23,10 @@ EXTENSIONS = {
                     '<li>Learn one library deeply instead of five superficially.</li></ul>')),
             )),
         ),
-    ),
-    'applied-machine-learning': dict(
-        rating=4.5, reviews=38, popularity=0, created=150, published=140,
-        sections=(
+    },
+    'applied-machine-learning': {
+        'rating': 4.5, 'reviews': 38, 'popularity': 0, 'created': 150, 'published': 140,
+        'sections': (
             Section('Models in practice', description='Validation, overfitting and metrics', items=(
                 Video('Train, validate, test', YT['machine-learning'], 21),
                 Video('Overfitting and regularisation', YT['machine-learning'], 19),
@@ -37,7 +37,7 @@ EXTENSIONS = {
                     'and the cost of each kind of mistake before you look at a single number.</p>')),
             )),
         ),
-    ),
+    },
 }
 
 CLOUD = Course(
