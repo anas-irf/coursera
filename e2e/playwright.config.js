@@ -8,7 +8,9 @@
 const { defineConfig, devices } = require('@playwright/test');
 
 const CI = Boolean(process.env.CI);
-const VIEWPORT = { width: 1366, height: 800 };
+// The project below spreads the Desktop Chrome preset, whose viewport wins over `use.viewport`:
+// this is the size the pages are really rendered at (1280x720).
+const PAGE = devices['Desktop Chrome'].viewport;
 
 module.exports = defineConfig({
   testDir: './specs',
@@ -27,12 +29,12 @@ module.exports = defineConfig({
   ],
   use: {
     baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000',
-    viewport: VIEWPORT,
+    viewport: { width: 1366, height: 800 },
     trace: 'retain-on-failure',
-    // CI films every spec, the pull request links the recordings (docs/CI.md). The video is as
-    // large as the viewport: Playwright's default scales it down to 800 px, too small to read.
-    // A local run keeps the videos of failures only.
-    video: CI ? { mode: 'on', size: VIEWPORT } : 'retain-on-failure',
+    // CI films every spec, the pull request shows the recordings (docs/CI.md). The video is as
+    // large as the page: Playwright's default scales it down to 800 px, too small to read, and a
+    // size that differs from the page leaves a grey band. A local run keeps failures only.
+    video: CI ? { mode: 'on', size: PAGE } : 'retain-on-failure',
     screenshot: 'only-on-failure',
     // a pause after every action, so that a recording can be followed
     launchOptions: { slowMo: CI ? 250 : 0 },

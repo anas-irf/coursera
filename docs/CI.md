@@ -16,7 +16,8 @@ changes ──┬─ backend-lint ────── ruff, import contracts, Dja
 secrets ───── gitleaks over the commits of the change
 dependency-review ── what the pull request adds (pull requests only)
 report ────── one test-report comment on the pull request
-recordings ── one comment linking the report and the video of every browser spec
+previews ──── a GIF of every browser-spec recording (no write token, ffmpeg)
+recordings ── one comment: the link to the report and the videos, the GIFs shown inline
 gate ──────── passes when every job above passed or was skipped on purpose
 ```
 
@@ -53,21 +54,37 @@ only get the job summary.
 
 ## The recordings
 
-CI films every browser spec, not only the failures. The *Browser specs* job turns that into a
-short text (`.github/scripts/e2e-recordings.mjs`): how many specs passed, failed or passed only on
-the retry, how many recordings there are, the commit they belong to, and a link to the
-`playwright-evidence` artifact with the HTML report and the video of every spec. The `recordings`
-job posts it as a second sticky comment on the pull request, updated in place, and, like the test
-report, runs no repository code. It is not part of the **CI gate**: a comment never blocks a merge.
+CI films every browser spec, not only the failures, and puts the recordings on the pull request in
+a second sticky comment that is updated in place:
 
-To watch a recording unzip the artifact and open `playwright-report/index.html`; the videos are also
-plain files in `test-results/`. They are kept for 14 days. The same text is in the summary of the
-*Browser specs* job, which is where a pull request from a fork finds it (a fork gets no comment).
+* **The verdict and the link.** The *Browser specs* job writes a short text
+  (`.github/scripts/e2e-recordings.mjs`): how many specs passed, failed or passed only on the retry,
+  how many recordings there are, the commit they belong to, and a link to the `playwright-evidence`
+  artifact with the HTML report and the video of every spec. Unzip it and open
+  `playwright-report/index.html`; the videos are also plain files in `test-results/`. They are kept
+  for 14 days and need a GitHub sign-in to download.
+* **The previews.** GitHub plays no video that a workflow could upload, but it shows a GIF. The
+  `previews` job turns each recording into an animated GIF with ffmpeg
+  (`.github/scripts/e2e-previews.mjs`: 800 px wide, 10 frames a second, a few hundred KB each; failed
+  and flaky specs first, at most 40). The `recordings` job publishes them and shows them in the
+  comment, one folded group per spec file. The full-size videos are in the artifact.
 
-The comment links to the recordings, it does not embed them: a workflow has no way to upload a video
-that GitHub would play inline in a comment. If the run is for a commit that is no longer the head of
-the pull request the comment is left alone, and a push that touches no browser spec leaves the
-previous comment standing; it names the commit it describes.
+**Where the GIFs live.** As assets of one pre-release, `ci-recordings` (see *Releases*), named
+`pr-<number>-<commit>-<spec>.gif`; the release is created by the first run. After it has updated the
+comment, a run removes the GIFs of older commits of its pull request and of pull requests that are
+closed. They are public, like the repository: anyone with a link sees them, while the artifact needs
+a sign-in. The recordings show the seeded development data only. If the repository becomes private
+the images break; the link in the comment still works. The release can be deleted at any time, the
+next run creates it again.
+
+**Trust and failure.** `previews` has no write token and is the only job that decodes files the pull
+request produced. `recordings` has `contents: write` (the release) and `pull-requests: write`,
+checks nothing out, runs no repository code, and checks the names, sizes and headers of the GIFs
+before it publishes them. Neither is part of the **CI gate**: when something goes wrong the comment
+only has the link, the pull request never turns red for it. A run for a commit that is no longer the
+head of the pull request posts nothing, and a push that touches no browser spec leaves the previous
+comment standing (it names the commit it describes). Forks and Dependabot get a read-only token and
+no comment: the text is in the summary of the *Browser specs* job.
 
 ## Browser specs
 
