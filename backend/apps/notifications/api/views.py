@@ -1,10 +1,14 @@
 # notifications/api/views.py
+import logging
+
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .. import services
+
+logger = logging.getLogger(__name__)
 
 
 @api_view(['GET'])
@@ -33,9 +37,10 @@ def get_user_notifications(request):
 
         return Response(data)
 
-    except Exception as e:
+    except Exception:
+        logger.exception('Failed to get notifications')
         return Response(
-            {'error': f'Failed to get notifications: {str(e)}'},
+            {'error': 'Failed to get notifications'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -48,9 +53,10 @@ def get_unread_notification_count(request):
         count = services.get_unread_count(request.user)
         return Response({'unread_count': count})
 
-    except Exception as e:
+    except Exception:
+        logger.exception('Failed to get notification count')
         return Response(
-            {'error': f'Failed to get notification count: {str(e)}'},
+            {'error': 'Failed to get notification count'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -68,8 +74,9 @@ def mark_notification_read(request, notification_id):
             status=status.HTTP_404_NOT_FOUND
         )
 
-    except Exception as e:
+    except Exception:
+        logger.exception('Failed to mark notification as read')
         return Response(
-            {'error': f'Failed to mark notification as read: {str(e)}'},
+            {'error': 'Failed to mark notification as read'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

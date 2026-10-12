@@ -1,4 +1,6 @@
 # courses/api/moderation.py - admin review of submitted courses
+import logging
+
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -9,6 +11,8 @@ from apps.accounts.permissions import IsAdmin
 from .. import extensions
 from ..models import Course
 from ..services import lifecycle
+
+logger = logging.getLogger(__name__)
 
 
 def _course_summary(course):
@@ -49,9 +53,10 @@ def admin_pending_courses(request):
 
         return Response(data)
 
-    except Exception as e:
+    except Exception:
+        logger.exception('Failed to fetch pending courses')
         return Response(
-            {'error': f'Failed to fetch pending courses: {str(e)}'},
+            {'error': 'Failed to fetch pending courses'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -117,8 +122,9 @@ def admin_all_courses(request):
 
         return Response(data)
 
-    except Exception as e:
+    except Exception:
+        logger.exception('Failed to fetch all courses')
         return Response(
-            {'error': f'Failed to fetch all courses: {str(e)}'},
+            {'error': 'Failed to fetch all courses'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

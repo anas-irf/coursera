@@ -1,4 +1,6 @@
 # courses/api/curriculum.py - sections and lectures of an instructor's course
+import logging
+
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -11,6 +13,8 @@ from .. import extensions
 from ..models import Course, Lecture, Section
 from ..services import curriculum
 from .serializers import LectureSerializer, SectionSerializer
+
+logger = logging.getLogger(__name__)
 
 
 def _published_response(message, status_key, course):
@@ -64,9 +68,11 @@ class SectionViewSet(viewsets.ModelViewSet):
 
             return Response({'message': 'Sections reordered successfully'})
 
-        except Exception as e:
+        except Exception:
+            # the cause belongs in the log, not in the response
+            logger.warning('Failed to reorder sections', exc_info=True)
             return Response(
-                {'error': f'Failed to reorder sections: {str(e)}'},
+                {'error': 'Failed to reorder sections'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -171,9 +177,10 @@ class LectureViewSet(viewsets.ModelViewSet):
 
             return Response({'message': 'Lectures reordered successfully'})
 
-        except Exception as e:
+        except Exception:
+            logger.warning('Failed to reorder lectures', exc_info=True)
             return Response(
-                {'error': f'Failed to reorder lectures: {str(e)}'},
+                {'error': 'Failed to reorder lectures'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 

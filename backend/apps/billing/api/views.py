@@ -13,6 +13,9 @@ from ..services import gateway, subscriptions
 
 logger = logging.getLogger(__name__)
 
+# what the client is told when Stripe refuses a request; the details go to the log
+PAYMENT_PROVIDER_ERROR = 'The payment provider could not process this request. Please try again later.'
+
 
 # --------------------------------------------------------------------------- #
 # Plans and checkout
@@ -129,14 +132,17 @@ def create_stripe_checkout_session(request):
             'session_id': checkout_session.id
         })
 
-    except gateway.StripeError as e:
+    except gateway.StripeError:
+        # Stripe's own message can carry request details (even part of the API key)
+        logger.exception('Stripe rejected the checkout session request')
         return Response(
-            {'error': f'Stripe error: {str(e)}'},
+            {'error': PAYMENT_PROVIDER_ERROR},
             status=status.HTTP_400_BAD_REQUEST
         )
-    except Exception as e:
+    except Exception:
+        logger.exception('Failed to create checkout session')
         return Response(
-            {'error': f'Failed to create checkout session: {str(e)}'},
+            {'error': 'Failed to create checkout session'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -186,9 +192,9 @@ def stripe_webhook(request):
         return Response({'error': 'Invalid payload'}, status=400)
     except gateway.SignatureVerificationError:
         return Response({'error': 'Invalid signature'}, status=400)
-    except Exception as e:
+    except Exception:
         logger.exception('Stripe webhook failed')
-        return Response({'error': str(e)}, status=500)
+        return Response({'error': 'Webhook processing failed'}, status=500)
 
 
 @api_view(['POST'])
@@ -233,11 +239,12 @@ def verify_stripe_session(request):
             'payment_status': session.payment_status
         })
 
-    except gateway.StripeError as e:
-        return Response({'error': f'Stripe error: {str(e)}'}, status=400)
-    except Exception as e:
+    except gateway.StripeError:
+        logger.exception('Stripe could not retrieve the checkout session')
+        return Response({'error': PAYMENT_PROVIDER_ERROR}, status=400)
+    except Exception:
         logger.exception('verify-session failed')
-        return Response({'error': str(e)}, status=500)
+        return Response({'error': 'Failed to verify the checkout session'}, status=500)
 
 
 # --------------------------------------------------------------------------- #

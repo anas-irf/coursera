@@ -1,4 +1,6 @@
 # learning/api/views.py
+import logging
+
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -11,6 +13,8 @@ from apps.courses.models import Course, Lecture
 
 from .. import selectors, services
 from . import serializers
+
+logger = logging.getLogger(__name__)
 
 
 @api_view(['GET'])
@@ -171,8 +175,9 @@ def instructor_students(request):
     try:
         enrollments = selectors.instructor_roster(request.user)
         return Response(serializers.student_directory(enrollments))
-    except Exception as e:
+    except Exception:
+        logger.exception('Failed to fetch students')
         return Response(
-            {'error': f'Failed to fetch students: {str(e)}'},
+            {'error': 'Failed to fetch students'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
