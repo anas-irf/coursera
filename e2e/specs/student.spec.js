@@ -76,9 +76,15 @@ test.describe('the headline learner', () => {
 
   test('the player opens a course with its outline and a video', async ({ page, signIn }) => {
     await signIn(DEMO, '/student/my-learning');
-    await expect(page.locator('main')).toContainText('JavaScript from Scratch');
-    // the course visited last comes first: that is the JavaScript course
-    await page.getByRole('button', { name: /Continue Learning/ }).first().click();
+    const main = page.locator('main');
+    await expect(main).toContainText('JavaScript from Scratch');
+    // the order of the cards depends on the database (PostgreSQL sorts never-visited courses
+    // first, SQLite last): pick the card of the course, not the first card
+    const card = main.locator('div')
+      .filter({ hasText: 'JavaScript from Scratch' })
+      .filter({ has: page.getByRole('button', { name: /Continue Learning/ }) })
+      .last();
+    await card.getByRole('button', { name: /Continue Learning/ }).click();
 
     await expect(page).toHaveURL(/\/courses\/.+\/learn/);
     // the outline lists the lectures; the first one is a video
