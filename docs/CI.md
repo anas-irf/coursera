@@ -78,6 +78,9 @@ Rules the specs follow:
 * **Order matters, data is shared.** One worker, files in alphabetical order, one seeded database.
   A spec that changes data (approving a course) says so and picks data no other spec reads. To run
   the suite again locally, reseed first (`seed_dev --reset`).
+* **No assumption about list order.** PostgreSQL and SQLite order NULLs differently (a course that
+  was never visited comes first on PostgreSQL), and CI runs on PostgreSQL: find a card by its title,
+  not by its position.
 * **Evidence on failure.** CI keeps the HTML report, a trace and a video of every failed spec as the
   `playwright-evidence` artifact for 14 days.
 
