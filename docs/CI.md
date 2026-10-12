@@ -103,3 +103,6 @@ Rules the specs follow:
 On GitHub (*Settings → Branches → Branch protection rule for `main`*): require a pull request,
 require the status check **CI gate** (and nothing else: job names may change, the gate stays),
 require branches to be up to date. Optionally require the **CodeQL** checks as well.
+
+*Settings → Security*: switch on the **dependency graph** (the *Dependency review* job warns and
+skips itself until it is on) and Dependabot alerts.

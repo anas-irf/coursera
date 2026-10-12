@@ -509,7 +509,23 @@ jobs:
         with:
           persist-credentials: false
 
+      # The action needs the repository's dependency graph (Settings > Security > Dependency
+      # graph). Without it the review cannot run: say so as a warning instead of failing.
+      - name: Is the dependency graph enabled?
+        id: graph
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if gh api "repos/${REPOSITORY}/dependency-graph/sbom" --silent 2> /dev/null; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Dependency graph is disabled for this repository, so the dependency review is skipped. Enable it under Settings > Security (needs admin)."
+          fi
+
       - name: Review the dependencies this pull request adds
+        if: steps.graph.outputs.enabled == 'true'
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: high

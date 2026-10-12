@@ -1,5 +1,7 @@
 # Coursera clone
 
+[![CI](https://github.com/anas-irfan786/coursera/actions/workflows/ci.yml/badge.svg)](https://github.com/anas-irfan786/coursera/actions/workflows/ci.yml)
+
 A learning platform with three roles (student, instructor, admin): course authoring and moderation, enrollment and progress, quizzes and assignments with grading, direct messaging, notifications and Stripe subscriptions.
 
 ```
