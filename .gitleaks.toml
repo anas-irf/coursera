@@ -1,0 +1,7 @@
+# Secret scanning (CI job "Secret scan"). The default rules plus one allowance.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Stripe publishable keys are public by design: the browser needs them"
+regexes = ['''pk_(test|live)_[A-Za-z0-9]{20,}''']

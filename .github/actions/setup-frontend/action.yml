@@ -1,0 +1,25 @@
+name: Set up a Node project
+description: Node with an npm cache and the locked dependencies of one directory installed
+
+inputs:
+  directory:
+    description: Directory with the package.json and package-lock.json
+    default: frontend
+  node-version:
+    description: Node major version
+    default: "22"
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node ${{ inputs.node-version }}
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: npm
+        cache-dependency-path: ${{ inputs.directory }}/package-lock.json
+
+    - name: Install the locked dependencies of ${{ inputs.directory }}
+      shell: bash
+      working-directory: ${{ inputs.directory }}
+      run: npm ci

@@ -1,0 +1,65 @@
+# Weekly update pull requests, grouped, seven days after a release (cooldown: a release
+# that is withdrawn within days never reaches us). Actions are pinned by commit SHA;
+# Dependabot moves the SHA and its version comment together.
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directories:
+      - "/"
+      - "/.github/actions/*"
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+    labels: [dependencies, github-actions]
+
+  - package-ecosystem: pip
+    directory: "/backend"
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      django:
+        patterns: ["django", "django-*", "djangorestframework*", "channels*", "daphne"]
+      test-tooling:
+        patterns: ["pytest*", "import-linter", "ruff", "bandit", "pip-audit", "diff-cover"]
+    labels: [dependencies, backend]
+
+  - package-ecosystem: npm
+    directory: "/frontend"
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      react:
+        patterns: ["react", "react-dom", "react-router*"]
+      tooling:
+        patterns: ["@testing-library/*", "jest*", "eslint*", "tailwindcss", "postcss", "autoprefixer"]
+    ignore:
+      # Create React App (react-scripts 5) is end of life; a major step is a migration, not an update
+      - dependency-name: "react-scripts"
+        update-types: ["version-update:semver-major"]
+    labels: [dependencies, frontend]
+
+  - package-ecosystem: npm
+    directory: "/e2e"
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    groups:
+      playwright:
+        patterns: ["@playwright/*", "playwright-*"]
+    labels: [dependencies, e2e]

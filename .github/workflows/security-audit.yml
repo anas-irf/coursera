@@ -1,0 +1,39 @@
+name: Security audit
+
+# New advisories appear without a code change, so the audits also run every week.
+# The same checks run on every pull request in CI.
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Dependency advisories
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the backend
+        uses: ./.github/actions/setup-backend
+        with:
+          requirements: requirements-ci.txt
+
+      - name: Python packages
+        working-directory: backend
+        run: pip-audit -r requirements.txt --strict --progress-spinner off
+
+      - name: Set up the frontend
+        uses: ./.github/actions/setup-frontend
+
+      - name: npm packages that reach the browser
+        working-directory: frontend
+        run: node ../.github/scripts/audit-runtime-dependencies.mjs

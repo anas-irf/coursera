@@ -1,0 +1,29 @@
+name: Set up the backend
+description: Python with a pip cache and the backend requirements installed
+
+inputs:
+  python-version:
+    description: Python version
+    default: "3.13"
+  requirements:
+    description: Requirements file inside backend/ to install
+    default: requirements-dev.txt
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python ${{ inputs.python-version }}
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: pip
+        cache-dependency-path: backend/requirements*.txt
+
+    - name: Install ${{ inputs.requirements }}
+      shell: bash
+      working-directory: backend
+      env:
+        REQUIREMENTS: ${{ inputs.requirements }}
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r "$REQUIREMENTS"

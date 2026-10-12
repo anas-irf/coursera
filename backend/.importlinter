@@ -1,0 +1,46 @@
+[importlinter]
+root_package = apps
+include_external_packages = False
+
+# Slices depend downwards only: a slice may import the slices below it and never the
+# ones above it.  Slices on the same line are independent of each other.  Upward
+# interaction goes through domain events (apps.core.events) and the lecture-content
+# registry (apps.courses.extensions), never through imports.
+#
+# apps.seeding is development tooling (demo data, local database setup).  It sits on
+# top of everything, may import any slice and is imported by none.
+[importlinter:contract:slices]
+name = Slices depend downwards only
+type = layers
+layers =
+    apps.seeding
+    apps.insights | apps.notifications
+    apps.assessments | apps.certificates
+    apps.learning
+    apps.billing | apps.messaging | apps.content
+    apps.courses
+    apps.accounts
+    apps.core
+
+# Inside a slice: HTTP adapters call services, services use selectors, everything
+# ends up in the models.
+[importlinter:contract:inside-slices]
+name = Inside a slice: api -> services -> selectors -> models
+type = layers
+containers =
+    apps.accounts
+    apps.assessments
+    apps.billing
+    apps.certificates
+    apps.content
+    apps.core
+    apps.courses
+    apps.insights
+    apps.learning
+    apps.messaging
+    apps.notifications
+layers =
+    (api)
+    (services)
+    (selectors)
+    (models)

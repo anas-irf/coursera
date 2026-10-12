@@ -1,0 +1,567 @@
+name: CI
+
+# The pull request gate. Jobs run in parallel and only for the areas a change touches;
+# the "CI gate" job at the end is the one check to require on `main`.
+# What each job does and how to run it locally: docs/CI.md.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  # ------------------------------------------------------------------ what to run
+  changes:
+    name: Changed areas
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      backend: ${{ steps.areas.outputs.backend }}
+      frontend: ${{ steps.areas.outputs.frontend }}
+      e2e: ${{ steps.areas.outputs.e2e }}
+      workflows: ${{ steps.areas.outputs.workflows }}
+      dependencies: ${{ steps.areas.outputs.dependencies }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Work out which areas the change touches
+        id: areas
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: bash .github/scripts/changed-areas.sh
+
+  # ---------------------------------------------------------------------- backend
+  backend-lint:
+    name: Backend lint and contracts
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the backend
+        uses: ./.github/actions/setup-backend
+
+      - name: Ruff
+        working-directory: backend
+        run: ruff check --output-format=github apps config tests
+
+      - name: Architecture contracts (slices depend downwards only)
+        working-directory: backend
+        run: lint-imports
+
+      - name: Django checks and model drift
+        working-directory: backend
+        env:
+          DB_ENGINE: sqlite
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+
+  backend-test:
+    name: Backend tests (Python ${{ matrix.python }}, PostgreSQL ${{ matrix.postgres }})
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python: "3.13"
+            postgres: "16"
+          - python: "3.14"
+            postgres: "18"
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_DB: coursera_db
+          POSTGRES_USER: coursera_admin
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U coursera_admin -d coursera_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_ENGINE: postgres
+      TEST_DB_ENGINE: postgres
+      DB_NAME: coursera_db
+      DB_USER: coursera_admin
+      DB_PASSWORD: ci-only-password
+      DB_HOST: localhost
+      DB_PORT: "5432"
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0          # diff coverage compares with the base branch
+          persist-credentials: false
+
+      - name: Set up the backend
+        uses: ./.github/actions/setup-backend
+        with:
+          python-version: ${{ matrix.python }}
+          requirements: requirements-ci.txt
+
+      - name: Tests with coverage (fails below the threshold in backend/.coveragerc)
+        working-directory: backend
+        env:
+          PYTHON_VERSION: ${{ matrix.python }}
+        run: >-
+          python -m pytest --cov --cov-report=xml
+          --ctrf "ctrf/pytest-py${PYTHON_VERSION}.json"
+
+      - name: Coverage table in the job summary
+        if: success() || failure()
+        working-directory: backend
+        run: python -m coverage report --format=markdown --skip-covered >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Coverage of the lines this pull request changes
+        if: github.event_name == 'pull_request'
+        working-directory: backend
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          git fetch --no-tags origin "$BASE_REF"
+          diff-cover coverage.xml --compare-branch="origin/${BASE_REF}" --fail-under=85 \
+            --markdown-report diff-coverage.md
+          cat diff-coverage.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Development data (migrate, seed twice, reset)
+        if: matrix.postgres == '18'
+        working-directory: backend
+        run: |
+          python manage.py migrate
+          python manage.py seed_dev --password ci-only-seed
+          python manage.py seed_dev --password ci-only-seed
+          python manage.py seed_dev --password ci-only-seed --reset
+
+      - name: Upload the test report
+        if: success() || failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ctrf-backend-py${{ matrix.python }}
+          path: backend/ctrf/*.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload the coverage data
+        if: (success() || failure()) && matrix.postgres == '18'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-backend
+          path: backend/coverage.xml
+          if-no-files-found: error
+          retention-days: 7
+
+  # --------------------------------------------------------------------- frontend
+  frontend:
+    name: Frontend lint, tests and build
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the frontend
+        uses: ./.github/actions/setup-frontend
+
+      - name: ESLint (module boundaries included, no warnings allowed)
+        working-directory: frontend
+        run: |
+          echo "::add-matcher::.github/matchers/eslint.json"
+          npm run lint
+
+      - name: Tests with coverage (fails below the threshold in package.json)
+        working-directory: frontend
+        run: npm run test:ci
+
+      - name: Coverage table in the job summary
+        if: success() || failure()
+        working-directory: frontend
+        run: |
+          node -e "
+            const total = require('./coverage/coverage-summary.json').total;
+            console.log('### Frontend coverage\n\n| metric | covered |\n|---|---|');
+            for (const k of ['statements', 'branches', 'functions', 'lines']) {
+              console.log('| ' + k + ' | ' + total[k].pct + '% (' + total[k].covered + '/' + total[k].total + ') |');
+            }
+          " >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Production build (warnings fail it)
+        working-directory: frontend
+        run: npm run build
+
+      - name: Upload the test report
+        if: success() || failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ctrf-frontend
+          path: frontend/ctrf/*.json
+          if-no-files-found: error
+          retention-days: 7
+
+  # -------------------------------------------------------------------- browser specs
+  e2e:
+    name: Browser specs (Playwright)
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: coursera_db
+          POSTGRES_USER: coursera_admin
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U coursera_admin -d coursera_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_ENGINE: postgres
+      DB_NAME: coursera_db
+      DB_USER: coursera_admin
+      DB_PASSWORD: ci-only-password
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      SEED_PASSWORD: ci-e2e-password
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the backend
+        uses: ./.github/actions/setup-backend
+        with:
+          requirements: requirements.txt
+
+      - name: Set up the frontend
+        uses: ./.github/actions/setup-frontend
+
+      - name: Set up the specs
+        uses: ./.github/actions/setup-frontend
+        with:
+          directory: e2e
+
+      - name: Build the frontend (it talks to the API on localhost:8000)
+        working-directory: frontend
+        run: npm run build
+
+      - name: Migrate and seed the database
+        working-directory: backend
+        run: |
+          python manage.py migrate
+          python manage.py seed_dev
+
+      - name: Start the API
+        working-directory: backend
+        run: |
+          nohup python manage.py runserver 127.0.0.1:8000 --noreload > "$RUNNER_TEMP/api.log" 2>&1 &
+          for _ in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:8000/api/learning/courses/ > /dev/null && exit 0
+            sleep 1
+          done
+          echo "::error::the API did not start"
+          cat "$RUNNER_TEMP/api.log"
+          exit 1
+
+      - name: Serve the built frontend
+        working-directory: e2e
+        run: |
+          nohup node support/serve-build.js > "$RUNNER_TEMP/web.log" 2>&1 &
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:3000/login > /dev/null && exit 0
+            sleep 1
+          done
+          echo "::error::the frontend did not start"
+          cat "$RUNNER_TEMP/web.log"
+          exit 1
+
+      - name: Cache the browsers
+        id: browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package-lock.json') }}
+
+      - name: Install Chromium
+        working-directory: e2e
+        env:
+          CACHE_HIT: ${{ steps.browsers.outputs.cache-hit }}
+        run: |
+          if [ "$CACHE_HIT" = "true" ]; then
+            npx playwright install-deps chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
+
+      - name: Run the specs
+        working-directory: e2e
+        run: npx playwright test
+
+      - name: Upload the evidence (report, traces, videos of failures)
+        if: success() || failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-evidence
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload the test report
+        if: success() || failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ctrf-e2e
+          path: e2e/ctrf/*.json
+          if-no-files-found: error
+          retention-days: 7
+
+  # ----------------------------------------------------------------- the test report
+  report:
+    name: Test report on the pull request
+    needs: [backend-test, frontend, e2e]
+    if: >-
+      always() && github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.fork == false &&
+      (needs.backend-test.result != 'skipped' || needs.frontend.result != 'skipped' || needs.e2e.result != 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # runs no repository code: it only downloads the reports and posts one comment
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Download the test reports
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: ctrf-*
+          path: ctrf
+          merge-multiple: true
+
+      - name: Publish one report
+        uses: ctrf-io/github-test-reporter@dbb08957b5b2af918b39136ab2c5532002c7649b # v1.3.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          report-path: "ctrf/*.json"
+          summary-report: true
+          file-report: true
+          failed-report: true
+          flaky-report: true
+          slowest-report: true
+          pull-request: true
+          overwrite-comment: true
+          comment-tag: ci-test-report
+          annotate: true
+
+  # --------------------------------------------------------------- workflows and secrets
+  workflows:
+    name: Workflow lint and security
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: actionlint (with shellcheck)
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          echo "::add-matcher::.github/matchers/actionlint.json"
+          "$(go env GOPATH)/bin/actionlint" -color
+
+      - name: zizmor (injection, permissions, unpinned actions; medium and up fail)
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          version: "1.30.1"
+          inputs: .
+          min-severity: medium
+          advanced-security: false
+          annotations: true
+
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install gitleaks (checksum verified)
+        env:
+          VERSION: "8.30.1"
+          SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/gitleaks.tgz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
+          echo "${SHA256}  $RUNNER_TEMP/gitleaks.tgz" | sha256sum --check -
+          tar -xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$RUNNER_TEMP" gitleaks
+
+      - name: Scan the commits of the change (the whole history on main)
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            "$RUNNER_TEMP/gitleaks" git --no-banner --redact --log-opts="${BASE_SHA}..HEAD" .
+          else
+            "$RUNNER_TEMP/gitleaks" git --no-banner --redact .
+          fi
+
+  # ------------------------------------------------------------------------ security
+  backend-security:
+    name: Backend security (pip-audit, bandit)
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the backend
+        uses: ./.github/actions/setup-backend
+        with:
+          requirements: requirements-ci.txt
+
+      - name: Known vulnerabilities of the pinned requirements
+        working-directory: backend
+        run: pip-audit -r requirements.txt --strict --progress-spinner off
+
+      - name: Static security analysis (medium and up)
+        working-directory: backend
+        run: bandit -r apps config -ll -q -x apps/seeding
+
+  frontend-security:
+    name: Frontend security (npm audit of what ships)
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the frontend
+        uses: ./.github/actions/setup-frontend
+
+      - name: Advisories in the packages that reach the browser
+        working-directory: frontend
+        run: node ../.github/scripts/audit-runtime-dependencies.mjs
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The action needs the repository's dependency graph (Settings > Security > Dependency
+      # graph). Without it the review cannot run: say so as a warning instead of failing.
+      - name: Is the dependency graph enabled?
+        id: graph
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if gh api "repos/${REPOSITORY}/dependency-graph/sbom" --silent 2> /dev/null; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Dependency graph is disabled for this repository, so the dependency review is skipped. Enable it under Settings > Security (needs admin)."
+          fi
+
+      - name: Review the dependencies this pull request adds
+        if: steps.graph.outputs.enabled == 'true'
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: never
+
+  # --------------------------------------------------------------------------- gate
+  gate:
+    name: CI gate
+    if: always()
+    needs:
+      - changes
+      - backend-lint
+      - backend-test
+      - frontend
+      - e2e
+      - workflows
+      - secrets
+      - backend-security
+      - frontend-security
+      - dependency-review
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every job passed or was skipped on purpose
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          {
+            echo "### CI gate"
+            echo
+            echo "| job | result |"
+            echo "|---|---|"
+            echo "$NEEDS" | jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if echo "$NEEDS" | jq -e 'any(.[]; .result == "failure" or .result == "cancelled")' > /dev/null; then
+            echo "::error::at least one job failed or was cancelled"
+            exit 1
+          fi
