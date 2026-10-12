@@ -29,3 +29,12 @@ db.sqlite3
 
 # uploaded media
 media
+node_modules/
+# test and coverage output
+ctrf/
+coverage/
+coverage.xml
+.coverage
+diff-coverage.md
+playwright-report/
+test-results/
