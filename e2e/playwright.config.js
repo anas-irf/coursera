@@ -8,6 +8,7 @@
 const { defineConfig, devices } = require('@playwright/test');
 
 const CI = Boolean(process.env.CI);
+const VIEWPORT = { width: 1366, height: 800 };
 
 module.exports = defineConfig({
   testDir: './specs',
@@ -26,10 +27,15 @@ module.exports = defineConfig({
   ],
   use: {
     baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000',
-    viewport: { width: 1366, height: 800 },
+    viewport: VIEWPORT,
     trace: 'retain-on-failure',
-    video: 'retain-on-failure',
+    // CI films every spec, the pull request links the recordings (docs/CI.md). The video is as
+    // large as the viewport: Playwright's default scales it down to 800 px, too small to read.
+    // A local run keeps the videos of failures only.
+    video: CI ? { mode: 'on', size: VIEWPORT } : 'retain-on-failure',
     screenshot: 'only-on-failure',
+    // a pause after every action, so that a recording can be followed
+    launchOptions: { slowMo: CI ? 250 : 0 },
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });

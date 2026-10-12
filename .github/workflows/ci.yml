@@ -236,6 +236,9 @@ jobs:
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    outputs:
+      # the text of the recordings comment, written by .github/scripts/e2e-recordings.mjs
+      recordings: ${{ steps.recordings.outputs.comment }}
     services:
       postgres:
         image: postgres:16
@@ -258,6 +261,7 @@ jobs:
       DB_HOST: localhost
       DB_PORT: "5432"
       SEED_PASSWORD: ci-e2e-password
+      EVIDENCE_RETENTION_DAYS: "14"
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -333,7 +337,8 @@ jobs:
         working-directory: e2e
         run: npx playwright test
 
-      - name: Upload the evidence (report, traces, videos of failures)
+      - name: Upload the evidence (report, the video of every spec, traces of failures)
+        id: evidence
         if: success() || failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -342,7 +347,18 @@ jobs:
             e2e/playwright-report
             e2e/test-results
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: ${{ env.EVIDENCE_RETENTION_DAYS }}
+
+      # The text of the "Recordings on the pull request" comment and of this job's summary.
+      # Cosmetic: a mistake in it must never turn the gate red.
+      - name: Describe the recordings
+        id: recordings
+        if: (success() || failure()) && steps.evidence.outputs.artifact-id != ''
+        continue-on-error: true
+        env:
+          ARTIFACT_ID: ${{ steps.evidence.outputs.artifact-id }}
+          TESTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node .github/scripts/e2e-recordings.mjs
 
       - name: Upload the test report
         if: success() || failure()
@@ -392,6 +408,54 @@ jobs:
           overwrite-comment: true
           comment-tag: ci-test-report
           annotate: true
+
+  # -------------------------------------------------------- the recordings of the specs
+  recordings:
+    name: Recordings on the pull request
+    needs: e2e
+    # !cancelled(), not always(): a run replaced by a newer push must not post.
+    # Forks and Dependabot get a read-only token: they have the job summary instead.
+    if: >-
+      !cancelled() && github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.fork == false &&
+      github.actor != 'dependabot[bot]' &&
+      needs.e2e.outputs.recordings != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # checks nothing out and runs no repository code: it posts the text the e2e job wrote
+    permissions:
+      pull-requests: write # to create or update the recordings comment
+    steps:
+      - name: Post (or update) the recordings comment
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RECORDINGS: ${{ needs.e2e.outputs.recordings }}
+          TESTED_SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          script: |
+            const marker = '<!-- ci-e2e-recordings -->';
+            const body = `${marker}\n${process.env.RECORDINGS}`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+
+            // a run for an older commit can finish after a newer push: leave the newer comment alone
+            const { data: pull } = await github.rest.pulls.get({ owner, repo, pull_number: issue_number });
+            if (pull.head.sha !== process.env.TESTED_SHA) {
+              core.notice(`The pull request moved on to ${pull.head.sha.slice(0, 7)}: nothing posted.`);
+              return;
+            }
+
+            // the marker is the first line of the comment: spec names echoed into other comments
+            // (the test report lists them) cannot be mistaken for it
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const previous = comments.find(
+              (comment) => comment.user?.type === 'Bot' && comment.body?.startsWith(marker),
+            );
+            if (previous) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: previous.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
 
   # --------------------------------------------------------------- workflows and secrets
   workflows:
