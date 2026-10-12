@@ -1,0 +1,7 @@
+# Policy of the workflow security audit (job "Workflow lint and security").
+# Every third-party action must be pinned by commit SHA; Dependabot keeps them current.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        "*": hash-pin

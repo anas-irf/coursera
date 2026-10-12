@@ -123,6 +123,7 @@ What the seed cannot show, because the application cannot (see *Known gaps*): th
 * `cd backend && python -m pytest` (SQLite by default; `TEST_DB_ENGINE=postgres` plus the `DB_*` variables runs the same suite on PostgreSQL, which CI does). Uploads go to a temporary `MEDIA_ROOT`.
 * `cd frontend && npm test` (Jest through react-scripts; `package.json` maps axios and react-router for Jest 27).
 * `tests/` pins current behaviour, including known bugs marked `pinned_bug`, so a refactor shows up as a failing test instead of a silent change.
+* `e2e/` holds Playwright specs that run against the seeded stack (`seed_dev`); they cover what only a browser proves. The pipeline, its gates and how to run every check locally are in [CI.md](CI.md).
 
 ## Known gaps
 

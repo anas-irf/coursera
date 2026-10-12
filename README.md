@@ -89,18 +89,23 @@ Checkout needs test-mode keys in `backend/.env` (`STRIPE_SECRET_KEY`, `STRIPE_PU
 
 ```bash
 cd backend
-python -m pytest                   # SQLite; TEST_DB_ENGINE=postgres for PostgreSQL
-lint-imports                       # slices depend downwards only
-ruff check --select F apps config tests
+python -m pytest --cov            # SQLite; TEST_DB_ENGINE=postgres for PostgreSQL; fails under 90 % coverage
+ruff check apps config tests      # rules in backend/ruff.toml
+lint-imports                      # slices depend downwards only
 python manage.py makemigrations --check --dry-run
 
 cd ../frontend
-npm test -- --watchAll=false
-npx eslint --ext .js,.jsx src      # includes the module boundaries
-CI=false npm run build
+npm run lint                      # includes the module boundaries
+npm run test:ci                   # Jest with coverage
+npm run build                     # warnings fail it
+
+cd ../e2e
+npm test                          # browser specs against the seeded stack, see docs/CI.md
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same on every push and pull request.
+CI (`.github/workflows/ci.yml`) runs all of it in parallel on every pull request, adds dependency
+and secret scanning and posts the test report on the pull request. What each job guarantees and
+how to run it locally: [docs/CI.md](docs/CI.md).
 
 ## Configuration
 
