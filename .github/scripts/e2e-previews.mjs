@@ -1,13 +1,19 @@
-// Makes animated GIF previews of the browser-spec recordings: what the pull request comment shows.
+// Makes animated previews of the browser-spec recordings: what the pull request comment shows.
 //
-// GitHub plays no video that a workflow could upload, but it shows a GIF. This runs in a job of
-// its own without write permissions: ffmpeg decodes files that the code of the pull request
-// produced, so it does not share a job with a write token. The job that holds the token only
-// copies the GIFs written here, after checking their names, sizes and headers.
+// GitHub plays no video that a workflow could upload, but it shows an animated image. WebP is
+// the format for it: a recording is ~100 KB at its full 1280 px (its GIF at 800 px is more than
+// twice that), in full colour, and raw.githubusercontent.com serves it as an image, so a click on
+// the preview opens it big in the browser tab (release assets are always served as downloads,
+// and GitHub plays no MP4 or WebM that comes from a repository).
+//
+// This runs in a job of its own without write permissions: ffmpeg decodes files that the code
+// of the pull request produced, so it does not share a job with a write token. The job that
+// holds the token only publishes the images written here, after checking their names, sizes and
+// headers.
 //
 // Reads  <E2E_DIR>/ctrf/playwright.json and the videos under <E2E_DIR>/test-results
-// Writes <OUT_DIR>/NN-<spec>.gif and <OUT_DIR>/previews.md. The Markdown names every GIF as
-// {{BASE}}NN-<spec>.gif: the publishing job puts the address they are published under there.
+// Writes <OUT_DIR>/NN-<spec>.webp and <OUT_DIR>/previews.md. The Markdown names every image as
+// {{BASE}}NN-<spec>.webp: the publishing job puts the address they are published under there.
 //
 //   E2E_DIR   where the specs live (default e2e)
 //   OUT_DIR   where the previews go (default previews)
@@ -19,15 +25,15 @@ import { appendFileSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSyn
 import path from 'node:path';
 
 const MAX_PREVIEWS = 40; // a comment of more than that is not read, and GitHub caps its size
-const MAX_GIF_BYTES = 3 * 1024 * 1024; // the proxy GitHub shows images through stops at 5 MB
+const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 30 * 1024 * 1024;
 const MAX_SECONDS = 4 * 60; // for the whole job: the rest of the specs go without a preview
 const HOLD_SECONDS = 1.2; // the last frame stays on screen so that the end state can be read
-// tried in order until the GIF fits
+// tried in order until the image fits; never larger than the recording itself
 const RECIPES = [
-  { width: 800, fps: 10, colors: 128 },
-  { width: 640, fps: 8, colors: 96 },
-  { width: 480, fps: 6, colors: 64 },
+  { width: 1280, fps: 10, quality: 70 },
+  { width: 960, fps: 8, quality: 60 },
+  { width: 640, fps: 6, quality: 50 },
 ];
 const ICON = { passed: '✅', flaky: '⚠️', failed: '❌' };
 
@@ -70,20 +76,18 @@ function videoOf(test) {
   return null;
 }
 
-function convert(video, gif) {
-  for (const { width, fps, colors } of RECIPES) {
+function convert(video, image) {
+  for (const { width, fps, quality } of RECIPES) {
     const filter =
-      `fps=${fps},scale=${width}:-2:flags=lanczos,` +
-      `tpad=stop_mode=clone:stop_duration=${HOLD_SECONDS},split[a][b];` +
-      `[a]palettegen=max_colors=${colors}:stats_mode=diff[p];` +
-      '[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle';
-    execFileSync(ffmpeg, ['-v', 'error', '-y', '-i', video, '-vf', filter, '-loop', '0', gif], {
-      stdio: 'pipe',
-      timeout: 60_000,
-    });
-    if (statSync(gif).size <= MAX_GIF_BYTES) return true;
+      `fps=${fps},scale='min(${width},iw)':-2:flags=lanczos,` +
+      `tpad=stop_mode=clone:stop_duration=${HOLD_SECONDS}`;
+    const args = ['-v', 'error', '-y', '-i', video, '-vf', filter];
+    args.push('-c:v', 'libwebp_anim', '-quality', String(quality), '-compression_level', '4');
+    args.push('-loop', '0', '-f', 'webp', image);
+    execFileSync(ffmpeg, args, { stdio: 'pipe', timeout: 60_000 });
+    if (statSync(image).size <= MAX_IMAGE_BYTES) return true;
   }
-  rmSync(gif, { force: true });
+  rmSync(image, { force: true });
   return false;
 }
 
@@ -95,7 +99,7 @@ const specs = report.results.tests
     const title = [...(test.suite || []).slice(2), test.name].join(' › ');
     const number = String(index + 1).padStart(2, '0');
     const slug = slugOf([file.replace(/\.spec\.[cm]?[jt]s$/, ''), title].join(' '));
-    return { test, file, status, title, name: `${number}-${slug}.gif`, video: videoOf(test) };
+    return { test, file, status, title, name: `${number}-${slug}.webp`, video: videoOf(test) };
   })
   .filter((spec) => spec.video);
 
@@ -109,13 +113,13 @@ const skipped = [];
 let total = 0;
 let largest = 0;
 for (const spec of candidates) {
-  const gif = path.join(outDir, spec.name);
+  const image = path.join(outDir, spec.name);
   try {
     if (Date.now() - started > MAX_SECONDS * 1000) throw new Error('out of time');
-    if (!convert(spec.video, gif)) throw new Error('no recipe fits the size limit');
-    const size = statSync(gif).size;
+    if (!convert(spec.video, image)) throw new Error('no recipe fits the size limit');
+    const size = statSync(image).size;
     if (total + size > MAX_TOTAL_BYTES) {
-      rmSync(gif, { force: true });
+      rmSync(image, { force: true });
       throw new Error('over the total size limit');
     }
     total += size;
@@ -155,7 +159,7 @@ for (const spec of shown.filter((s) => s.status === 'passed')) {
 
 const lines = [];
 if (shown.length > 0) {
-  lines.push('**Previews** (animated; the videos in the download are larger)', '');
+  lines.push('**Previews** (animated; click one to open it full size)', '');
   if (attention.length > 0) {
     // they are named with their file: there is no group around them
     lines.push(table(attention.map((s) => ({ ...s, title: `${s.file} › ${s.title}` }))), '');
@@ -180,7 +184,7 @@ if (shown.length > 0) {
 
 const mb = (bytes) => (bytes / 1024 / 1024).toFixed(1);
 const summary = [
-  '### GIF previews of the recordings',
+  '### Animated previews of the recordings',
   '',
   `${made.size} of ${specs.length} recordings, ${mb(total)} MB in all, the largest ${Math.round(largest / 1024)} KB`,
   ...skipped.map((reason) => `- skipped: ${reason}`),

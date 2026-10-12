@@ -411,11 +411,11 @@ jobs:
 
   # -------------------------------------------------------- the recordings of the specs
   # Two jobs, so that the one with a write token never decodes a file the pull request made:
-  # ffmpeg runs in "previews" (read-only), "recordings" only publishes its GIFs and posts.
+  # ffmpeg runs in "previews" (read-only), "recordings" only publishes its images and posts.
   # Both: !cancelled(), not always(), so that a run replaced by a newer push does not post;
   # forks and Dependabot get a read-only token and have the job summary of the e2e job instead.
   previews:
-    name: GIF previews of the recordings
+    name: Animated previews of the recordings
     needs: e2e
     if: >-
       !cancelled() && github.event_name == 'pull_request' &&
@@ -472,10 +472,10 @@ jobs:
       needs.e2e.outputs.recordings != ''
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # checks nothing out and runs no repository code: it publishes the GIFs of the previews job
+    # checks nothing out and runs no repository code: it publishes the images of the previews job
     # and posts the text of the e2e job
     permissions:
-      contents: write # the GIFs are assets of the "ci-recordings" release
+      contents: write # pushes the images to the branch ci-recordings-pr-<number>
       pull-requests: write # to create or update the recordings comment
     steps:
       - name: Download the previews
@@ -492,18 +492,21 @@ jobs:
         env:
           RECORDINGS: ${{ needs.e2e.outputs.recordings }}
           TESTED_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
         with:
           script: |
             const fs = require('fs');
+            const os = require('os');
             const path = require('path');
+            const { execFileSync } = require('child_process');
 
             const marker = '<!-- ci-e2e-recordings -->';
-            const tag = 'ci-recordings';
+            const branchPrefix = 'ci-recordings-pr-';
             const dir = 'previews';
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
             const sha = process.env.TESTED_SHA;
-            const prefix = `pr-${issue_number}-${sha.slice(0, 7)}-`;
+            const branch = `${branchPrefix}${issue_number}`;
 
             // a run for an older commit can finish after a newer push: leave the newer comment alone
             const { data: pull } = await github.rest.pulls.get({ owner, repo, pull_number: issue_number });
@@ -512,18 +515,19 @@ jobs:
               return;
             }
 
-            // The GIFs were made from the code of the pull request: only files that look like what
+            // The images were made from the code of the pull request: only files that look like what
             // the previews job writes are published.
             function previewFiles() {
               if (!fs.existsSync(path.join(dir, 'previews.md'))) return [];
               const files = [];
               let total = 0;
               for (const name of fs.readdirSync(dir).sort()) {
-                if (!/^\d{2,3}-[a-z0-9-]{1,80}\.gif$/.test(name)) continue;
+                if (!/^\d{2,3}-[a-z0-9-]{1,80}\.webp$/.test(name)) continue;
                 const bytes = fs.readFileSync(path.join(dir, name));
-                const header = bytes.subarray(0, 6).toString('latin1');
-                if (bytes.length > 4 * 1024 * 1024 || (header !== 'GIF87a' && header !== 'GIF89a')) {
-                  core.warning(`${name} is not published: not a GIF of a sensible size`);
+                const webp = bytes.subarray(0, 4).toString('latin1') === 'RIFF' &&
+                  bytes.subarray(8, 12).toString('latin1') === 'WEBP';
+                if (bytes.length > 4 * 1024 * 1024 || !webp) {
+                  core.warning(`${name} is not published: not a WebP image of a sensible size`);
                   continue;
                 }
                 total += bytes.length;
@@ -533,75 +537,55 @@ jobs:
               return files;
             }
 
-            async function previewRelease() {
-              try {
-                return (await github.rest.repos.getReleaseByTag({ owner, repo, tag })).data;
-              } catch (error) {
-                if (error.status !== 404) throw error;
-              }
-              try {
-                const created = await github.rest.repos.createRelease({
-                  owner, repo, tag_name: tag, name: 'CI recordings', prerelease: true, make_latest: 'false',
-                  body: 'GIF previews of the browser specs of open pull requests. Written and removed ' +
-                    'by the CI workflow (.github/workflows/ci.yml); safe to delete.',
-                });
-                return created.data;
-              } catch (error) {
-                if (error.status !== 422) throw error; // another run created it first
-                return (await github.rest.repos.getReleaseByTag({ owner, repo, tag })).data;
-              }
+            // One commit with these files only, pushed over the branch of this pull request: the history
+            // does not grow and nothing of an older run is kept. raw.githubusercontent.com serves the
+            // files as images, so a click on a preview shows it in the browser. They sit in a folder
+            // named after the commit, so that no cache serves an older image under the same address.
+            function publish(files) {
+              const work = fs.mkdtempSync(path.join(os.tmpdir(), 'recordings-'));
+              const folder = path.join(work, sha.slice(0, 7));
+              fs.mkdirSync(folder);
+              for (const { name, bytes } of files) fs.writeFileSync(path.join(folder, name), bytes);
+              const auth = Buffer.from(`x-access-token:${process.env.GH_TOKEN}`).toString('base64');
+              core.setSecret(auth);
+              const git = (...args) => execFileSync('git', args, { cwd: work, stdio: 'pipe', encoding: 'utf8' });
+              git('init', '-q');
+              git('add', '-A');
+              git('-c', 'user.name=github-actions[bot]',
+                '-c', 'user.email=41898282+github-actions[bot]@users.noreply.github.com',
+                'commit', '-q', '-m', `Recordings of ${sha.slice(0, 7)} for pull request #${issue_number}`);
+              git('-c', `http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth}`,
+                'push', '-q', '--force', `https://github.com/${owner}/${repo}.git`, `HEAD:refs/heads/${branch}`);
+              fs.rmSync(work, { recursive: true, force: true });
             }
 
-            const listAssets = (release) =>
-              github.paginate(github.rest.repos.listReleaseAssets, { owner, repo, release_id: release.id, per_page: 100 });
-
-            async function publish(release, files) {
-              const existing = new Map((await listAssets(release)).map((asset) => [asset.name, asset.id]));
-              for (const { name, bytes } of files) {
-                const assetName = `${prefix}${name}`;
-                if (existing.has(assetName)) { // a re-run of the same commit
-                  await github.rest.repos.deleteReleaseAsset({ owner, repo, asset_id: existing.get(assetName) });
+            // the branches of pull requests that are closed
+            async function prune() {
+              const refs = await github.paginate(github.rest.git.listMatchingRefs, {
+                owner, repo, ref: `heads/${branchPrefix}`, per_page: 100,
+              });
+              for (const { ref } of refs) {
+                const named = new RegExp(`^refs/heads/${branchPrefix}(\\d+)$`).exec(ref);
+                if (!named || Number(named[1]) === issue_number) continue;
+                const state = await github.rest.pulls.get({ owner, repo, pull_number: Number(named[1]) })
+                  .then((response) => response.data.state, () => 'closed');
+                if (state !== 'open') {
+                  await github.rest.git.deleteRef({ owner, repo, ref: ref.replace(/^refs\//, '') });
                 }
-                await github.rest.repos.uploadReleaseAsset({
-                  owner, repo, release_id: release.id, name: assetName, data: bytes,
-                  headers: { 'content-type': 'image/gif' },
-                });
               }
             }
 
-            // the GIFs of older commits of this pull request and of pull requests that are closed
-            async function prune(release) {
-              const open = new Map();
-              for (const asset of await listAssets(release)) {
-                const named = /^pr-(\d+)-[0-9a-f]{7}-/.exec(asset.name);
-                if (!named) continue; // not one of ours
-                const number = Number(named[1]);
-                let stale = false;
-                if (number === issue_number) {
-                  stale = !asset.name.startsWith(prefix);
-                } else {
-                  if (!open.has(number)) {
-                    const state = await github.rest.pulls.get({ owner, repo, pull_number: number })
-                      .then((response) => response.data.state, () => 'closed');
-                    open.set(number, state === 'open');
-                  }
-                  stale = !open.get(number);
-                }
-                if (stale) await github.rest.repos.deleteReleaseAsset({ owner, repo, asset_id: asset.id });
-              }
-            }
-
-            let release = null;
+            let published = false;
             let previews = '';
             try {
               const files = previewFiles();
               if (files.length > 0) {
-                const base = `https://github.com/${owner}/${repo}/releases/download/${tag}/${prefix}`;
+                const base = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${sha.slice(0, 7)}/`;
                 const markdown = fs.readFileSync(path.join(dir, 'previews.md'), 'utf8').replaceAll('{{BASE}}', base);
                 // GitHub stops a comment at 65536 characters
                 if (process.env.RECORDINGS.length + markdown.length < 60000) {
-                  release = await previewRelease();
-                  await publish(release, files);
+                  publish(files);
+                  published = true;
                   previews = markdown;
                 } else {
                   core.warning('The previews are too long for one comment: it only links the recordings.');
@@ -626,12 +610,12 @@ jobs:
               await github.rest.issues.createComment({ owner, repo, issue_number, body });
             }
 
-            // afterwards, so that no comment ever points at a GIF that is already gone
-            if (release) {
+            // afterwards: the branches of closed pull requests are no use to anyone
+            if (published) {
               try {
-                await prune(release);
+                await prune();
               } catch (error) {
-                core.warning(`Old previews were not removed: ${error.message}`);
+                core.warning(`Old recordings were not removed: ${error.message}`);
               }
             }
 

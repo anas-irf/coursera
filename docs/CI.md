@@ -16,8 +16,8 @@ changes ──┬─ backend-lint ────── ruff, import contracts, Dja
 secrets ───── gitleaks over the commits of the change
 dependency-review ── what the pull request adds (pull requests only)
 report ────── one test-report comment on the pull request
-previews ──── a GIF of every browser-spec recording (no write token, ffmpeg)
-recordings ── one comment: the link to the report and the videos, the GIFs shown inline
+previews ──── an animated image of every browser-spec recording (no write token, ffmpeg)
+recordings ── one comment: the link to the report and the videos, the images shown inline
 gate ──────── passes when every job above passed or was skipped on purpose
 ```
 
@@ -63,28 +63,35 @@ a second sticky comment that is updated in place:
   artifact with the HTML report and the video of every spec. Unzip it and open
   `playwright-report/index.html`; the videos are also plain files in `test-results/`. They are kept
   for 14 days and need a GitHub sign-in to download.
-* **The previews.** GitHub plays no video that a workflow could upload, but it shows a GIF. The
-  `previews` job turns each recording into an animated GIF with ffmpeg
-  (`.github/scripts/e2e-previews.mjs`: 800 px wide, 10 frames a second, a few hundred KB each; failed
+* **The previews.** GitHub plays no video that a workflow could upload, but it shows an animated
+  image. The `previews` job turns each recording into an animated WebP with ffmpeg
+  (`.github/scripts/e2e-previews.mjs`: up to 1280 px wide, 10 frames a second, about 100 KB each; failed
   and flaky specs first, at most 40). The `recordings` job publishes them and shows them in the
-  comment, one folded group per spec file. The full-size videos are in the artifact.
+  comment, one folded group per spec file. **A click on a preview opens it, at full size, in a
+  browser tab.** The videos themselves, with controls, are in the artifact.
 
-**Where the GIFs live.** As assets of one pre-release, `ci-recordings` (see *Releases*), named
-`pr-<number>-<commit>-<spec>.gif`; the release is created by the first run. After it has updated the
-comment, a run removes the GIFs of older commits of its pull request and of pull requests that are
-closed. They are public, like the repository: anyone with a link sees them, while the artifact needs
-a sign-in. The recordings show the seeded development data only. If the repository becomes private
-the images break; the link in the comment still works. The release can be deleted at any time, the
-next run creates it again.
+**Why WebP, and why a branch.** What a click does depends on how the file is served, not on the
+comment. GitHub serves release assets and artifacts as downloads, so a click on an image hosted there
+saves a file; it serves MP4 and WebM from a repository as `application/octet-stream` and has no
+player for them. `raw.githubusercontent.com` serves images as images. An animated WebP of a recording at 1280 px is
+less than half the size of its GIF at 800 px, in full colour, and every current browser plays it.
+
+**Where the images live.** On the branch `ci-recordings-pr-<number>`, one per pull request: a single
+commit, replaced by force on every run, with the images in a folder named after the tested commit
+(so that no cache shows an old one). The history does not grow. After it has updated the comment, a
+run deletes the branches of pull requests that are closed. The images are public, like the
+repository: anyone with a link sees them, while the artifact needs a sign-in. The recordings show the
+seeded development data only. If the repository becomes private the images break; the link in the
+comment still works.
 
 **Trust and failure.** `previews` has no write token and is the only job that decodes files the pull
-request produced. `recordings` has `contents: write` (the release) and `pull-requests: write`,
-checks nothing out, runs no repository code, and checks the names, sizes and headers of the GIFs
-before it publishes them. Neither is part of the **CI gate**: when something goes wrong the comment
-only has the link, the pull request never turns red for it. A run for a commit that is no longer the
-head of the pull request posts nothing, and a push that touches no browser spec leaves the previous
-comment standing (it names the commit it describes). Forks and Dependabot get a read-only token and
-no comment: the text is in the summary of the *Browser specs* job.
+request produced. `recordings` has `contents: write` (the branch) and `pull-requests: write`, checks
+nothing out, runs no repository code, and checks the names, sizes and headers of the images before it
+publishes them. Neither is part of the **CI gate**: when something goes wrong the comment only has
+the link, the pull request never turns red for it. A run for a commit that is no longer the head of
+the pull request posts nothing, and a push that touches no browser spec leaves the previous comment
+standing (it names the commit it describes). Forks and Dependabot get a read-only token and no
+comment: the text is in the summary of the *Browser specs* job.
 
 ## Browser specs
 
