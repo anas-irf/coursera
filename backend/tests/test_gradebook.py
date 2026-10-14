@@ -154,3 +154,40 @@ def test_instructor_gradebook_of_a_foreign_course_is_a_404(auth_client, other_in
     r = auth_client(other_instructor).get(instructor_gradebook(graded.course))
 
     assert r.status_code == 404
+
+
+def test_an_attempt_that_is_still_open_does_not_hide_the_best_score(auth_client, student, graded):
+    """An open attempt has no score; PostgreSQL sorts NULL first, so it used to win the ordering
+    and make the quiz count as not taken."""
+    client = auth_client(student)
+    started = client.post(f'/api/v1/assessments/quizzes/{graded.quiz.uuid}/attempt/',
+                          {'action': 'start'}, format='json')
+    assert started.status_code == 200
+
+    row = client.get(STUDENT_GRADEBOOK).json()['courses'][0]
+
+    assert row['final_grade'] == pytest.approx(68.0)   # the 50 % attempt still counts
+    quizzes = [c for c in row['components'] if c['type'] == 'quizzes'][0]
+    assert quizzes['completed'] == 1
+
+
+def test_a_grade_of_zero_is_a_grade(auth_client, instructor, student, graded):
+    """0 used to be shown as "not graded yet" because it is falsy."""
+    submission = f.AssignmentSubmission.objects.get(assignment=graded.assignment, student=student)
+
+    r = auth_client(instructor).post(
+        f'/api/v1/assessments/instructor/submissions/{submission.uuid}/grade/',
+        {'grade': 0, 'feedback': 'not what was asked'}, format='json')
+    assert r.status_code == 200
+    assert r.json()['submission']['grade'] == 0
+
+    rows = auth_client(instructor).get(
+        f'/api/v1/assessments/instructor/assignments/{graded.assignment.uuid}/submissions/').json()
+    assert [row['grade'] for row in rows] == [0.0]
+
+    player = auth_client(student).get(
+        f'/api/v1/learning/courses/{graded.course.uuid}/learn/').json()
+    lecture = [lec for lec in player['sections'][0]['lectures'] if lec['content_type'] == 'assignment'][0]
+    assert lecture['submission']['graded'] is True
+    assert lecture['submission']['grade'] == 0.0
+

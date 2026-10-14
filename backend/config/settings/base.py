@@ -305,5 +305,9 @@ STRIPE_WEBHOOK_SECRET = env_str('STRIPE_WEBHOOK_SECRET')
 # Where Stripe sends the customer back to (the React app)
 FRONTEND_URL = env_str('FRONTEND_URL')
 
+# A quiz answer may arrive this long after the time limit (network, clock skew) before the
+# attempt is closed at zero.
+QUIZ_SUBMIT_GRACE_SECONDS = env_int('QUIZ_SUBMIT_GRACE_SECONDS', 30)
+
 # Password of the users created by ``manage.py seed_dev`` (random, printed once, when empty)
 SEED_PASSWORD = env_str('SEED_PASSWORD')

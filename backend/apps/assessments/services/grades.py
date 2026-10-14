@@ -59,12 +59,15 @@ class GradeCalculationService:
 
         for quiz in quizzes:
             # Get best attempt for this quiz
+            # an attempt that is still open has no score: PostgreSQL sorts NULL first under
+            # ``-score``, which would make an open attempt hide the real best one
             best_attempt = QuizAttempt.objects.filter(
                 quiz=quiz,
-                student=student
+                student=student,
+                score__isnull=False,
             ).order_by('-score').first()
 
-            if best_attempt and best_attempt.score is not None:
+            if best_attempt is not None:
                 quiz_score += Decimal(str(best_attempt.score)) * Decimal(str(quiz.weight))
                 quiz_weight += Decimal(str(quiz.weight))
                 quiz_count += 1

@@ -8,7 +8,8 @@ from django.utils import timezone
 
 from apps.courses.extensions import LectureContentHandler, register_content_handler
 
-from .models import Assignment, AssignmentSubmission, Question, QuestionOption, Quiz, QuizAttempt
+from .models import Assignment, AssignmentSubmission, Question, QuestionOption, Quiz
+from .services import quizzes
 
 
 def _json_field(data, key, default):
@@ -17,6 +18,18 @@ def _json_field(data, key, default):
     if isinstance(value, str):
         value = json.loads(value)
     return value
+
+
+def _open_submission():
+    """The student's block of an assignment they have not handed in."""
+    return {
+        'submitted': False,
+        'submission_date': None,
+        'is_late': False,
+        'grade': None,
+        'feedback': '',
+        'graded': False,
+    }
 
 
 class QuizHandler(LectureContentHandler):
@@ -118,34 +131,9 @@ class QuizHandler(LectureContentHandler):
 
     # --- learner view ------------------------------------------------------- #
     def serialize_for_student(self, lecture, student):
-        try:
-            quiz = lecture.quiz.first()  # Get the first quiz for this lecture
-            if not quiz:
-                raise Quiz.DoesNotExist("No quiz found for this lecture")
-
-            # Get student's attempts
-            attempts = QuizAttempt.objects.filter(
-                student=student,
-                quiz=quiz
-            ).order_by('-attempt_number')
-
-            attempts_count = attempts.count()
-            best_score = 0
-            if attempts.exists():
-                best_score = max(attempt.score or 0 for attempt in attempts)
-
-            can_attempt = attempts_count < quiz.max_attempts
-
-            return {
-                'quiz_id': str(quiz.uuid),
-                'max_attempts': quiz.max_attempts,
-                'passing_score': quiz.passing_score,
-                'attempts_taken': attempts_count,
-                'best_score': float(best_score),
-                'passed': best_score >= quiz.passing_score,
-                'can_attempt': can_attempt,
-            }
-        except Exception:
+        quiz = lecture.quiz.first()
+        if quiz is None:
+            # a quiz lecture that has no quiz yet
             return {
                 'quiz_id': None,
                 'max_attempts': 0,
@@ -155,6 +143,17 @@ class QuizHandler(LectureContentHandler):
                 'passed': False,
                 'can_attempt': False,
             }
+
+        standing = quizzes.summary(student, quiz)
+        return {
+            'quiz_id': str(quiz.uuid),
+            'max_attempts': quiz.max_attempts,
+            'passing_score': quiz.passing_score,
+            'attempts_taken': standing['attempts_taken'],
+            'best_score': standing['best_score'],
+            'passed': standing['passed'],
+            'can_attempt': standing['can_attempt'],
+        }
 
     def grade_weight(self, course):
         return Quiz.objects.filter(course=course).aggregate(total=Sum('weight'))['total'] or Decimal('0')
@@ -262,51 +261,9 @@ class AssignmentHandler(LectureContentHandler):
 
     # --- learner view ------------------------------------------------------- #
     def serialize_for_student(self, lecture, student):
-        try:
-            assignment = Assignment.objects.get(lecture=lecture)
-            # Get student's submission
-            try:
-                submission = AssignmentSubmission.objects.get(
-                    assignment=assignment,
-                    student=student
-                )
-                submission_data = {
-                    'id': str(submission.uuid),
-                    'submitted': True,
-                    'submission_date': submission.submitted_at.isoformat(),
-                    'is_late': submission.is_late,
-                    'grade': float(submission.grade) if submission.grade else None,
-                    'feedback': submission.feedback,
-                    'graded': submission.grade is not None,
-                    'submission_text': submission.submission_text,
-                    'has_file': bool(submission.submission_file),
-                    'file_url': submission.submission_file.url if submission.submission_file else None,
-                    'original_filename': submission.original_filename,
-                }
-            except AssignmentSubmission.DoesNotExist:
-                submission_data = {
-                    'submitted': False,
-                    'submission_date': None,
-                    'is_late': False,
-                    'grade': None,
-                    'feedback': '',
-                    'graded': False,
-                }
-
-            return {
-                'assignment_id': str(assignment.uuid),
-                'title': assignment.title,
-                'description': assignment.description,
-                'instructions': assignment.instructions,
-                'due_date': assignment.due_date.isoformat() if assignment.due_date else None,
-                'max_points': assignment.max_points,
-                'passing_score': assignment.passing_score,
-                'allow_late_submission': assignment.allow_late_submission,
-                'attachment': assignment.attachment.url if assignment.attachment else None,
-                'attachment_name': assignment.attachment.name.split('/')[-1] if assignment.attachment else None,
-                'submission': submission_data,
-            }
-        except Exception:
+        assignment = Assignment.objects.filter(lecture=lecture).first()
+        if assignment is None:
+            # an assignment lecture that has no assignment yet
             return {
                 'assignment_id': None,
                 'title': '',
@@ -318,15 +275,41 @@ class AssignmentHandler(LectureContentHandler):
                 'allow_late_submission': False,
                 'attachment': None,
                 'attachment_name': None,
-                'submission': {
-                    'submitted': False,
-                    'submission_date': None,
-                    'is_late': False,
-                    'grade': None,
-                    'feedback': '',
-                    'graded': False,
-                },
+                'submission': _open_submission(),
             }
+
+        submission = AssignmentSubmission.objects.filter(assignment=assignment, student=student).first()
+        if submission is None:
+            submission_data = _open_submission()
+        else:
+            submission_data = {
+                'id': str(submission.uuid),
+                'submitted': True,
+                'submission_date': submission.submitted_at.isoformat(),
+                'is_late': submission.is_late,
+                # a grade of 0 is a grade
+                'grade': float(submission.grade) if submission.grade is not None else None,
+                'feedback': submission.feedback,
+                'graded': submission.grade is not None,
+                'submission_text': submission.submission_text,
+                'has_file': bool(submission.submission_file),
+                'file_url': submission.submission_file.url if submission.submission_file else None,
+                'original_filename': submission.original_filename,
+            }
+
+        return {
+            'assignment_id': str(assignment.uuid),
+            'title': assignment.title,
+            'description': assignment.description,
+            'instructions': assignment.instructions,
+            'due_date': assignment.due_date.isoformat() if assignment.due_date else None,
+            'max_points': assignment.max_points,
+            'passing_score': assignment.passing_score,
+            'allow_late_submission': assignment.allow_late_submission,
+            'attachment': assignment.attachment.url if assignment.attachment else None,
+            'attachment_name': assignment.attachment.name.split('/')[-1] if assignment.attachment else None,
+            'submission': submission_data,
+        }
 
     def grade_weight(self, course):
         return Assignment.objects.filter(course=course).aggregate(total=Sum('weight'))['total'] or Decimal('0')

@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 def submit(student, assignment, text, file):
     """Hand in work for ``assignment``; returns the stored submission."""
+    if not assignment.is_active:
+        raise ServiceError('This assignment is not available')
+
     enrollment = learning_selectors.enrollment_for_access(student, assignment.course)
     if enrollment is None:
         raise PermissionDenied('You must be enrolled in this course')

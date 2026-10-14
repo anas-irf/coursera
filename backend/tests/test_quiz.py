@@ -59,7 +59,8 @@ def test_start_attempt_returns_questions_without_the_answers(auth_client, studen
 
     assert r.status_code == 200
     body = r.json()
-    assert set(body) == {'attempt_id', 'quiz', 'questions', 'start_time'}
+    assert set(body) == {'attempt_id', 'quiz', 'questions', 'start_time', 'expires_at'}
+    assert body['expires_at'] is None  # this quiz has no time limit
     assert set(body['quiz']) == {'id', 'title', 'description', 'time_limit', 'passing_score',
                                  'show_answers'}
     assert body['quiz']['id'] == str(quiz.uuid)
@@ -304,8 +305,8 @@ def test_first_attempt_completes_the_lecture_even_when_failed(auth_client, stude
     assert enrollment.progress_percentage == 25
 
 
-def test_only_attempt_number_one_completes_the_lecture(auth_client, student, two_question_quiz):
-    """Only attempt number 1 auto-completes the lecture."""
+def test_finishing_any_attempt_completes_the_lecture(auth_client, student, two_question_quiz):
+    """Taking the quiz completes its lecture, whichever attempt is finished first."""
     bundle = two_question_quiz
     client = auth_client(student)
     enrollment = f.Enrollment.objects.get(student=student, course=bundle.course)
@@ -313,14 +314,14 @@ def test_only_attempt_number_one_completes_the_lecture(auth_client, student, two
     second = start(client, bundle.quiz).json()['attempt_id']
     answers = f.build_answers(bundle.quiz, [0, 1])
 
-    # attempt #2 is submitted first: no auto completion (current behaviour)
     assert submit(client, bundle.quiz, second, answers).status_code == 200
     progress = f.LectureProgress.objects.get(enrollment=enrollment, lecture=bundle.quiz_lecture)
-    assert progress.is_completed is False
+    assert progress.is_completed is True
+    stamp = progress.completed_date
 
     assert submit(client, bundle.quiz, first, answers).status_code == 200
     progress.refresh_from_db()
-    assert progress.is_completed is True
+    assert progress.completed_date == stamp  # finishing another attempt changes nothing
 
 
 def test_best_score_and_overall_pass_span_all_attempts(auth_client, student, two_question_quiz):
@@ -347,27 +348,28 @@ def test_best_score_and_overall_pass_span_all_attempts(auth_client, student, two
     assert lecture['can_attempt'] is False
 
 
-@pytest.mark.pinned_bug
-def test_inactive_quiz_can_still_be_attempted_current_behaviour(auth_client, instructor, student):
-    """Current behaviour: the live attempt endpoint ignores ``Quiz.is_active``
-    (only the grade calculation filters on it)."""
+def test_an_inactive_quiz_cannot_be_attempted(auth_client, instructor, student):
+    """``Quiz.is_active`` is honoured by the attempt endpoint and by the player."""
     bundle = f.build_course(instructor, status='published')
     f.Quiz.objects.filter(pk=bundle.quiz.pk).update(is_active=False)
     f.enroll(student, bundle.course)
+    client = auth_client(student)
 
-    r = start(auth_client(student), bundle.quiz)
+    r = start(client, bundle.quiz)
 
-    assert r.status_code == 200
-    assert r.json()['attempt_id']
+    assert r.status_code == 400
+    assert r.json() == {'error': 'This quiz is not available'}
+    assert f.QuizAttempt.objects.count() == 0
+    player = client.get(f'/api/v1/learning/courses/{bundle.course.uuid}/learn/').json()
+    quiz_lecture = [lec for lec in player['sections'][0]['lectures'] if lec['content_type'] == 'quiz'][0]
+    assert quiz_lecture['can_attempt'] is False
 
 
 # --------------------------------------------------------------------------- #
-# known gaps that are documented follow-ups (pinned so a refactor keeps them)
+# what the student sends is not trusted
 # --------------------------------------------------------------------------- #
-@pytest.mark.pinned_bug
-def test_option_of_another_question_is_accepted_current_behaviour(auth_client, student, two_question_quiz):
-    """Current behaviour (security gap): the grader looks the option up by uuid
-    only, it never checks that it belongs to the question being answered."""
+def test_an_option_of_another_question_does_not_count(auth_client, student, two_question_quiz):
+    """An option only counts for the question it belongs to."""
     quiz = two_question_quiz.quiz
     mc, tf = quiz.questions.order_by('order')
     tf_true = tf.options.get(is_correct=True)
@@ -381,15 +383,118 @@ def test_option_of_another_question_is_accepted_current_behaviour(auth_client, s
     })
 
     assert r.status_code == 200
+    assert r.json()['results']['earned_points'] == 0
+
+    # the same trick next to an honest, correct answer only earns the honest one
+    attempt_id = start(client, quiz).json()['attempt_id']
+    r = submit(client, quiz, attempt_id, {
+        str(mc.uuid): {'selected_option': str(tf_true.uuid)},
+        str(tf.uuid): {'selected_option': str(tf_true.uuid)},
+    })
     assert r.json()['results']['earned_points'] == 1
 
 
-@pytest.mark.pinned_bug
-def test_time_limit_is_not_enforced_on_the_server_current_behaviour(auth_client, instructor, student):
-    """A submission long after the time limit is still graded."""
+@pytest.mark.parametrize('answer', [
+    'a string', 7, ['list'], None,
+    {'selected_option': 'not-a-uuid'}, {'selected_option': 12}, {'selected_option': ['x']},
+    {'selected_options': 'abc'}, {'selected_options': [1, None, {'a': 1}]},
+    {'text_answer': 42}, {},
+])
+def test_a_malformed_answer_is_wrong_and_never_an_error(auth_client, student, four_type_quiz, answer):
+    quiz = four_type_quiz.quiz
+    client = auth_client(student)
+    attempt_id = start(client, quiz).json()['attempt_id']
+    answers = {str(question.uuid): answer for question in quiz.questions.all()}
+
+    r = submit(client, quiz, attempt_id, answers)
+
+    assert r.status_code == 200
+    assert r.json()['results']['earned_points'] == 0
+
+
+@pytest.mark.parametrize('answers', [[], 'all of them', 12])
+def test_answers_that_are_not_an_object_are_a_400(auth_client, student, two_question_quiz, answers):
+    client = auth_client(student)
+    attempt_id = start(client, two_question_quiz.quiz).json()['attempt_id']
+
+    r = submit(client, two_question_quiz.quiz, attempt_id, answers)
+
+    assert r.status_code == 400
+    assert 'answers' in r.json()['error']
+    # the attempt is still open: the student may send proper answers
+    assert submit(client, two_question_quiz.quiz, attempt_id, {}).status_code == 200
+
+
+def timed_quiz(instructor, student, minutes=1):
     bundle = f.build_course(instructor, status='published')
-    bundle.quiz.time_limit = 1  # one minute
-    bundle.quiz.save()
+    f.Quiz.objects.filter(pk=bundle.quiz.pk).update(time_limit=minutes)
+    f.enroll(student, bundle.course)
+    return bundle
+
+
+def test_the_start_payload_says_when_the_time_is_up(auth_client, instructor, student):
+    bundle = timed_quiz(instructor, student, minutes=15)
+
+    body = start(auth_client(student), bundle.quiz).json()
+
+    attempt = f.QuizAttempt.objects.get(uuid=body['attempt_id'])
+    assert body['quiz']['time_limit'] == 15
+    assert body['expires_at'] == (attempt.start_time + timedelta(minutes=15)).isoformat()
+
+
+def test_an_answer_after_the_time_limit_is_refused_and_the_attempt_scores_zero(
+        auth_client, instructor, student):
+    """The limit is enforced on the server: the attempt is used up and cannot be handed in again."""
+    bundle = timed_quiz(instructor, student)
+    client = auth_client(student)
+    attempt_id = start(client, bundle.quiz).json()['attempt_id']
+    f.QuizAttempt.objects.filter(uuid=attempt_id).update(start_time=timezone.now() - timedelta(minutes=5))
+
+    r = submit(client, bundle.quiz, attempt_id, f.build_answers(bundle.quiz, [0, 1]))
+
+    assert r.status_code == 400
+    assert r.json()['code'] == 'time_limit_exceeded'
+    assert 'Time is up' in r.json()['error']
+    attempt = f.QuizAttempt.objects.get(uuid=attempt_id)
+    assert attempt.end_time is not None
+    assert attempt.score == 0 and attempt.passed is False
+    assert attempt.responses.count() == 0
+    # handing it in again does not work, and it used one of the attempts
+    again = submit(client, bundle.quiz, attempt_id, f.build_answers(bundle.quiz, [0, 1]))
+    assert again.status_code == 400
+    assert again.json() == {'error': 'Invalid or completed attempt'}
+    assert start(client, bundle.quiz).json()['attempt_id'] != attempt_id
+
+
+def test_a_late_attempt_still_counts_as_taking_the_quiz(auth_client, instructor, student):
+    bundle = timed_quiz(instructor, student)
+    client = auth_client(student)
+    attempt_id = start(client, bundle.quiz).json()['attempt_id']
+    f.QuizAttempt.objects.filter(uuid=attempt_id).update(start_time=timezone.now() - timedelta(minutes=5))
+
+    submit(client, bundle.quiz, attempt_id, {})
+
+    enrollment = f.Enrollment.objects.get(student=student, course=bundle.course)
+    assert f.LectureProgress.objects.get(enrollment=enrollment, lecture=bundle.quiz_lecture).is_completed
+
+
+def test_a_few_seconds_over_the_limit_are_forgiven(auth_client, instructor, student, settings):
+    """The network takes time: a short grace after the limit is accepted."""
+    settings.QUIZ_SUBMIT_GRACE_SECONDS = 30
+    bundle = timed_quiz(instructor, student)
+    client = auth_client(student)
+    attempt_id = start(client, bundle.quiz).json()['attempt_id']
+    f.QuizAttempt.objects.filter(uuid=attempt_id).update(
+        start_time=timezone.now() - timedelta(minutes=1, seconds=20))
+
+    r = submit(client, bundle.quiz, attempt_id, f.build_answers(bundle.quiz, [0, 1]))
+
+    assert r.status_code == 200
+    assert r.json()['results']['score'] == pytest.approx(100.0)
+
+
+def test_a_quiz_without_a_time_limit_can_be_answered_days_later(auth_client, instructor, student):
+    bundle = f.build_course(instructor, status='published')
     f.enroll(student, bundle.course)
     client = auth_client(student)
     attempt_id = start(client, bundle.quiz).json()['attempt_id']

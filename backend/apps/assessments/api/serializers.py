@@ -1,4 +1,5 @@
 """JSON shapes of the assessments endpoints."""
+from ..services import quizzes
 
 
 def quiz_start_payload(attempt, quiz):
@@ -20,6 +21,7 @@ def quiz_start_payload(attempt, quiz):
             'options': options,
         })
 
+    expires = quizzes.expires_at(attempt, quiz)
     return {
         'attempt_id': str(attempt.uuid),
         'quiz': {
@@ -32,6 +34,7 @@ def quiz_start_payload(attempt, quiz):
         },
         'questions': questions,
         'start_time': attempt.start_time.isoformat(),
+        'expires_at': expires.isoformat() if expires else None,
     }
 
 
@@ -82,7 +85,7 @@ def submission_row(submission):
         'original_filename': submission.original_filename,
         'submitted_at': submission.submitted_at.isoformat(),
         'is_late': submission.is_late,
-        'grade': float(submission.grade) if submission.grade else None,
+        'grade': float(submission.grade) if submission.grade is not None else None,
         'feedback': submission.feedback,
         'graded_by': submission.graded_by.get_full_name() if submission.graded_by else None,
         'graded_at': submission.graded_at.isoformat() if submission.graded_at else None,

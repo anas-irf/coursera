@@ -176,16 +176,16 @@ def test_disallowed_or_unsafe_file_names_are_a_400(auth_client, student, setup):
     assert f.AssignmentSubmission.objects.count() == 0
 
 
-@pytest.mark.pinned_bug
-def test_inactive_assignment_still_accepts_submissions_but_is_hidden_from_listings(
+def test_an_inactive_assignment_takes_no_submissions_and_is_hidden_from_listings(
         auth_client, instructor, student, setup):
-    """Current behaviour: ``Assignment.is_active`` is only honoured by the instructor
-    assignment list and the grade calculation, not by the submit endpoint."""
+    """``Assignment.is_active`` is honoured by the submit endpoint as well as the lists."""
     f.Assignment.objects.filter(pk=setup.assignment.pk).update(is_active=False)
 
     r = submit_file(auth_client(student), setup.assignment)
 
-    assert r.status_code == 200
+    assert r.status_code == 400
+    assert r.json() == {'error': 'This assignment is not available'}
+    assert f.AssignmentSubmission.objects.count() == 0
     assert auth_client(instructor).get(INSTRUCTOR_ASSIGNMENTS).json() == []
 
 
