@@ -26,8 +26,7 @@ const SectionComponent = ({
   onAddLecture,
   onEditLecture,
   onDeleteLecture,
-  onReorderLectures,
-  onReorderQuizQuestions
+  onReorderLectures
 }) => {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -157,7 +156,6 @@ const SectionComponent = ({
                       lectureIndex={lectureIndex}
                       onEdit={() => onEditLecture(lecture)}
                       onDelete={() => onDeleteLecture(lecture.id)}
-                      onReorderQuizQuestions={onReorderQuizQuestions}
                     />
                   ))}
                 </div>

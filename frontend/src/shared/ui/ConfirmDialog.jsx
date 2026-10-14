@@ -44,7 +44,7 @@ const ConfirmDialog = ({ dialog, onConfirm, onCancel }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full animate-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
         <div className="flex items-start p-6">
           <div className="flex-shrink-0">
             {icons[dialog.type] || icons.info}
@@ -175,5 +175,3 @@ export const ConfirmProvider = ({ children }) => {
     </ConfirmContext.Provider>
   );
 };
-
-export default ConfirmDialog;

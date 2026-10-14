@@ -29,7 +29,7 @@ const Toast = ({ toast, onClose }) => {
   };
 
   return (
-    <div className={`flex items-start space-x-3 p-4 rounded-lg border shadow-md ${bgColors[toast.type]} animate-in slide-in-from-right-full duration-300`}>
+    <div className={`flex items-start space-x-3 p-4 rounded-lg border shadow-md ${bgColors[toast.type]}`}>
       <div className="flex-shrink-0">
         {icons[toast.type]}
       </div>
@@ -99,10 +99,6 @@ export const ToastProvider = ({ children }) => {
     return id;
   }, [removeToast]);
 
-  const removeAllToasts = useCallback(() => {
-    setToasts([]);
-  }, []);
-
   // Convenience methods
   const success = useCallback((message, title, options = {}) => {
     return addToast({ type: 'success', message, title, ...options });
@@ -121,9 +117,6 @@ export const ToastProvider = ({ children }) => {
   }, [addToast]);
 
   const value = {
-    addToast,
-    removeToast,
-    removeAllToasts,
     success,
     error,
     warning,
@@ -137,5 +130,3 @@ export const ToastProvider = ({ children }) => {
     </ToastContext.Provider>
   );
 };
-
-export default Toast;

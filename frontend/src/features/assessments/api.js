@@ -41,8 +41,3 @@ export const gradeSubmission = (submissionId, grade, feedback) =>
   api
     .post(`/assessments/instructor/submissions/${submissionId}/grade/`, { grade, feedback })
     .then((response) => response.data);
-
-export const courseGradebook = (courseId) =>
-  api
-    .get(`/assessments/instructor/courses/${courseId}/gradebook/`)
-    .then((response) => response.data);

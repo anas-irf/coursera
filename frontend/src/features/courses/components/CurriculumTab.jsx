@@ -31,8 +31,7 @@ const CurriculumTab = ({ courseId }) => {
     updateLecture,
     deleteLecture,
     reorderSections,
-    reorderLectures,
-    reorderQuizQuestions
+    reorderLectures
   } = useCurriculum(courseId);
 
   const sensors = useSensors(
@@ -120,7 +119,6 @@ const CurriculumTab = ({ courseId }) => {
               onEditLecture={setEditingLecture}
               onDeleteLecture={deleteLecture}
               onReorderLectures={reorderLectures}
-              onReorderQuizQuestions={reorderQuizQuestions}
             />
           ))}
         </SortableContext>

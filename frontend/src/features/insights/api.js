@@ -16,8 +16,3 @@ export const fetchInstructorDashboard = () =>
 
 export const fetchInstructorEarnings = () =>
   api.get('/insights/instructor/earnings/').then((response) => response.data);
-
-export const fetchCourseAnalytics = (courseId) =>
-  api
-    .get(`/insights/instructor/courses/${courseId}/analytics/`)
-    .then((response) => response.data);

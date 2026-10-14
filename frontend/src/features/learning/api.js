@@ -26,8 +26,5 @@ export const completeLecture = (courseId, lectureId) =>
   api.post(`/learning/courses/${courseId}/lectures/${lectureId}/complete/`).then((response) => response.data);
 
 // --- instructor: the learners of the instructor's courses -------------------
-export const courseStudents = (courseId) =>
-  api.get(`/learning/instructor/courses/${courseId}/students/`).then((response) => response.data);
-
 export const instructorStudents = () =>
   api.get('/learning/instructor/students/').then((response) => response.data);

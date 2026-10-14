@@ -94,6 +94,3 @@ export const reorderSections = (courseId, sectionOrders) =>
 
 export const reorderLectures = (sectionId, lectureOrders) =>
   api.post(`${BASE}/sections/${sectionId}/lectures/reorder/`, { lecture_orders: lectureOrders });
-
-export const reorderQuizQuestions = (lectureId, questionOrders) =>
-  api.post(`/assessments/quizzes/${lectureId}/reorder-questions/`, { question_orders: questionOrders });

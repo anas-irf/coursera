@@ -145,19 +145,6 @@ const useCurriculum = (courseId) => {
     }
   };
 
-  const reorderQuizQuestions = async (lectureId, newOrder) => {
-    try {
-      await coursesApi.reorderQuizQuestions(
-        lectureId,
-        newOrder.map((question, index) => ({ id: question.id, order: index + 1 }))
-      );
-      return true;
-    } catch (err) {
-      toast.error('Error reordering quiz questions. Please try again.', 'Reorder Failed');
-      return false;
-    }
-  };
-
   return {
     sections,
     loading,
@@ -169,7 +156,6 @@ const useCurriculum = (courseId) => {
     deleteLecture,
     reorderSections,
     reorderLectures,
-    reorderQuizQuestions,
   };
 };
 

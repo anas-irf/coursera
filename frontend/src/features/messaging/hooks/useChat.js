@@ -85,7 +85,8 @@ export function useChat() {
     }
   }, []);
 
-  const user = useReconnectingSocket({ path: '/ws/user/', onMessage: onUserFrame });
+  // the user channel carries everything addressed to this user; it is kept open for its frames
+  useReconnectingSocket({ path: '/ws/user/', onMessage: onUserFrame });
   const chat = useReconnectingSocket({
     path: activeId ? `/ws/chat/${activeId}/` : null,
     onMessage: onChatFrame,
@@ -151,7 +152,6 @@ export function useChat() {
     loading,
     sending,
     typing,
-    connected: user.status === 'open',
     open,
     send,
     start,

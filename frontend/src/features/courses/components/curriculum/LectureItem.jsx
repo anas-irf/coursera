@@ -3,7 +3,7 @@ import { Edit3, Trash2, GripVertical, Play, FileText, HelpCircle, ClipboardList 
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-const LectureItem = ({ lecture, lectureIndex, onEdit, onDelete, onReorderQuizQuestions }) => {
+const LectureItem = ({ lecture, lectureIndex, onEdit, onDelete }) => {
   const {
     attributes,
     listeners,
