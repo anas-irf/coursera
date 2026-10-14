@@ -48,10 +48,10 @@ def test_unexpected_exceptions_are_not_swallowed():
     (None, ''),
     ('', ''),
     ('  python  ', 'python'),
-    ('rock & roll', 'rock  roll'),
-    ('DROP table', 'table'),
-    ('a/*b*/c', 'abc'),
+    ('rock & roll', 'rock & roll'),
+    ('Updated Python', 'Updated Python'),
+    ('DROP table', 'DROP table'),
     ('x' * 150, 'x' * 100),
 ])
-def test_sanitize_search_query(raw, expected):
+def test_sanitize_search_query_trims_and_caps_but_does_not_rewrite(raw, expected):
     assert sanitize_search_query(raw) == expected

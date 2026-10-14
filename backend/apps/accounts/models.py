@@ -63,6 +63,11 @@ class User(AbstractUser):
     def is_admin(self):
         return self.user_type == 'admin' or self.is_superuser
 
+    @classmethod
+    def admins(cls):
+        """Everybody for whom ``is_admin`` is true, as a queryset: the one definition of "an admin"."""
+        return cls.objects.filter(models.Q(user_type='admin') | models.Q(is_superuser=True))
+
 
 class InstructorProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='instructor_profile')
