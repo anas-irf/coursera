@@ -5,10 +5,33 @@ import logging
 import time
 from collections import defaultdict
 
+from django.conf import settings
 from django.http import HttpResponseForbidden
 from django.utils.deprecation import MiddlewareMixin
 
 logger = logging.getLogger(__name__)
+
+
+class LegacyApiMiddleware(MiddlewareMixin):
+    """Marks the answers of the unversioned ``/api/<slice>/`` aliases as deprecated.
+
+    The aliases reach the very same views as ``/api/v1/<slice>/``.  A client sees
+    ``Deprecation: true``, a ``Link`` to the versioned path and, when
+    ``API_LEGACY_SUNSET`` names a date, ``Sunset``.  Every use is logged, so the
+    day the aliases can be switched off is chosen from data.
+    """
+
+    def process_response(self, request, response):
+        match = getattr(request, 'resolver_match', None)
+        if match is None or 'legacy' not in match.namespaces:
+            return response
+
+        response['Deprecation'] = 'true'
+        response['Link'] = f'</api/v1/{request.path[len("/api/"):]}>; rel="successor-version"'
+        if settings.API_LEGACY_SUNSET:
+            response['Sunset'] = settings.API_LEGACY_SUNSET
+        logger.info('Unversioned API path used: %s %s', request.method, request.path)
+        return response
 
 
 class SecurityMiddleware(MiddlewareMixin):

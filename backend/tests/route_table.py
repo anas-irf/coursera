@@ -12,6 +12,9 @@ recursively and returns sorted lines::
   skipped;
 * the URL *name* is the bare route name (no namespace) so that renaming apps /
   namespaces does not change the table;
+* the unversioned ``/api/<slice>/`` aliases (namespace ``legacy``) are not part of
+  the table; ``collect_legacy_routes()`` returns them as the lines they have under
+  ``api/v1/`` so a test can check that every alias has its versioned twin;
 * WebSocket routes are read from the project's ASGI application
   (``settings.ASGI_APPLICATION``) and are emitted as ``WS``.
 
@@ -52,11 +55,13 @@ def _methods(callback):
                   if m.lower() not in IGNORED_METHODS and hasattr(cls, m))
 
 
-def _walk(patterns, prefix=''):
+def _walk(patterns, prefix='', skip=()):
     for entry in patterns:
         text = prefix + _segment(entry.pattern)
         if isinstance(entry, URLResolver):
-            yield from _walk(entry.url_patterns, text)
+            if entry.namespace in skip:
+                continue
+            yield from _walk(entry.url_patterns, text, skip)
             continue
         if '(?P<format>' in text:  # DRF format suffix variants
             continue
@@ -82,7 +87,15 @@ def _websocket_routes():
 
 
 def collect_routes():
-    """Sorted route table lines (HTTP and WS)."""
-    lines = list(_walk(get_resolver().url_patterns))
+    """Sorted route table lines (HTTP and WS) of the versioned API."""
+    lines = list(_walk(get_resolver().url_patterns, skip=('legacy',)))
     lines.extend(_websocket_routes())
     return sorted(lines)
+
+
+def collect_legacy_routes():
+    """Sorted lines of the unversioned aliases, written as they are under ``api/v1/``."""
+    for entry in get_resolver().url_patterns:
+        if isinstance(entry, URLResolver) and entry.namespace == 'legacy':
+            return sorted(_walk(entry.url_patterns, 'api/v1/'))
+    return []

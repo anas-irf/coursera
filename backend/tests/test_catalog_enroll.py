@@ -11,8 +11,8 @@ import factories as f
 
 pytestmark = pytest.mark.django_db
 
-ALL = '/api/learning/courses/'
-ENROLLED = '/api/learning/enrolled/'
+ALL = '/api/v1/learning/courses/'
+ENROLLED = '/api/v1/learning/enrolled/'
 
 CATALOG_KEYS = {'id', 'title', 'instructor', 'instructor_id', 'thumbnail', 'rating',
                 'students', 'duration', 'level', 'category', 'course_type', 'modules',
@@ -21,7 +21,7 @@ CATALOG_KEYS = {'id', 'title', 'instructor', 'instructor_id', 'thumbnail', 'rati
 
 
 def enroll_url(course):
-    return f'/api/learning/courses/{course.uuid}/enroll/'
+    return f'/api/v1/learning/courses/{course.uuid}/enroll/'
 
 
 def ids(response):
@@ -127,7 +127,7 @@ def test_catalogue_enrolment_flags_for_a_student(auth_client, instructor, studen
     assert rows[str(plus.uuid)]['enrollment_message']  # explains that Plus is needed
 
     f.enroll(student, free)
-    assert client.post(f'/api/learning/courses/{free.uuid}/bookmark/').status_code == 200
+    assert client.post(f'/api/v1/learning/courses/{free.uuid}/bookmark/').status_code == 200
     rows = {row['id']: row for row in client.get(ALL).json()}
     assert rows[str(free.uuid)]['is_enrolled'] is True
     assert rows[str(free.uuid)]['is_bookmarked'] is True
@@ -247,7 +247,7 @@ def test_only_students_can_enroll_and_unknown_course_is_404(api, auth_client, in
 
     assert api.post(enroll_url(course)).status_code == 401
     assert auth_client(instructor).post(enroll_url(course)).status_code == 403
-    assert auth_client(student).post(f'/api/learning/courses/{uuid.uuid4()}/enroll/').status_code == 404
+    assert auth_client(student).post(f'/api/v1/learning/courses/{uuid.uuid4()}/enroll/').status_code == 404
 
 
 # --------------------------------------------------------------------------- #
@@ -257,7 +257,7 @@ def test_bookmark_toggles(auth_client, instructor, student):
     """The bookmark endpoint toggles; instructors 403, unknown course 404."""
     course = f.make_course(instructor, status='published')
     client = auth_client(student)
-    url = f'/api/learning/courses/{course.uuid}/bookmark/'
+    url = f'/api/v1/learning/courses/{course.uuid}/bookmark/'
 
     r = client.post(url)
     assert r.status_code == 200
@@ -269,7 +269,7 @@ def test_bookmark_toggles(auth_client, instructor, student):
     assert f.CourseBookmark.objects.filter(student=student, course=course).count() == 0
 
     assert auth_client(instructor).post(url).status_code == 403
-    assert client.post(f'/api/learning/courses/{uuid.uuid4()}/bookmark/').status_code == 404
+    assert client.post(f'/api/v1/learning/courses/{uuid.uuid4()}/bookmark/').status_code == 404
 
 
 # --------------------------------------------------------------------------- #
@@ -287,7 +287,7 @@ def test_enrolled_courses_lists_active_enrollments_with_progress(auth_client, in
 
     # complete one lecture of "first" through the API
     client = auth_client(student)
-    r = client.post(f'/api/learning/courses/{first.course.uuid}/lectures/{first.video.uuid}/complete/')
+    r = client.post(f'/api/v1/learning/courses/{first.course.uuid}/lectures/{first.video.uuid}/complete/')
     assert r.status_code == 200
 
     r = client.get(ENROLLED)

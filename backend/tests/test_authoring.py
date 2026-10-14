@@ -15,7 +15,7 @@ import factories as f
 
 pytestmark = pytest.mark.django_db
 
-COURSES = '/api/courses/instructor/courses/'
+COURSES = '/api/v1/courses/instructor/courses/'
 
 LECTURE_KEYS = {
     'id', 'title', 'description', 'content_type', 'order', 'is_preview',
@@ -54,12 +54,12 @@ def create_section(client, course_id, title='Section'):
 
 def create_lecture(client, section_id, **fields):
     fields.setdefault('description', 'lecture description')
-    return client.post(f'/api/courses/instructor/sections/{section_id}/lectures/',
+    return client.post(f'/api/v1/courses/instructor/sections/{section_id}/lectures/',
                        fields, format='multipart')
 
 
 def update_lecture(client, lecture_id, **fields):
-    return client.put(f'/api/courses/instructor/lectures/{lecture_id}/',
+    return client.put(f'/api/v1/courses/instructor/lectures/{lecture_id}/',
                       fields, format='multipart')
 
 
@@ -149,7 +149,7 @@ def test_create_course_ignores_privileged_fields(auth_client, api, instructor):
     assert course.is_featured is False
     assert not course.rejection_reason
     # not in the public catalogue
-    listing = api.get('/api/learning/courses/').json()
+    listing = api.get('/api/v1/learning/courses/').json()
     assert str(course.uuid) not in [c['id'] for c in listing]
 
 
@@ -248,10 +248,10 @@ def test_instructor_endpoints_reject_students_admins_and_anonymous(api, auth_cli
         ('post', f'{COURSES}{course.uuid}/apply_for_publish/'),
         ('get', f'{COURSES}{course.uuid}/sections/'),
         ('post', f'{COURSES}{course.uuid}/sections/'),
-        ('post', f'/api/courses/instructor/sections/{section.uuid}/lectures/'),
-        ('put', f'/api/courses/instructor/lectures/{lecture.uuid}/'),
-        ('get', '/api/insights/instructor/dashboard/'),
-        ('get', '/api/assessments/instructor/assignments/'),
+        ('post', f'/api/v1/courses/instructor/sections/{section.uuid}/lectures/'),
+        ('put', f'/api/v1/courses/instructor/lectures/{lecture.uuid}/'),
+        ('get', '/api/v1/insights/instructor/dashboard/'),
+        ('get', '/api/v1/assessments/instructor/assignments/'),
         ('get', f'{COURSES}students/'),
     ]
     def call(client, method, url):
@@ -297,7 +297,7 @@ def test_update_and_fetch_single_section(auth_client, instructor):
     course = f.make_course(instructor)
     section = f.make_section(course, title='Old')
 
-    r = client.put(f'/api/courses/instructor/sections/{section.uuid}/',
+    r = client.put(f'/api/v1/courses/instructor/sections/{section.uuid}/',
                    {'title': 'New', 'description': 'changed'}, format='json')
     assert r.status_code == 200
     assert r.json()['title'] == 'New'
@@ -330,7 +330,7 @@ def test_delete_middle_section_resequences_and_next_create_works(auth_client, in
     course = f.make_course(instructor)
     a, b, c = (f.make_section(course, title=t) for t in 'ABC')
 
-    r = client.delete(f'/api/courses/instructor/sections/{b.uuid}/')
+    r = client.delete(f'/api/v1/courses/instructor/sections/{b.uuid}/')
 
     assert r.status_code == 204
     remaining = f.Section.objects.filter(course=course).order_by('order')
@@ -658,7 +658,7 @@ def test_reorder_lectures(auth_client, instructor):
     section = f.make_section(f.make_course(instructor))
     a, b, c = (f.make_lecture(section, title=t, content_type='reading') for t in 'ABC')
 
-    r = client.post(f'/api/courses/instructor/sections/{section.uuid}/lectures/reorder/', {
+    r = client.post(f'/api/v1/courses/instructor/sections/{section.uuid}/lectures/reorder/', {
         'lecture_orders': [{'uuid': str(b.uuid), 'order': 1},
                            {'uuid': str(c.uuid), 'order': 2},
                            {'uuid': str(a.uuid), 'order': 3}]}, format='json')
@@ -674,7 +674,7 @@ def test_delete_middle_lecture_resequences_and_next_create_works(auth_client, in
     section = f.make_section(f.make_course(instructor))
     a, b, c = (f.make_lecture(section, title=t, content_type='reading') for t in 'ABC')
 
-    r = client.delete(f'/api/courses/instructor/lectures/{b.uuid}/')
+    r = client.delete(f'/api/v1/courses/instructor/lectures/{b.uuid}/')
 
     assert r.status_code == 204
     assert [lec.title for lec in f.Lecture.objects.filter(section=section).order_by('order')] == ['A', 'C']
@@ -701,12 +701,12 @@ def test_published_course_cannot_be_restructured(auth_client, instructor):
     assert r.status_code == 400
     assert f.Section.objects.filter(course=course).count() == 1
 
-    r = client.put(f'/api/courses/instructor/sections/{section.uuid}/',
+    r = client.put(f'/api/v1/courses/instructor/sections/{section.uuid}/',
                    {'title': 'changed'}, format='json')
     assert r.status_code == 400
     assert 'error' in r.json()
 
-    r = client.delete(f'/api/courses/instructor/sections/{section.uuid}/')
+    r = client.delete(f'/api/v1/courses/instructor/sections/{section.uuid}/')
     assert r.status_code == 400
     assert f.Section.objects.filter(pk=section.pk).exists()
 
@@ -718,7 +718,7 @@ def test_published_course_cannot_be_restructured(auth_client, instructor):
     assert r.status_code == 400
     assert 'error' in r.json()
 
-    r = client.delete(f'/api/courses/instructor/lectures/{lecture.uuid}/')
+    r = client.delete(f'/api/v1/courses/instructor/lectures/{lecture.uuid}/')
     assert r.status_code == 400
     assert f.Lecture.objects.filter(pk=lecture.pk).exists()
 

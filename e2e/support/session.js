@@ -3,7 +3,7 @@
 // its own spec).
 const { test: base, expect } = require('@playwright/test');
 
-const API_URL = process.env.E2E_API_URL || 'http://localhost:8000/api';
+const API_URL = process.env.E2E_API_URL || 'http://localhost:8000/api/v1';
 const PASSWORD = process.env.SEED_PASSWORD || process.env.E2E_PASSWORD || '';
 
 async function apiLogin(request, email, password = PASSWORD) {

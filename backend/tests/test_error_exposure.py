@@ -22,9 +22,9 @@ pytestmark = pytest.mark.django_db
 SECRET = 'SECRET-DETAIL(/srv/coursera/db.sqlite3, sk_test_0123456789)'
 PROVIDER_ERROR = 'The payment provider could not process this request. Please try again later.'
 
-LOGOUT = '/api/auth/logout/'
-STRIPE_SESSION = '/api/billing/checkout/session/'
-VERIFY_SESSION = '/api/billing/checkout/verify/'
+LOGOUT = '/api/v1/auth/logout/'
+STRIPE_SESSION = '/api/v1/billing/checkout/session/'
+VERIFY_SESSION = '/api/v1/billing/checkout/verify/'
 WEBHOOK = '/api/payments/stripe/webhook/'
 
 StripeError = getattr(stripe, 'StripeError', None) or stripe.error.StripeError
@@ -42,11 +42,11 @@ def assert_failure_is_not_echoed(response, caplog, *, status, error):
 # read endpoints
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize('method, url, target, error', [
-    ('get', '/api/notifications/', 'apps.notifications.services.get_user_notifications',
+    ('get', '/api/v1/notifications/', 'apps.notifications.services.get_user_notifications',
      'Failed to get notifications'),
-    ('get', '/api/notifications/count/', 'apps.notifications.services.get_unread_count',
+    ('get', '/api/v1/notifications/count/', 'apps.notifications.services.get_unread_count',
      'Failed to get notification count'),
-    ('post', '/api/notifications/1/read/', 'apps.notifications.services.mark_as_read',
+    ('post', '/api/v1/notifications/1/read/', 'apps.notifications.services.mark_as_read',
      'Failed to mark notification as read'),
 ])
 def test_a_failing_notification_endpoint_does_not_echo_the_cause(
@@ -59,14 +59,14 @@ def test_a_failing_notification_endpoint_does_not_echo_the_cause(
 
 def test_a_failing_student_roster_does_not_echo_the_cause(auth_client, instructor, caplog):
     with patch('apps.learning.selectors.instructor_roster', side_effect=RuntimeError(SECRET)):
-        r = auth_client(instructor).get('/api/learning/instructor/students/')
+        r = auth_client(instructor).get('/api/v1/learning/instructor/students/')
 
     assert_failure_is_not_echoed(r, caplog, status=500, error='Failed to fetch students')
 
 
 @pytest.mark.parametrize('url, error', [
-    ('/api/courses/admin/pending/', 'Failed to fetch pending courses'),
-    ('/api/courses/admin/all/', 'Failed to fetch all courses'),
+    ('/api/v1/courses/admin/pending/', 'Failed to fetch pending courses'),
+    ('/api/v1/courses/admin/all/', 'Failed to fetch all courses'),
 ])
 def test_a_failing_admin_course_list_does_not_echo_the_cause(
         auth_client, admin, instructor, caplog, url, error):
@@ -86,8 +86,8 @@ def test_a_failing_reorder_does_not_echo_the_cause(auth_client, instructor, capl
     course = f.make_course(instructor)
     section = f.make_section(course)
     url = {
-        'sections': f'/api/courses/instructor/courses/{course.uuid}/sections/reorder/',
-        'lectures': f'/api/courses/instructor/sections/{section.uuid}/lectures/reorder/',
+        'sections': f'/api/v1/courses/instructor/courses/{course.uuid}/sections/reorder/',
+        'lectures': f'/api/v1/courses/instructor/sections/{section.uuid}/lectures/reorder/',
     }[kind]
 
     with patch('apps.courses.services.curriculum.reorder', side_effect=RuntimeError(SECRET)):

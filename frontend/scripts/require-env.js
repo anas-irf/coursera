@@ -13,7 +13,7 @@ if (!process.env.REACT_APP_API_URL) {
   console.error(
     '\nREACT_APP_API_URL is not set.\n' +
       'A production build bakes the API address into the bundle. Set it in the environment or in\n' +
-      'frontend/.env.production, for example: REACT_APP_API_URL=https://api.example.com/api\n'
+      'frontend/.env.production, for example: REACT_APP_API_URL=https://api.example.com/api/v1\n'
   );
   process.exit(1);
 }

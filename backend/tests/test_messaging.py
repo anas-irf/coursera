@@ -17,9 +17,9 @@ from django.utils.module_loading import import_string
 
 import factories as f
 
-SEND = '/api/messaging/send/'
-CONVERSATIONS = '/api/messaging/conversations/'
-USERS = '/api/messaging/users/'
+SEND = '/api/v1/messaging/send/'
+CONVERSATIONS = '/api/v1/messaging/conversations/'
+USERS = '/api/v1/messaging/users/'
 
 
 def conv_id(a, b):

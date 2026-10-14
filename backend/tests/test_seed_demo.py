@@ -91,8 +91,8 @@ def test_demo_roles_can_use_the_platform(auth_client):
 
     course = f.Course.objects.get(slug='introduction-to-python')
     client = auth_client(student)
-    assert client.post(f'/api/learning/courses/{course.uuid}/enroll/').status_code == 201
-    payload = client.get(f'/api/learning/courses/{course.uuid}/learn/').json()
+    assert client.post(f'/api/v1/learning/courses/{course.uuid}/enroll/').status_code == 201
+    payload = client.get(f'/api/v1/learning/courses/{course.uuid}/learn/').json()
     assert payload['progress']['total_lectures'] == 4
     plus = f.Course.objects.get(slug='applied-machine-learning')
-    assert client.post(f'/api/learning/courses/{plus.uuid}/enroll/').status_code == 402
+    assert client.post(f'/api/v1/learning/courses/{plus.uuid}/enroll/').status_code == 402

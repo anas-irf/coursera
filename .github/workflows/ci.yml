@@ -235,7 +235,7 @@ jobs:
       - name: Production build (warnings fail it)
         working-directory: frontend
         env:
-          REACT_APP_API_URL: http://localhost:8000/api
+          REACT_APP_API_URL: http://localhost:8000/api/v1
         run: npm run build
 
       - name: Upload the test report
@@ -302,7 +302,7 @@ jobs:
       - name: Build the frontend (it talks to the API on localhost:8000)
         working-directory: frontend
         env:
-          REACT_APP_API_URL: http://localhost:8000/api
+          REACT_APP_API_URL: http://localhost:8000/api/v1
         run: npm run build
 
       - name: Migrate and seed the database
@@ -316,7 +316,7 @@ jobs:
         run: |
           nohup python manage.py runserver 127.0.0.1:8000 --noreload > "$RUNNER_TEMP/api.log" 2>&1 &
           for _ in $(seq 1 60); do
-            curl -fsS http://127.0.0.1:8000/api/learning/courses/ > /dev/null && exit 0
+            curl -fsS http://127.0.0.1:8000/api/v1/learning/courses/ > /dev/null && exit 0
             sleep 1
           done
           echo "::error::the API did not start"

@@ -58,6 +58,7 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'apps.core.middleware.SecurityMiddleware',
+    'apps.core.middleware.LegacyApiMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -75,6 +76,12 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = True
 
 ROOT_URLCONF = 'config.urls'
+
+# The API lives at /api/v1/<slice>/.  The unversioned /api/<slice>/ paths of the
+# first release stay as deprecated aliases until this is switched off; the
+# sunset is an HTTP date (e.g. "Wed, 31 Dec 2026 23:59:59 GMT") sent to clients.
+API_LEGACY_ALIASES = env_bool('API_LEGACY_ALIASES', True)
+API_LEGACY_SUNSET = env_str('API_LEGACY_SUNSET')
 
 TEMPLATES = [
     {

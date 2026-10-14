@@ -32,7 +32,7 @@ Frontend:
 
 ```bash
 cd frontend
-cp .env.example .env               # REACT_APP_API_URL=http://localhost:8000/api
+cp .env.example .env               # REACT_APP_API_URL=http://localhost:8000/api/v1
 npm install
 npm start                          # http://localhost:3000
 ```
@@ -129,7 +129,7 @@ start** and names every missing variable marked *required* below.
 | `LOG_LEVEL` | backend | level of the application's loggers (`INFO`) |
 | `SEED_PASSWORD` | backend | password of the users `seed_dev` creates (random when empty) |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | backend | Stripe test secret key (no default) and webhook secret |
-| `REACT_APP_API_URL` | frontend | API base; **required for a production build** (`npm run build` stops without it), `http://localhost:8000/api` in development |
+| `REACT_APP_API_URL` | frontend | API base; **required for a production build** (`npm run build` stops without it), `http://localhost:8000/api/v1` in development |
 | `REACT_APP_WS_URL` | frontend | WebSocket base, derived from the API URL by default |
 
 `backend/.env.example` lists the rest.

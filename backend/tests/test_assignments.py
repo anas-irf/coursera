@@ -10,19 +10,19 @@ import factories as f
 
 pytestmark = pytest.mark.django_db
 
-INSTRUCTOR_ASSIGNMENTS = '/api/assessments/instructor/assignments/'
+INSTRUCTOR_ASSIGNMENTS = '/api/v1/assessments/instructor/assignments/'
 
 
 def submit_url(assignment):
-    return f'/api/assessments/assignments/{assignment.uuid}/submit/'
+    return f'/api/v1/assessments/assignments/{assignment.uuid}/submit/'
 
 
 def download_url(submission):
-    return f'/api/assessments/submissions/{submission.uuid}/download/'
+    return f'/api/v1/assessments/submissions/{submission.uuid}/download/'
 
 
 def grade_url(submission):
-    return f'/api/assessments/instructor/submissions/{submission.uuid}/grade/'
+    return f'/api/v1/assessments/instructor/submissions/{submission.uuid}/grade/'
 
 
 def submissions_url(assignment):
@@ -119,7 +119,7 @@ def test_submission_requires_enrolment_student_role_and_known_assignment(
     r = submit_file(auth_client(other_student), setup.assignment)  # not enrolled
     assert r.status_code == 403
     assert 'error' in r.json()
-    r = auth_client(other_student).post(f'/api/assessments/assignments/{uuid.uuid4()}/submit/',
+    r = auth_client(other_student).post(f'/api/v1/assessments/assignments/{uuid.uuid4()}/submit/',
                                         {'submission_text': 'x'}, format='multipart')
     assert r.status_code == 404
     assert f.AssignmentSubmission.objects.count() == 0
@@ -222,7 +222,7 @@ def test_download_of_text_only_or_unknown_submission_is_404(auth_client, student
     submission = f.AssignmentSubmission.objects.get(assignment=setup.assignment, student=student)
 
     assert client.get(download_url(submission)).status_code == 404
-    assert client.get(f'/api/assessments/submissions/{uuid.uuid4()}/download/').status_code == 404
+    assert client.get(f'/api/v1/assessments/submissions/{uuid.uuid4()}/download/').status_code == 404
 
 
 # --------------------------------------------------------------------------- #
@@ -308,7 +308,7 @@ def test_instructor_grades_a_submission_and_student_is_notified(
     assert notes.get().is_read is False
 
     # the student sees the grade in the player payload
-    payload = auth_client(student).get(f'/api/learning/courses/{setup.course.uuid}/learn/').json()
+    payload = auth_client(student).get(f'/api/v1/learning/courses/{setup.course.uuid}/learn/').json()
     lecture = [lec for lec in payload['sections'][0]['lectures']
                if lec['content_type'] == 'assignment'][0]
     assert lecture['submission']['graded'] is True

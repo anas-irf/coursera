@@ -5,11 +5,11 @@ import factories as f
 
 pytestmark = pytest.mark.django_db
 
-STUDENT_GRADEBOOK = '/api/assessments/student/gradebook/'
+STUDENT_GRADEBOOK = '/api/v1/assessments/student/gradebook/'
 
 
 def instructor_gradebook(course):
-    return f'/api/assessments/instructor/courses/{course.uuid}/gradebook/'
+    return f'/api/v1/assessments/instructor/courses/{course.uuid}/gradebook/'
 
 
 GRADE_KEYS = {'final_grade', 'letter_grade', 'components', 'total_weight', 'is_passing'}
@@ -25,14 +25,14 @@ def graded(auth_client, instructor, student):
 
     submission = f.make_submission(bundle.assignment, student, enrollment=enrollment)
     r = auth_client(instructor).post(
-        f'/api/assessments/instructor/submissions/{submission.uuid}/grade/',
+        f'/api/v1/assessments/instructor/submissions/{submission.uuid}/grade/',
         {'grade': 80, 'feedback': 'ok'}, format='json')
     assert r.status_code == 200
 
     client = auth_client(student)
-    attempt_id = client.post(f'/api/assessments/quizzes/{bundle.quiz.uuid}/attempt/',
+    attempt_id = client.post(f'/api/v1/assessments/quizzes/{bundle.quiz.uuid}/attempt/',
                              {'action': 'start'}, format='json').json()['attempt_id']
-    r = client.post(f'/api/assessments/quizzes/{bundle.quiz.uuid}/attempt/', {
+    r = client.post(f'/api/v1/assessments/quizzes/{bundle.quiz.uuid}/attempt/', {
         'action': 'submit', 'attempt_id': attempt_id,
         'answers': f.build_answers(bundle.quiz, [0])}, format='json')
     assert r.json()['results']['score'] == pytest.approx(50.0)

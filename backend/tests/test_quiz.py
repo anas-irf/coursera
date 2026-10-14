@@ -13,7 +13,7 @@ pytestmark = pytest.mark.django_db
 
 
 def attempt_url(quiz):
-    return f'/api/assessments/quizzes/{quiz.uuid}/attempt/'
+    return f'/api/v1/assessments/quizzes/{quiz.uuid}/attempt/'
 
 
 def start(client, quiz):
@@ -88,7 +88,7 @@ def test_start_requires_enrolment_and_a_student(api, auth_client, student, instr
     assert r.status_code == 403
     assert 'error' in r.json()
     assert start(auth_client(instructor), quiz).status_code == 403
-    r = auth_client(student).post(f'/api/assessments/quizzes/{uuid.uuid4()}/attempt/',
+    r = auth_client(student).post(f'/api/v1/assessments/quizzes/{uuid.uuid4()}/attempt/',
                                   {'action': 'start'}, format='json')
     assert r.status_code == 404
     assert f.QuizAttempt.objects.count() == 0
@@ -339,7 +339,7 @@ def test_best_score_and_overall_pass_span_all_attempts(auth_client, student, two
     assert third['best_score'] == pytest.approx(100.0)
     assert third['attempt_number'] == 3 and third['attempts_remaining'] == 0
 
-    lecture = [lec for lec in client.get(f'/api/learning/courses/{bundle.course.uuid}/learn/').json()
+    lecture = [lec for lec in client.get(f'/api/v1/learning/courses/{bundle.course.uuid}/learn/').json()
                ['sections'][0]['lectures'] if lec['content_type'] == 'quiz'][0]
     assert lecture['attempts_taken'] == 3
     assert lecture['best_score'] == pytest.approx(100.0)

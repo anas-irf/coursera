@@ -79,7 +79,7 @@ secure cookies. `tests/test_settings_prod.py` imports it in a subprocess on a co
 
 ## HTTP and WebSocket surface
 
-Every slice is mounted at `/api/<slice>/`: `auth`, `courses`, `learning`, `assessments`, `billing`, `insights`, `certificates`, `messaging`, `notifications`. The one exception is Stripe's webhook, `/api/payments/stripe/webhook/`, which is configured in the Stripe dashboard.
+Every slice is mounted at `/api/v1/<slice>/`: `auth`, `courses`, `learning`, `assessments`, `billing`, `insights`, `certificates`, `messaging`, `notifications`. The unversioned `/api/<slice>/` paths of the first release stay as aliases while `API_LEGACY_ALIASES` is on: they reach the same views and answer with `Deprecation` and `Link` headers (and `Sunset` when `API_LEGACY_SUNSET` is set), and every use is logged so the day to switch them off is chosen from data. **v1 is frozen**: paths, methods, JSON keys and value types, the `{error}` / `{detail}` / field-map error shapes and the status codes of working flows do not change inside it; endpoints, keys and optional parameters may be added. The one path outside the scheme is Stripe's webhook, `/api/payments/stripe/webhook/`, which is configured in the Stripe dashboard and is neither versioned nor aliased.
 
 WebSockets: `/ws/user/` (everything addressed to the user) and `/ws/chat/<conversation_id>/` (typing indicators of one conversation), authenticated with `?token=<access token>`.
 

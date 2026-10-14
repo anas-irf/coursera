@@ -1,9 +1,11 @@
 import axios from 'axios';
 
+import { API_URL } from '../config';
 import { session } from '../lib/session';
 import { api } from './client';
 
-const API = 'http://localhost:8000/api';
+// whatever the build is configured with (a developer's .env must not matter)
+const API = API_URL;
 
 // A scripted server: ``routes`` maps "METHOD path" to a function (config) => [status, data].
 function installServer(routes) {

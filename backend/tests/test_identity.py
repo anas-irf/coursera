@@ -1,7 +1,7 @@
 """Identity slice: signup, login, profile, logout, token refresh, email verification.
 
 Characterization tests - they pin what the API does today.  Authentication uses
-the real ``/api/auth/login/`` endpoint and real simplejwt tokens.
+the real ``/api/v1/auth/login/`` endpoint and real simplejwt tokens.
 """
 import uuid
 
@@ -12,11 +12,11 @@ import factories as f
 
 pytestmark = pytest.mark.django_db
 
-SIGNUP = '/api/auth/signup/'
-LOGIN = '/api/auth/login/'
-LOGOUT = '/api/auth/logout/'
-REFRESH = '/api/auth/token/refresh/'
-PROFILE = '/api/auth/profile/'
+SIGNUP = '/api/v1/auth/signup/'
+LOGIN = '/api/v1/auth/login/'
+LOGOUT = '/api/v1/auth/logout/'
+REFRESH = '/api/v1/auth/token/refresh/'
+PROFILE = '/api/v1/auth/profile/'
 
 
 def signup_payload(**overrides):
@@ -211,7 +211,7 @@ def test_profile_with_bearer_token_from_real_login(api):
 def test_endpoints_require_a_valid_token(api):
     """Missing or garbage bearer tokens are 401."""
     assert api.get(PROFILE).status_code == 401
-    assert api.get('/api/learning/enrolled/').status_code == 401
+    assert api.get('/api/v1/learning/enrolled/').status_code == 401
 
     api.credentials(HTTP_AUTHORIZATION='Bearer not-a-real-token')
     assert api.get(PROFILE).status_code == 401

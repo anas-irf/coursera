@@ -14,18 +14,18 @@ import factories as f
 
 pytestmark = pytest.mark.django_db
 
-DASHBOARD = '/api/insights/instructor/dashboard/'
-EARNINGS = '/api/insights/instructor/earnings/'
-STUDENT_STATS = '/api/insights/student/stats/'
-WEEKLY = '/api/insights/student/weekly-progress/'
-ACHIEVEMENTS = '/api/insights/student/achievements/'
-CERTIFICATES = '/api/certificates/'
-ROSTER = '/api/learning/instructor/students/'
+DASHBOARD = '/api/v1/insights/instructor/dashboard/'
+EARNINGS = '/api/v1/insights/instructor/earnings/'
+STUDENT_STATS = '/api/v1/insights/student/stats/'
+WEEKLY = '/api/v1/insights/student/weekly-progress/'
+ACHIEVEMENTS = '/api/v1/insights/student/achievements/'
+CERTIFICATES = '/api/v1/certificates/'
+ROSTER = '/api/v1/learning/instructor/students/'
 
 
 def course_url(course, action):
     prefix = {'students': 'learning', 'analytics': 'insights'}[action]
-    return f'/api/{prefix}/instructor/courses/{course.uuid}/{action}/'
+    return f'/api/v1/{prefix}/instructor/courses/{course.uuid}/{action}/'
 
 
 # --------------------------------------------------------------------------- #
@@ -152,7 +152,7 @@ def test_student_stats_payload(api, auth_client, instructor, student):
     f.enroll(student, first.course)
     f.enroll(student, second.course)
     client = auth_client(student)
-    assert client.post(f'/api/learning/courses/{first.course.uuid}/lectures/{first.video.uuid}/complete/'
+    assert client.post(f'/api/v1/learning/courses/{first.course.uuid}/lectures/{first.video.uuid}/complete/'
                        ).status_code == 200
 
     r = client.get(STUDENT_STATS)
@@ -224,7 +224,7 @@ def test_student_achievements_payload(auth_client, instructor, student):
         assert {'id', 'title', 'description', 'icon', 'earned', 'progress'} <= set(item)
     assert [a['earned'] for a in empty['achievements']].count(True) == 0
 
-    client.post(f'/api/learning/courses/{bundle.course.uuid}/lectures/{bundle.video.uuid}/complete/')
+    client.post(f'/api/v1/learning/courses/{bundle.course.uuid}/lectures/{bundle.video.uuid}/complete/')
     after = client.get(ACHIEVEMENTS).json()
     assert after['total_points'] == 5  # 5 points per completed lesson
     first_steps = [a for a in after['achievements'] if a['title'] == 'First Steps'][0]
