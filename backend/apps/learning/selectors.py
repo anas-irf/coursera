@@ -7,6 +7,11 @@ from apps.courses.models import Course, Lecture, Section
 
 from .models import CourseBookmark, Enrollment, LectureProgress
 
+ACTIVE = ('active',)
+# a finished course stays open: the student may revisit it and retake what it contains
+ACCESS = ('active', 'completed')
+ENROLLED_VIEWS = {'active': ACTIVE, 'completed': ('completed',), 'all': ACCESS}
+
 
 def _with_card_data(courses):
     """Annotate what a course card shows: module count and video seconds."""
@@ -68,12 +73,43 @@ def catalog(user, *, category='all', level='all', course_type='all', search='', 
     return courses
 
 
-def enrolled_courses(student):
-    """The student's running enrollments, most recently visited first."""
-    return Enrollment.objects.filter(
-        student=student,
-        status='active'
-    ).select_related('course', 'course__instructor').order_by('-last_accessed')
+def enrollment_for(student, course, *, statuses=ACTIVE):
+    """The student's enrollment in ``course`` if its status is one of ``statuses``, else ``None``."""
+    return Enrollment.objects.filter(student=student, course=course, status__in=statuses).first()
+
+
+def enrollment_for_access(student, course):
+    """The enrollment that lets the student into the course: running or finished."""
+    return enrollment_for(student, course, statuses=ACCESS)
+
+
+def course_enrollments(course, *, statuses=ACTIVE):
+    """The learners of ``course`` whose enrollment is in one of ``statuses``."""
+    return Enrollment.objects.filter(course=course, status__in=statuses).select_related('student')
+
+
+def student_enrollments(student, *, statuses=ACTIVE):
+    """The enrollments of ``student`` in one of ``statuses``."""
+    return Enrollment.objects.filter(student=student, status__in=statuses)
+
+
+def enrolled_courses(student, *, view='active'):
+    """The student's courses (``view`` is a key of ``ENROLLED_VIEWS``), most recently visited first."""
+    return student_enrollments(student, statuses=ENROLLED_VIEWS[view]).select_related(
+        'course', 'course__instructor'
+    ).order_by('-last_accessed', '-id')
+
+
+def progress_by_lecture(enrollment, lectures):
+    """``{lecture pk: LectureProgress}``; a lecture without a row yet gets an unsaved default.
+
+    Reading never writes: rows appear when the student does something.
+    """
+    rows = {row.lecture_id: row for row in LectureProgress.objects.filter(enrollment=enrollment)}
+    return {
+        lecture.pk: rows.get(lecture.pk) or LectureProgress(enrollment=enrollment, lecture=lecture)
+        for lecture in lectures
+    }
 
 
 def lesson_counts(enrollment):

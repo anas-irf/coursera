@@ -21,6 +21,7 @@ course_rejected = Signal()    # course, rejected_by, reason
 
 # --- learning ------------------------------------------------------------- #
 student_enrolled = Signal()   # enrollment
+course_completed = Signal()   # enrollment: the last lecture was completed
 
 # --- assessments ---------------------------------------------------------- #
 assignment_graded = Signal()  # submission, grade, graded_by

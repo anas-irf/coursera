@@ -107,7 +107,7 @@ class QuizAttempt(BaseModel):
             enrollment = Enrollment.objects.get(
                 student=self.student,
                 course=self.quiz.course,
-                status='active'
+                status__in=['active', 'completed']
             )
             self.enrollment = enrollment
         except Enrollment.DoesNotExist:
@@ -205,7 +205,7 @@ class AssignmentSubmission(BaseModel):
             enrollment = Enrollment.objects.get(
                 student=self.student,
                 course=self.assignment.course,
-                status='active'
+                status__in=['active', 'completed']
             )
             self.enrollment = enrollment
         except Enrollment.DoesNotExist:

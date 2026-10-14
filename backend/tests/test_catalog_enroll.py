@@ -294,16 +294,38 @@ def test_enrolled_courses_lists_active_enrollments_with_progress(auth_client, in
 
     assert r.status_code == 200
     rows = {row['course_id']: row for row in r.json()}
-    # current behaviour: only *active* enrollments are listed
+    # without a filter only the *running* enrollments are listed
     assert set(rows) == {str(first.course.uuid), str(second.course.uuid)}
     row = rows[str(first.course.uuid)]
     assert set(row) == {'id', 'course_id', 'title', 'instructor', 'thumbnail', 'progress',
-                        'last_accessed', 'next_lesson', 'total_lessons', 'completed_lessons',
-                        'estimated_completion'}
+                        'status', 'last_accessed', 'next_lesson', 'total_lessons',
+                        'completed_lessons', 'estimated_completion'}
+    assert row['status'] == 'active'
     assert row['total_lessons'] == 4
     assert row['completed_lessons'] == 1
     assert row['progress'] == pytest.approx(25.0)
     assert row['next_lesson']
+
+
+def test_enrolled_courses_can_be_filtered_by_status(auth_client, instructor, student):
+    """``status=completed`` lists the finished courses, ``all`` both, anything else is a 400."""
+    running = f.build_course(instructor, status='published', title='Running')
+    done = f.build_course(instructor, status='published', title='Done')
+    f.enroll(student, running.course)
+    f.enroll(student, done.course, status='completed')
+    client = auth_client(student)
+
+    def titles(**params):
+        return {row['title'] for row in client.get(ENROLLED, params).json()}
+
+    assert titles() == titles(status='active') == {'Running'}
+    assert titles(status='completed') == {'Done'}
+    assert titles(status='all') == {'Running', 'Done'}
+    assert [row['status'] for row in client.get(ENROLLED, {'status': 'completed'}).json()] == ['completed']
+
+    r = client.get(ENROLLED, {'status': 'refunded'})
+    assert r.status_code == 400
+    assert 'status must be one of' in r.json()['error']
 
 
 def test_enrolled_courses_is_student_only(api, auth_client, instructor):

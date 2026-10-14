@@ -1,7 +1,7 @@
 """Grade calculation for students and courses."""
 from decimal import Decimal, ROUND_HALF_UP
 
-from apps.learning.models import Enrollment
+from apps.learning import selectors as learning
 
 from .. import selectors
 from ..models import Assignment, AssignmentSubmission, Quiz, QuizAttempt
@@ -12,7 +12,7 @@ class GradeCalculationService:
     @staticmethod
     def calculate_student_course_grade(student, course):
         """Calculate a student's final grade for a course"""
-        if not Enrollment.objects.filter(student=student, course=course, status='active').exists():
+        if learning.enrollment_for(student, course) is None:
             return None
 
         grade_components = []
@@ -135,7 +135,7 @@ class GradeCalculationService:
     @staticmethod
     def calculate_course_statistics(course):
         """Calculate statistics for all students in a course"""
-        enrollments = Enrollment.objects.filter(course=course, status='active')
+        enrollments = learning.course_enrollments(course)
         student_grades = []
 
         for enrollment in enrollments:
@@ -189,7 +189,7 @@ class GradeCalculationService:
     @staticmethod
     def get_student_gradebook(student):
         """Get comprehensive gradebook for a student across all courses"""
-        enrollments = Enrollment.objects.filter(student=student, status='active')
+        enrollments = learning.student_enrollments(student).select_related('course__instructor')
         gradebook = []
 
         for enrollment in enrollments:

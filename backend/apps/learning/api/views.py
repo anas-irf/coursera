@@ -9,6 +9,7 @@ from rest_framework.response import Response
 
 from apps.accounts.permissions import IsInstructor, IsStudent
 from apps.billing.selectors import has_plus_access
+from apps.core.api.errors import PermissionDenied, ServiceError
 from apps.core.api.pagination import paginate
 from apps.courses.models import Course, Lecture
 
@@ -50,8 +51,11 @@ def all_courses(request):
 @api_view(['GET'])
 @permission_classes([IsStudent])
 def student_enrolled_courses(request):
-    """Get student's enrolled courses with progress"""
-    enrollments, headers = paginate(request, selectors.enrolled_courses(request.user))
+    """The student's courses with progress; ``?status=active`` (default), ``completed`` or ``all``."""
+    view = request.query_params.get('status', 'active')
+    if view not in selectors.ENROLLED_VIEWS:
+        raise ServiceError(f"status must be one of {', '.join(selectors.ENROLLED_VIEWS)}")
+    enrollments, headers = paginate(request, selectors.enrolled_courses(request.user, view=view))
     return Response([serializers.enrolled_course_row(enrollment) for enrollment in enrollments],
                     headers=headers)
 
@@ -88,21 +92,15 @@ def course_learn_view(request, course_uuid):
     course = get_object_or_404(Course, uuid=course_uuid, status='published')
     student = request.user
 
-    enrollment = services.active_enrollment(student, course)
+    enrollment = selectors.enrollment_for_access(student, course)
     if enrollment is None:
-        return Response(
-            {'error': 'You must be enrolled in this course to access learning materials'},
-            status=status.HTTP_403_FORBIDDEN
-        )
+        raise PermissionDenied('You must be enrolled in this course to access learning materials')
 
     outline = selectors.player_outline(course)
-    # rows of lectures added after the enrollment are created on first view
-    progress_by_lecture = {
-        lecture.pk: services.progress_for(enrollment, lecture)
-        for _, lectures in outline for lecture in lectures
-    }
+    progress = selectors.progress_by_lecture(
+        enrollment, [lecture for _, lectures in outline for lecture in lectures])
 
-    return Response(serializers.player_payload(course, enrollment, student, outline, progress_by_lecture))
+    return Response(serializers.player_payload(course, enrollment, student, outline, progress))
 
 
 @api_view(['POST'])
@@ -112,12 +110,9 @@ def mark_lecture_complete(request, course_uuid, lecture_uuid):
     course = get_object_or_404(Course, uuid=course_uuid, status='published')
     lecture = get_object_or_404(Lecture, uuid=lecture_uuid, section__course=course)
 
-    enrollment = services.active_enrollment(request.user, course)
+    enrollment = selectors.enrollment_for_access(request.user, course)
     if enrollment is None:
-        return Response(
-            {'error': 'You must be enrolled in this course'},
-            status=status.HTTP_403_FORBIDDEN
-        )
+        raise PermissionDenied('You must be enrolled in this course')
 
     services.complete_lecture(enrollment, lecture)
 

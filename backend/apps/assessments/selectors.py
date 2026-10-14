@@ -1,7 +1,7 @@
 """Read side of assessments."""
 from django.db.models import Count, Q
 
-from apps.learning.models import Enrollment
+from apps.learning import selectors as learning
 
 from .models import Assignment, AssignmentSubmission
 
@@ -31,4 +31,4 @@ def assignment_submissions(assignment):
 
 def active_enrollments(course):
     """Learners that are graded in the course."""
-    return Enrollment.objects.filter(course=course, status='active').select_related('student')
+    return learning.course_enrollments(course)

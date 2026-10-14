@@ -83,6 +83,7 @@ def enrolled_course_row(enrollment):
         'instructor': _instructor_name(course),
         'thumbnail': course.thumbnail.url if course.thumbnail else None,
         'progress': float(enrollment.progress_percentage),
+        'status': enrollment.status,
         'last_accessed': enrollment.last_accessed.isoformat() if enrollment.last_accessed else None,
         'next_lesson': upcoming.title if upcoming else 'All lessons completed',
         'total_lessons': total_lessons,

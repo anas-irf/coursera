@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from apps.core.api.errors import NotFound, PermissionDenied, ServiceError
 from apps.core.events import assignment_graded, emit
+from apps.learning import selectors as learning_selectors
 from apps.learning import services as learning
 
 from ..models import AssignmentSubmission
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 def submit(student, assignment, text, file):
     """Hand in work for ``assignment``; returns the stored submission."""
-    enrollment = learning.active_enrollment(student, assignment.course)
+    enrollment = learning_selectors.enrollment_for_access(student, assignment.course)
     if enrollment is None:
         raise PermissionDenied('You must be enrolled in this course')
 

@@ -44,7 +44,6 @@ class Enrollment(BaseModel):
         return f"{self.student.email} - {self.course.title}"
 
     def save(self, *args, **kwargs):
-        self.full_clean()
         is_new = self.pk is None
         super().save(*args, **kwargs)
 
@@ -73,40 +72,6 @@ class Enrollment(BaseModel):
 
         return lecture_progress_list
 
-    def calculate_progress(self):
-        """Calculate simple progress: completed lectures / total lectures * 100"""
-        # Get all lectures in the course
-        total_lectures = Lecture.objects.filter(section__course=self.course).count()
-
-        if total_lectures == 0:
-            return 0
-
-        # Get completed lectures for this enrollment
-        completed_lectures = self.lecture_progress.filter(is_completed=True).count()
-
-        # Calculate percentage
-        progress = (completed_lectures / total_lectures) * 100
-
-        # Update enrollment progress - ensure exactly 2 decimal places and within field limits
-        from decimal import Decimal, ROUND_HALF_UP
-
-        # Ensure progress doesn't exceed 100
-        progress = min(progress, 100.0)
-
-        # Convert to decimal with exactly 2 decimal places
-        decimal_progress = Decimal(str(progress)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-
-        self.progress_percentage = decimal_progress
-        self.save(update_fields=['progress_percentage'])
-
-        # Check if course should be marked complete
-        if progress >= 100 and self.status == 'active':
-            self.status = 'completed'
-            self.completed_date = timezone.now()
-            self.save(update_fields=['status', 'completed_date'])
-
-        return progress
-
 class LectureProgress(BaseModel):
     enrollment = models.ForeignKey(Enrollment, on_delete=models.CASCADE,
                                   related_name='lecture_progress')
@@ -123,14 +88,6 @@ class LectureProgress(BaseModel):
     class Meta:
         db_table = 'lecture_progress'
         unique_together = ['enrollment', 'lecture']
-    
-    def mark_completed(self):
-        self.is_completed = True
-        self.completed_date = timezone.now()
-        self.save()
-
-        # Auto-update enrollment progress
-        self.enrollment.calculate_progress()
 
 class CourseBookmark(BaseModel):
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,

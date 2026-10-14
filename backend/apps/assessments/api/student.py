@@ -8,7 +8,7 @@ from rest_framework.response import Response
 
 from apps.accounts.permissions import IsStudent
 from apps.core.api.throttling import UploadThrottle
-from apps.learning import services as learning
+from apps.learning import selectors as learning
 
 from ..models import Assignment, Quiz
 from ..services import assignments, quizzes
@@ -23,7 +23,7 @@ def attempt_quiz(request, quiz_uuid):
     quiz = get_object_or_404(Quiz, uuid=quiz_uuid)
     student = request.user
 
-    enrollment = learning.active_enrollment(student, quiz.course)
+    enrollment = learning.enrollment_for_access(student, quiz.course)
     if enrollment is None:
         return Response(
             {'error': 'You must be enrolled in this course'},
