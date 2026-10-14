@@ -262,13 +262,3 @@ class AssignmentSubmission(BaseModel):
 
         self.full_clean()
         super().save(*args, **kwargs)
-
-class Rubric(BaseModel):
-    assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE,
-                                  related_name='rubrics')
-    criteria = models.CharField(max_length=200)
-    description = models.TextField()
-    max_points = models.IntegerField()
-    
-    class Meta:
-        db_table = 'rubrics'

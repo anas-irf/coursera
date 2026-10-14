@@ -20,7 +20,6 @@ class Enrollment(BaseModel):
     
     enrolled_date = models.DateTimeField(default=timezone.now)
     completed_date = models.DateTimeField(null=True, blank=True)
-    expiry_date = models.DateTimeField(null=True, blank=True)
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     progress_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0)
@@ -143,20 +142,6 @@ class CourseBookmark(BaseModel):
     class Meta:
         db_table = 'course_bookmarks'
         unique_together = ['student', 'course']
-
-class LectureNote(BaseModel):
-    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
-                               related_name='lecture_notes')
-    lecture = models.ForeignKey(Lecture, on_delete=models.CASCADE,
-                               related_name='notes')
-    enrollment = models.ForeignKey(Enrollment, on_delete=models.CASCADE)
-    
-    note_content = models.TextField()
-    timestamp = models.IntegerField(null=True, blank=True)  # Video timestamp in seconds
-    
-    class Meta:
-        db_table = 'lecture_notes'
-        ordering = ['-created_at']
 
 class LearningStreak(BaseModel):
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,

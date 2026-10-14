@@ -137,16 +137,6 @@ class Course(BaseModel):
         return self.title
     
 
-class CoursePrerequisite(BaseModel):
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='prerequisites')
-    prerequisite_course = models.ForeignKey(Course, on_delete=models.CASCADE,
-                                           related_name='required_for')
-    is_mandatory = models.BooleanField(default=True)
-    
-    class Meta:
-        db_table = 'course_prerequisites'
-        unique_together = ['course', 'prerequisite_course']
-
 class Section(BaseModel):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='sections')
     title = models.CharField(max_length=200)
@@ -189,23 +179,3 @@ class Lecture(BaseModel):
     
     def __str__(self):
         return self.title
-
-class LectureResource(BaseModel):
-    lecture = models.ForeignKey(Lecture, on_delete=models.CASCADE, related_name='resources')
-    title = models.CharField(max_length=200)
-    file = models.FileField(upload_to='lectures/resources/')
-    is_downloadable = models.BooleanField(default=True)
-    
-    class Meta:
-        db_table = 'lecture_resources'
-
-class CourseAnnouncement(BaseModel):
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='announcements')
-    title = models.CharField(max_length=200)
-    content = models.TextField()
-    is_pinned = models.BooleanField(default=False)
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
-    
-    class Meta:
-        db_table = 'course_announcements'
-        ordering = ['-is_pinned', '-created_at']

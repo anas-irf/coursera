@@ -7,24 +7,6 @@ from apps.learning.models import Enrollment
 import uuid
 import hashlib
 
-class CertificateTemplate(BaseModel):
-    name = models.CharField(max_length=100)
-    html_template = models.TextField()  # HTML template with placeholders
-    css_styles = models.TextField(blank=True)
-    
-    # Design elements
-    background_image = models.ImageField(upload_to='certificate_backgrounds/', 
-                                        blank=True, null=True)
-    signature_image = models.ImageField(upload_to='certificate_signatures/',
-                                       blank=True, null=True)
-    logo_image = models.ImageField(upload_to='certificate_logos/',
-                                  blank=True, null=True)
-    
-    is_default = models.BooleanField(default=False)
-    
-    class Meta:
-        db_table = 'certificate_templates'
-
 class Certificate(BaseModel):
     enrollment = models.OneToOneField(Enrollment, on_delete=models.CASCADE,
                                      related_name='certificate')
@@ -35,10 +17,6 @@ class Certificate(BaseModel):
     
     certificate_number = models.CharField(max_length=50, unique=True)
     verification_code = models.CharField(max_length=100, unique=True)
-    
-    # Template used
-    template = models.ForeignKey(CertificateTemplate, on_delete=models.SET_NULL,
-                                null=True, blank=True)
     
     # Generated file
     pdf_file = models.FileField(upload_to='certificates/', blank=True, null=True)
@@ -71,12 +49,3 @@ class Certificate(BaseModel):
         if not self.verification_code:
             self.verification_code = self.generate_verification_code()
         super().save(*args, **kwargs)
-
-class CertificateVerification(BaseModel):
-    certificate = models.ForeignKey(Certificate, on_delete=models.CASCADE,
-                                   related_name='verifications')
-    verified_by_ip = models.GenericIPAddressField()
-    verified_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        db_table = 'certificate_verifications'

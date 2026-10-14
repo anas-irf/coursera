@@ -2,13 +2,7 @@
 from rest_framework import serializers
 
 from .. import extensions
-from ..models import Course, Section, Lecture, LectureResource
-
-
-class LectureResourceSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = LectureResource
-        fields = ['id', 'uuid', 'title', 'file', 'is_downloadable']
+from ..models import Course, Section, Lecture
 
 
 class LectureSerializer(serializers.ModelSerializer):
@@ -19,7 +13,7 @@ class LectureSerializer(serializers.ModelSerializer):
     ``courses.extensions``; every lecture exposes the same set of keys.
     """
     id = serializers.UUIDField(source='uuid', read_only=True)
-    resources = LectureResourceSerializer(many=True, read_only=True)
+    resources = serializers.SerializerMethodField()  # kept for the v1 shape: always empty
     completion_rate = serializers.SerializerMethodField()
     quiz_settings = serializers.SerializerMethodField()
     questions = serializers.SerializerMethodField()
@@ -47,6 +41,9 @@ class LectureSerializer(serializers.ModelSerializer):
             payload.update(extensions.lecture_extras(obj))
             cache[obj.pk] = payload
         return cache[obj.pk]
+
+    def get_resources(self, obj):
+        return []
 
     def get_completion_rate(self, obj):
         return self._extra(obj).get('completion_rate', 0)
