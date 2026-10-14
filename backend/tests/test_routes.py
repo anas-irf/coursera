@@ -52,7 +52,7 @@ def test_route_table_is_collected_correctly():
     assert has('api/auth/login/ | POST | ')
     assert has('api/auth/token/refresh/ | POST | ')
     assert has('api/learning/courses/ | GET | ')
-    assert has('api/courses/instructor/sections/<uuid:section_uuid>/lectures/ | GET,POST | ')
+    assert has('api/courses/instructor/sections/<uuid:section_uuid>/lectures/ | POST | ')
     assert has('api/payments/stripe/webhook/ | POST | ')
     assert has('api/messaging/send/ | POST | ')
     assert has('ws/chat/<str:conversation_id>/ | WS | ')

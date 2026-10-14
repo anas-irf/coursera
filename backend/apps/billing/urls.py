@@ -6,8 +6,6 @@ from .api import views
 app_name = 'billing'
 
 urlpatterns = [
-    path('plans/', views.get_subscription_plans, name='subscription-plans'),
-
     # checkout
     path('checkout/', views.checkout_page_data, name='checkout-data'),
     path('checkout/session/', views.create_stripe_checkout_session, name='stripe-checkout-session'),

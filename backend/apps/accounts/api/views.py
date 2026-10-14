@@ -21,13 +21,10 @@ def signup(request):
         # the serializer creates the user together with the role profile
         user = serializer.save()
 
-        # TODO: send the verification e-mail
-        services.start_email_verification(user)
-
         return Response({
             'user': UserSerializer(user).data,
             'tokens': services.issue_tokens(user),
-            'message': 'Registration successful! Please check your email to verify your account.'
+            'message': 'Registration successful!'
         }, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -77,10 +74,3 @@ def get_user_profile(request):
         'profile': profile_payload(request.user),
     })
 
-
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def verify_email(request, token):
-    if services.verify_email(token) is None:
-        return Response({'error': 'Invalid verification token'}, status=status.HTTP_400_BAD_REQUEST)
-    return Response({'message': 'Email verified successfully!'})

@@ -122,38 +122,6 @@ def mark_lecture_complete(request, course_uuid, lecture_uuid):
     })
 
 
-@api_view(['GET'])
-@permission_classes([IsStudent])
-def plus_courses_preview(request):
-    """Get preview of Plus courses for upgrade promotion"""
-    if has_plus_access(request.user):
-        return Response(
-            {'message': 'You already have Plus access'},
-            status=status.HTTP_200_OK
-        )
-
-    total_plus_courses, total_free_courses = selectors.published_counts()
-
-    return Response({
-        'preview_courses': [serializers.preview_card(course) for course in selectors.plus_preview_courses()],
-        'benefits': {
-            'total_plus_courses': total_plus_courses,
-            'total_free_courses': total_free_courses,
-            'unlimited_access': True,
-            'certificates_included': True,
-            'offline_download': True,
-            'no_ads': True
-        },
-        'pricing': {
-            'monthly': 49.99,
-            'yearly': 399.99,
-            'yearly_savings': round((49.99 * 12) - 399.99, 2),
-            'yearly_savings_percentage': round(((49.99 * 12) - 399.99) / (49.99 * 12) * 100)
-        },
-        'checkout_url': '/api/payments/checkout/data/'
-    })
-
-
 # --------------------------------------------------------------------------- #
 # the instructor's view on the learners of their courses
 # --------------------------------------------------------------------------- #

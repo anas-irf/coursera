@@ -1,6 +1,4 @@
-"""Identity use-cases: token issuing, login bookkeeping, e-mail verification."""
-import secrets
-
+"""Identity use-cases: token issuing and login bookkeeping."""
 from rest_framework_simplejwt.tokens import RefreshToken
 
 
@@ -28,27 +26,3 @@ def record_login(user, request):
     user.last_login_ip = client_ip(request)
     user.save(update_fields=['last_login_ip', 'last_login'])
 
-
-def start_email_verification(user):
-    """Attach a new verification token to the user and return it.
-
-    Sending the e-mail itself is not implemented yet.
-    """
-    user.email_verification_token = secrets.token_urlsafe(32)
-    user.save(update_fields=['email_verification_token'])
-    return user.email_verification_token
-
-
-def verify_email(token):
-    """Mark the user owning ``token`` as verified; return the user or ``None``."""
-    from django.contrib.auth import get_user_model
-
-    User = get_user_model()
-    try:
-        user = User.objects.get(email_verification_token=token)
-    except User.DoesNotExist:
-        return None
-    user.email_verified = True
-    user.email_verification_token = None
-    user.save(update_fields=['email_verified', 'email_verification_token'])
-    return user

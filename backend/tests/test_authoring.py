@@ -302,10 +302,6 @@ def test_update_and_fetch_single_section(auth_client, instructor):
     assert r.status_code == 200
     assert r.json()['title'] == 'New'
 
-    r = client.get(f'/api/courses/instructor/sections/{section.uuid}/')
-    assert r.status_code == 200
-    assert r.json()['title'] == 'New'
-
 
 def test_reorder_sections(auth_client, instructor):
     """Section reorder applies the posted orders and skips unknown uuids."""
@@ -527,10 +523,6 @@ def test_lecture_serializer_key_set_is_identical_for_every_content_type(auth_cli
     for lec in lectures:
         assert set(lec) == LECTURE_KEYS
 
-    # the per-section lecture list uses the very same serializer
-    r = client.get(f'/api/courses/instructor/sections/{section.uuid}/lectures/')
-    assert r.status_code == 200
-    assert [lec['id'] for lec in r.json()] == [lec['id'] for lec in lectures]
     video, reading, quiz, assignment = lectures
     assert video['video_content'] is not None and video['quiz_settings'] is None
     assert reading['reading_document'] is not None and reading['video_content'] is None
@@ -585,10 +577,6 @@ def test_update_video_lecture_video_url(auth_client, instructor):
     assert f.VideoContent.objects.get(lecture=lecture).video_url == 'https://youtu.be/second'
     lecture.refresh_from_db()
     assert lecture.title == 'Video renamed'
-
-    r = client.get(f'/api/courses/instructor/lectures/{lecture.uuid}/')
-    assert r.status_code == 200
-    assert r.json()['video_content']['video_url'] == 'https://youtu.be/second'
 
 
 def test_update_video_lecture_creates_video_content_when_missing(auth_client, instructor):
@@ -696,29 +684,6 @@ def test_delete_middle_lecture_resequences_and_next_create_works(auth_client, in
     assert r.status_code == 201
     assert orders(f.Lecture.objects.filter(section=section)) == [1, 2, 3]
     assert f.Lecture.objects.get(section=section, title='D').order == 3
-
-
-def test_reorder_quiz_questions_uses_the_internal_question_ids(auth_client, instructor, other_instructor, student):
-    """Quiz question reorder is keyed by lecture uuid and internal question ids."""
-    quiz = f.make_quiz_lecture(f.make_section(f.make_course(instructor)),
-                               questions=[f.mc_question('First'), f.tf_question('Second')])
-    first, second = quiz.quiz.questions.order_by('order')
-    url = f'/api/assessments/quizzes/{quiz.lecture.uuid}/reorder-questions/'
-    payload = {'question_orders': [{'id': first.id, 'order': 5}, {'id': second.id, 'order': 2},
-                                   {'id': 999999, 'order': 9}]}  # unknown ids are skipped
-
-    r = auth_client(instructor).post(url, payload, format='json')
-
-    assert r.status_code == 200
-    assert 'message' in r.json()
-    first.refresh_from_db()
-    second.refresh_from_db()
-    assert (first.order, second.order) == (5, 2)
-
-    assert auth_client(student).post(url, payload, format='json').status_code == 403
-    # another instructor's quiz does not exist for you
-    r = auth_client(other_instructor).post(url, payload, format='json')
-    assert r.status_code == 404
 
 
 # --------------------------------------------------------------------------- #

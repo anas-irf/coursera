@@ -26,6 +26,20 @@ REMOVED = [
     ('get', '/api/courses/instructor/students/'),
     ('get', '/api/courses/student/stats/'),
     ('get', '/api/courses/student/weekly-progress/'),
+    # endpoints no client called, removed before /api/v1 was declared
+    ('get', '/api/learning/plus-preview/'),
+    ('get', '/api/billing/plans/'),
+    ('get', '/api/auth/verify-email/some-token/'),
+    ('post', f'/api/assessments/quizzes/{SOME_UUID}/reorder-questions/'),
+    ('get', '/admin/'),
+]
+
+# routes that stay, with the methods nobody used taken away: 405 for the instructor
+UNMAPPED = [
+    ('get', f'/api/courses/instructor/sections/{SOME_UUID}/'),
+    ('get', f'/api/courses/instructor/sections/{SOME_UUID}/lectures/'),
+    ('get', f'/api/courses/instructor/lectures/{SOME_UUID}/'),
+    ('put', f'/api/courses/instructor/courses/{SOME_UUID}/'),
 ]
 
 
@@ -35,6 +49,14 @@ def test_endpoint_no_longer_exists(auth_client, student, instructor, admin, meth
     for user in (student, instructor, admin):
         response = getattr(auth_client(user), method)(url, {}, format='json')
         assert response.status_code == 404, (user.user_type, response.status_code)
+
+
+@pytest.mark.parametrize('method,url', UNMAPPED, ids=[f'{m.upper()} {u}' for m, u in UNMAPPED])
+def test_method_is_no_longer_mapped(auth_client, instructor, method, url):
+    """The route exists for other methods, this one answers 405."""
+    response = getattr(auth_client(instructor), method)(url, {}, format='json')
+
+    assert response.status_code == 405
 
 
 def test_plain_delete_of_an_instructor_course_is_not_allowed(auth_client, instructor):

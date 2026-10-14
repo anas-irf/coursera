@@ -13,7 +13,6 @@ pytestmark = pytest.mark.django_db
 
 ALL = '/api/learning/courses/'
 ENROLLED = '/api/learning/enrolled/'
-PLUS_PREVIEW = '/api/learning/plus-preview/'
 
 CATALOG_KEYS = {'id', 'title', 'instructor', 'instructor_id', 'thumbnail', 'rating',
                 'students', 'duration', 'level', 'category', 'course_type', 'modules',
@@ -311,39 +310,3 @@ def test_enrolled_courses_is_student_only(api, auth_client, instructor):
     """Anonymous 401, instructors 403."""
     assert api.get(ENROLLED).status_code == 401
     assert auth_client(instructor).get(ENROLLED).status_code == 403
-
-
-# --------------------------------------------------------------------------- #
-# Plus preview
-# --------------------------------------------------------------------------- #
-def test_plus_preview_for_student_without_subscription(auth_client, instructor, student):
-    """Preview lists published Plus courses plus benefits and pricing."""
-    plus = f.make_course(instructor, status='published', course_type='coursera_plus', title='Plus course')
-    f.make_course(instructor, status='published', course_type='free', title='Free course')
-    f.make_course(instructor, status='draft', course_type='coursera_plus', title='Draft plus')
-
-    r = auth_client(student).get(PLUS_PREVIEW)
-
-    assert r.status_code == 200
-    body = r.json()
-    assert set(body) == {'preview_courses', 'benefits', 'pricing', 'checkout_url'}
-    assert [c['id'] for c in body['preview_courses']] == [str(plus.uuid)]
-    assert set(body['preview_courses'][0]) == {'id', 'title', 'instructor', 'thumbnail', 'rating',
-                                               'students', 'duration', 'level', 'category',
-                                               'description'}
-    assert body['benefits']['total_plus_courses'] == 1
-    assert body['benefits']['total_free_courses'] == 1
-    assert {'monthly', 'yearly', 'yearly_savings', 'yearly_savings_percentage'} <= set(body['pricing'])
-
-
-def test_plus_preview_for_subscriber_and_for_non_students(auth_client, api, instructor, student):
-    """Subscribers get a message, non-students 403, anonymous 401."""
-    f.give_plus(student)
-
-    r = auth_client(student).get(PLUS_PREVIEW)
-    assert r.status_code == 200
-    assert 'message' in r.json()
-    assert 'preview_courses' not in r.json()
-
-    assert auth_client(instructor).get(PLUS_PREVIEW).status_code == 403
-    assert api.get(PLUS_PREVIEW).status_code == 401

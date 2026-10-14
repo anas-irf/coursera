@@ -14,8 +14,6 @@ urlpatterns = [
     path('student/gradebook/', student.student_gradebook, name='student-gradebook'),
 
     # instructor
-    path('quizzes/<uuid:lecture_uuid>/reorder-questions/', instructor.reorder_quiz_questions,
-         name='quiz-reorder-questions'),
     path('instructor/assignments/', instructor.instructor_assignments, name='instructor-assignments'),
     path('instructor/assignments/<uuid:assignment_uuid>/submissions/',
          instructor.instructor_assignment_submissions, name='instructor-assignment-submissions'),

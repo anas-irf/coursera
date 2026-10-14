@@ -9,7 +9,7 @@ recursively and returns sorted lines::
   ``@api_view``; ViewSets: from ``callback.actions`` (HEAD is ignored - DRF adds
   it lazily at request time, which would make the table order dependent);
 * format-suffix variants (``\\.(?P<format>...)``) and DRF API-root views are
-  skipped, so are Django's own admin URLs;
+  skipped;
 * the URL *name* is the bare route name (no namespace) so that renaming apps /
   namespaces does not change the table;
 * WebSocket routes are read from the project's ASGI application
@@ -52,16 +52,10 @@ def _methods(callback):
                   if m.lower() not in IGNORED_METHODS and hasattr(cls, m))
 
 
-def _is_admin(resolver):
-    return 'admin' in (getattr(resolver, 'app_name', None), getattr(resolver, 'namespace', None))
-
-
 def _walk(patterns, prefix=''):
     for entry in patterns:
         text = prefix + _segment(entry.pattern)
         if isinstance(entry, URLResolver):
-            if _is_admin(entry):
-                continue
             yield from _walk(entry.url_patterns, text)
             continue
         if '(?P<format>' in text:  # DRF format suffix variants

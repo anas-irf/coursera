@@ -38,18 +38,18 @@ urlpatterns = [
          reorder_sections_wrapper,
          name='reorder-sections'),
     path('instructor/sections/<uuid:uuid>/',
-         curriculum.SectionViewSet.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}),
+         curriculum.SectionViewSet.as_view({'put': 'update', 'delete': 'destroy'}),
          name='section-detail'),
 
     # Lecture management
     path('instructor/sections/<uuid:section_uuid>/lectures/',
-         curriculum.LectureViewSet.as_view({'get': 'list', 'post': 'create'}),
+         curriculum.LectureViewSet.as_view({'post': 'create'}),
          name='section-lectures'),
     path('instructor/sections/<uuid:section_uuid>/lectures/reorder/',
          reorder_lectures_wrapper,
          name='reorder-lectures'),
     path('instructor/lectures/<uuid:uuid>/',
-         curriculum.LectureViewSet.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}),
+         curriculum.LectureViewSet.as_view({'put': 'update', 'delete': 'destroy'}),
          name='lecture-detail'),
     
     # Admin endpoints for course publishing

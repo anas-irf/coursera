@@ -18,22 +18,8 @@ PAYMENT_PROVIDER_ERROR = 'The payment provider could not process this request. P
 
 
 # --------------------------------------------------------------------------- #
-# Plans and checkout
+# Checkout
 # --------------------------------------------------------------------------- #
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_subscription_plans(request):
-    """Get available subscription plans for checkout"""
-
-    if request.user.user_type != 'student':
-        return Response(
-            {'error': 'Only students can view subscription plans'},
-            status=status.HTTP_403_FORBIDDEN
-        )
-
-    return Response(selectors.plans_data())
-
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def checkout_page_data(request):

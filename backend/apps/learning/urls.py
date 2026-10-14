@@ -8,7 +8,6 @@ app_name = 'learning'
 urlpatterns = [
     # discovery
     path('courses/', views.all_courses, name='all-courses'),
-    path('plus-preview/', views.plus_courses_preview, name='plus-courses-preview'),
 
     # learning
     path('enrolled/', views.student_enrolled_courses, name='enrolled-courses'),

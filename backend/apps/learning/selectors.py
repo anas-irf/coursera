@@ -8,7 +8,6 @@ from apps.courses.models import Course, Lecture, Section
 from .models import CourseBookmark, Enrollment, LectureProgress
 
 CATALOG_LIMIT = 20
-PREVIEW_LIMIT = 12
 
 
 def _with_card_data(courses):
@@ -66,21 +65,6 @@ def catalog(user, *, category='all', level='all', course_type='all', search='', 
         )
 
     return list(courses[:limit])
-
-
-def plus_preview_courses():
-    """The best rated Plus courses, shown to students without a subscription."""
-    courses = Course.objects.filter(
-        course_type='coursera_plus', status='published'
-    ).order_by('-average_rating', '-total_enrolled')
-    return list(_with_card_data(courses)[:PREVIEW_LIMIT])
-
-
-def published_counts():
-    """``(plus, free)`` numbers of published courses."""
-    published = Course.objects.filter(status='published')
-    return (published.filter(course_type='coursera_plus').count(),
-            published.filter(course_type='free').count())
 
 
 def enrolled_courses(student):

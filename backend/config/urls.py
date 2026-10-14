@@ -7,12 +7,9 @@ Stripe dashboard (see apps/billing/webhook_urls.py).
 """
 from django.conf import settings
 from django.conf.urls.static import static
-from django.contrib import admin
 from django.urls import include, path
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-
     path('api/auth/', include('apps.accounts.urls')),
     path('api/courses/', include('apps.courses.urls')),
     path('api/learning/', include('apps.learning.urls')),

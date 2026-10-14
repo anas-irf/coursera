@@ -4,7 +4,6 @@ from apps.courses import extensions
 from .. import selectors
 
 TRUNCATE_CATALOG = 200
-TRUNCATE_PREVIEW = 150
 
 
 def _instructor_name(course):
@@ -59,22 +58,6 @@ def catalog_card(course, *, student_view, has_plus):
         'can_enroll': can_enroll,
         'enrollment_message': enrollment_message,
         'progress': float(own_progress) if is_enrolled and own_progress is not None else 0,
-    }
-
-
-def preview_card(course):
-    """One Plus course in the upgrade teaser."""
-    return {
-        'id': str(course.uuid),
-        'title': course.title,
-        'instructor': _instructor_name(course),
-        'thumbnail': course.thumbnail.url if course.thumbnail else None,
-        'rating': float(course.average_rating),
-        'students': course.total_enrolled,
-        'duration': _hours(course),
-        'level': course.level,
-        'category': course.category.name if course.category else 'General',
-        'description': _short(course.description, TRUNCATE_PREVIEW),
     }
 
 

@@ -23,7 +23,6 @@ import factories as f
 pytestmark = pytest.mark.django_db
 
 CHECKOUT_DATA = '/api/billing/checkout/'
-CHECKOUT_PLANS = '/api/billing/plans/'
 STRIPE_SESSION = '/api/billing/checkout/session/'
 WEBHOOK = '/api/payments/stripe/webhook/'
 VERIFY_SESSION = '/api/billing/checkout/verify/'
@@ -140,18 +139,17 @@ def test_checkout_data_reports_current_subscription_and_database_plans(auth_clie
 
 
 def test_checkout_endpoints_are_student_only(api, auth_client, instructor):
-    """Anonymous 401, instructors 403 on checkout data and plans."""
-    for url in (CHECKOUT_DATA, CHECKOUT_PLANS):
-        assert api.get(url).status_code == 401
-        assert auth_client(instructor).get(url).status_code == 403
+    """Anonymous 401, instructors 403 on checkout data."""
+    assert api.get(CHECKOUT_DATA).status_code == 401
+    assert auth_client(instructor).get(CHECKOUT_DATA).status_code == 403
 
 
-def test_plans_endpoint_returns_default_plans(auth_client, student):
-    """The plans endpoint returns {plans, currency}."""
-    r = auth_client(student).get(CHECKOUT_PLANS)
+def test_checkout_data_lists_the_default_plans_when_none_is_configured(auth_client, student):
+    """Without configured plans the checkout data offers the monthly and yearly defaults."""
+    r = auth_client(student).get(CHECKOUT_DATA)
 
     assert r.status_code == 200
-    assert set(r.json()) == {'plans', 'currency'}
+    assert r.json()['currency'] == 'USD'
     assert [p['billing_cycle'] for p in r.json()['plans']] == ['monthly', 'yearly']
 
 

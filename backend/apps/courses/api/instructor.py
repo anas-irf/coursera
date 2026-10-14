@@ -26,15 +26,15 @@ def _published_course_response(course):
 class InstructorCourseViewSet(mixins.CreateModelMixin,
                               mixins.ListModelMixin,
                               mixins.RetrieveModelMixin,
-                              mixins.UpdateModelMixin,
                               viewsets.GenericViewSet):
-    """Instructor course CRUD. There is no plain DELETE: courses are removed with
-    the ``delete-course`` action, which requires a confirmation string."""
+    """Instructor course CRUD. There is no plain DELETE (courses are removed with the
+    ``delete-course`` action, which requires a confirmation string) and no PUT: a course
+    is changed with PATCH, which is what the frontend sends."""
     permission_classes = [IsInstructor]
     serializer_class = CourseListSerializer
 
     def get_serializer_class(self):
-        if self.action in ['create', 'update', 'partial_update']:
+        if self.action in ['create', 'partial_update']:
             return CourseCreateSerializer
         elif self.action == 'retrieve':
             return CourseDetailSerializer
@@ -114,16 +114,12 @@ class InstructorCourseViewSet(mixins.CreateModelMixin,
             'message': f'Course "{title}" has been permanently deleted.'
         }, status=status.HTTP_200_OK)
 
-    def update(self, request, *args, **kwargs):
-        """Override update to prevent editing published courses"""
-        course = self.get_object()
-        if course.status == 'published':
-            return _published_course_response(course)
-        return super().update(request, *args, **kwargs)
-
     def partial_update(self, request, *args, **kwargs):
-        """Override partial_update to prevent editing published courses"""
+        """Change a course (not while it is published)"""
         course = self.get_object()
         if course.status == 'published':
             return _published_course_response(course)
-        return super().partial_update(request, *args, **kwargs)
+        serializer = self.get_serializer(course, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)

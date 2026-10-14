@@ -40,7 +40,7 @@ def do_login(api, email, password=f.DEFAULT_PASSWORD):
 # signup
 # --------------------------------------------------------------------------- #
 def test_signup_student_returns_user_tokens_and_creates_profile(api):
-    """Student signup: 201, user + tokens, student profile and a verification token."""
+    """Student signup: 201, user + tokens and a student profile."""
     payload = signup_payload()
     r = api.post(SIGNUP, payload, format='json')
 
@@ -58,8 +58,6 @@ def test_signup_student_returns_user_tokens_and_creates_profile(api):
     assert user.check_password(payload['password'])
     assert f.StudentProfile.objects.filter(user=user).exists()
     assert not f.InstructorProfile.objects.filter(user=user).exists()
-    # a verification token is generated (the mail itself is a TODO in the app)
-    assert user.email_verification_token
     assert user.email_verified is False
 
 
@@ -270,32 +268,3 @@ def test_token_refresh_rotates_and_blacklists_the_old_refresh_token(api):
     assert api.post(REFRESH, {'refresh': old_refresh}, format='json').status_code == 401
     # ... and the rotated one can be used once more
     assert api.post(REFRESH, {'refresh': body['refresh']}, format='json').status_code == 200
-
-
-# --------------------------------------------------------------------------- #
-# e-mail verification
-# --------------------------------------------------------------------------- #
-def test_email_verification_token_flow(api):
-    """Verification token marks the e-mail verified and is single use."""
-    payload = signup_payload()
-    assert api.post(SIGNUP, payload, format='json').status_code == 201
-    token = f.User.objects.get(email=payload['email']).email_verification_token
-    assert token
-
-    r = api.get(f'/api/auth/verify-email/{token}/')
-    assert r.status_code == 200
-    assert 'message' in r.json()
-    user = f.User.objects.get(email=payload['email'])
-    assert user.email_verified is True
-    assert user.email_verification_token is None
-
-    # the token is single use
-    r = api.get(f'/api/auth/verify-email/{token}/')
-    assert r.status_code == 400
-    assert 'error' in r.json()
-
-
-def test_email_verification_with_unknown_token_is_400(api):
-    """Unknown verification token is a 400."""
-    r = api.get('/api/auth/verify-email/does-not-exist/')
-    assert r.status_code == 400
