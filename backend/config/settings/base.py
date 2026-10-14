@@ -211,6 +211,7 @@ REST_FRAMEWORK = {
         'refresh': env_str('THROTTLE_REFRESH', '60/min'),
         'messages': env_str('THROTTLE_MESSAGES', '60/min'),
         'uploads': env_str('THROTTLE_UPLOADS', '30/min'),
+        'progress': env_str('THROTTLE_PROGRESS', '120/min'),
     },
     # how many proxies sit in front of the app: the client address is the right
     # X-Forwarded-For hop (0 = REMOTE_ADDR; never trust a header nobody appended)

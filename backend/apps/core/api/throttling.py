@@ -30,3 +30,8 @@ class MessageThrottle(UserRateThrottle):
 class UploadThrottle(UserRateThrottle):
     """Anything that carries a file: lecture content and assignment hand-ins."""
     scope = 'uploads'
+
+
+class ProgressThrottle(UserRateThrottle):
+    """The video player's heartbeat (one every ~15 s per open player)."""
+    scope = 'progress'

@@ -27,7 +27,7 @@ from apps.core.models import Category, Language  # noqa: E402,F401
 from apps.courses.models import Course, Section, Lecture  # noqa: E402,F401
 from apps.content.models import VideoContent, Reading, Subtitle  # noqa: E402,F401
 from apps.learning.models import (  # noqa: E402,F401
-    Enrollment, LectureProgress, CourseBookmark,
+    Enrollment, LectureProgress, CourseBookmark, LearningStreak,
 )
 from apps.assessments.models import (  # noqa: E402,F401
     Quiz, Question, QuestionOption, QuizAttempt, QuestionResponse,
@@ -360,6 +360,16 @@ def enroll(student, course, *, status='active'):
         Enrollment.objects.filter(pk=enrollment.pk).update(status=status)
         enrollment.refresh_from_db()
     return enrollment
+
+
+def log_learning(student, *, days_ago=0, seconds=3600, course=None):
+    """A day of the student's learning log (what the player's heartbeat writes)."""
+    day = timezone.localdate() - timedelta(days=days_ago)
+    row, _ = LearningStreak.objects.get_or_create(student=student, streak_date=day)
+    LearningStreak.objects.filter(pk=row.pk).update(seconds_learned=seconds)
+    if course is not None:
+        row.courses_accessed.add(course)
+    return row
 
 
 # ---- misc ----------------------------------------------------------------- #

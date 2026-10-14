@@ -17,8 +17,8 @@ def student_stats(request):
 @api_view(['GET'])
 @permission_classes([IsStudent])
 def student_weekly_progress(request):
-    """Get student's weekly learning progress (placeholder data)"""
-    return Response(student_insights.weekly_progress())
+    """Hours learned in each of the last months, from the learning log"""
+    return Response(student_insights.weekly_progress(request.user))
 
 
 @api_view(['GET'])

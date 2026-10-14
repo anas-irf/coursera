@@ -45,6 +45,7 @@ api/v1/learning/courses/<uuid:course_uuid>/bookmark/ | POST | bookmark-course
 api/v1/learning/courses/<uuid:course_uuid>/enroll/ | POST | enroll-course
 api/v1/learning/courses/<uuid:course_uuid>/learn/ | GET | course-learn
 api/v1/learning/courses/<uuid:course_uuid>/lectures/<uuid:lecture_uuid>/complete/ | POST | mark-lecture-complete
+api/v1/learning/courses/<uuid:course_uuid>/lectures/<uuid:lecture_uuid>/progress/ | POST | record-watch-progress
 api/v1/learning/enrolled/ | GET | enrolled-courses
 api/v1/learning/instructor/courses/<uuid:course_uuid>/students/ | GET | instructor-courses-students
 api/v1/learning/instructor/students/ | GET | instructor-courses-students-list

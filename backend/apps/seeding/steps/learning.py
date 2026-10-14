@@ -8,6 +8,7 @@ are the application's own.  The dates are then moved into the past (see
 from datetime import timedelta
 
 from django.core.files.base import ContentFile
+from django.utils import timezone
 
 from apps.assessments.models import Assignment as AssignmentModel
 from apps.assessments.models import AssignmentSubmission, QuestionResponse
@@ -16,7 +17,7 @@ from apps.assessments.services import assignments, quizzes
 from apps.core.api.errors import ServiceError
 from apps.courses.models import Lecture
 from apps.learning import services as learning
-from apps.learning.models import CourseBookmark, Enrollment, LectureProgress
+from apps.learning.models import CourseBookmark, Enrollment, LearningStreak, LectureProgress
 
 from .. import assets
 from ..clock import backdate, backdate_rows, notifications_at
@@ -67,7 +68,11 @@ def _enrol(ctx, student, spec):
     moments = _moments(ctx, spec, start)
     seconds = 0
     for lecture, when in zip(lectures, moments, strict=False):
-        seconds += _finish(ctx, student, course.instructor, enrollment, lecture, when, spec)
+        spent = _finish(ctx, student, course.instructor, enrollment, lecture, when, spec)
+        seconds += spent
+        # the day the student learned: the log is what streaks, hours and ranks read
+        learning.record_activity(student, course, spent, day=timezone.localdate(when))
+    _forget_the_day_of_the_run(student, moments)
 
     enrollment.refresh_from_db()
     last = moments[-1] if moments else None
@@ -79,6 +84,15 @@ def _enrol(ctx, student, spec):
     if spec.certificate:
         recognition.issue(ctx, enrollment, last)
     return 1
+
+
+def _forget_the_day_of_the_run(student, moments):
+    """The services log every completion on the day the seed runs; the story says it
+    happened earlier, so a day with nothing but those empty marks is dropped."""
+    today = timezone.localdate()
+    if any(timezone.localdate(when) == today for when in moments):
+        return
+    LearningStreak.objects.filter(student=student, streak_date=today, seconds_learned=0).delete()
 
 
 def _check(student, spec, lectures):

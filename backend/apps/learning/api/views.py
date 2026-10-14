@@ -3,7 +3,7 @@ import logging
 
 from django.shortcuts import get_object_or_404
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
@@ -11,6 +11,8 @@ from apps.accounts.permissions import IsInstructor, IsStudent
 from apps.billing.selectors import has_plus_access
 from apps.core.api.errors import PermissionDenied, ServiceError
 from apps.core.api.pagination import paginate
+from apps.core.api.params import object_body
+from apps.core.api.throttling import ProgressThrottle
 from apps.courses.models import Course, Lecture
 
 from .. import selectors, services
@@ -120,6 +122,33 @@ def mark_lecture_complete(request, course_uuid, lecture_uuid):
         'success': True,
         'message': 'Lecture marked as completed',
         'progress_percentage': enrollment.progress_percentage
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsStudent])
+@throttle_classes([ProgressThrottle])
+def record_watch_progress(request, course_uuid, lecture_uuid):
+    """Heartbeat of the video player: ``{position, finished?}`` in seconds.
+
+    Remembers where to resume and counts the time spent watching.
+    """
+    course = get_object_or_404(Course, uuid=course_uuid, status='published')
+    lecture = get_object_or_404(Lecture, uuid=lecture_uuid, section__course=course)
+
+    enrollment = selectors.enrollment_for_access(request.user, course)
+    if enrollment is None:
+        raise PermissionDenied('You must be enrolled in this course')
+
+    body = object_body(request)
+    progress = services.record_watch(
+        enrollment, lecture, body.get('position'), finished=body.get('finished') is True)
+
+    return Response({
+        'last_watched_position': progress.last_watched_position,
+        'progress_seconds': progress.progress_seconds,
+        'watch_count': progress.watch_count,
+        'total_time_spent': enrollment.total_time_spent,
     })
 
 

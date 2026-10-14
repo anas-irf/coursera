@@ -288,10 +288,11 @@ def test_hand_ins_are_graded_waiting_or_late(world):
 @pytest.mark.django_db
 def test_the_streak_student_has_activity_on_eight_consecutive_days(world):
     from apps.insights import student as insights
+    from apps.learning import selectors as learning
 
     amara = f.User.objects.get(email='amara.okoye@example.com')
 
-    assert insights.learning_streak(amara) >= 7
+    assert learning.current_streak(amara) >= 7
     assert any(b['title'] == 'Week Warrior' and b['earned'] for b in insights.badges(amara))
 
 

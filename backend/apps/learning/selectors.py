@@ -1,11 +1,14 @@
 """Read side of the learning slice: catalogue, my courses, player data, rosters."""
+from datetime import date, timedelta
+
 from django.db.models import Count, Exists, OuterRef, Q, Subquery, Sum
+from django.utils import timezone
 
 from apps.content.models import VideoContent
 from apps.core.utils import sanitize_search_query
 from apps.courses.models import Course, Lecture, Section
 
-from .models import CourseBookmark, Enrollment, LectureProgress
+from .models import CourseBookmark, Enrollment, LearningStreak, LectureProgress
 
 ACTIVE = ('active',)
 # a finished course stays open: the student may revisit it and retake what it contains
@@ -148,3 +151,79 @@ def instructor_roster(instructor):
     return Enrollment.objects.filter(
         course__instructor=instructor
     ).select_related('student', 'course').order_by('-enrolled_date')
+
+
+# --------------------------------------------------------------------------- #
+# the activity log: what was really learned, and when
+# --------------------------------------------------------------------------- #
+STREAK_LOOKBACK_DAYS = 400
+
+
+def video_seconds(lecture):
+    """Length of a video lecture in seconds (0 when it was never recorded)."""
+    return VideoContent.objects.filter(lecture=lecture).values_list('duration', flat=True).first() or 0
+
+
+def month_start(day, back=0):
+    """The first day of the month ``back`` months before ``day``'s month."""
+    index = day.year * 12 + day.month - 1 - back
+    return date(index // 12, index % 12 + 1, 1)
+
+
+def _log(since=None):
+    rows = LearningStreak.objects.all()
+    return rows if since is None else rows.filter(streak_date__gte=since)
+
+
+def total_seconds(student, *, since=None):
+    """Seconds the student spent learning, all time or since a day."""
+    return _log(since).filter(student=student).aggregate(total=Sum('seconds_learned'))['total'] or 0
+
+
+def streak_run(student, *, today=None):
+    """``(length, last day)`` of the run of consecutive days with activity that ends today.
+
+    A day that has not seen activity yet does not break the run: it then ends yesterday.
+    """
+    today = today or timezone.localdate()
+    days = set(
+        LearningStreak.objects
+        .filter(student=student, streak_date__gte=today - timedelta(days=STREAK_LOOKBACK_DAYS))
+        .values_list('streak_date', flat=True)
+    )
+    day = today if today in days else today - timedelta(days=1)
+    last, length = day, 0
+    while day in days:
+        length += 1
+        day -= timedelta(days=1)
+    return length, (last if length else None)
+
+
+def current_streak(student, *, today=None):
+    """Consecutive days with learning activity, counting back from today."""
+    return streak_run(student, today=today)[0]
+
+
+def seconds_by_month(student, months, *, today=None):
+    """``[(first day of the month, seconds), ...]`` of the last ``months`` calendar months, oldest first."""
+    today = today or timezone.localdate()
+    first = month_start(today, back=months - 1)
+    totals = {}
+    rows = LearningStreak.objects.filter(student=student, streak_date__gte=first)
+    for day, seconds in rows.values_list('streak_date', 'seconds_learned'):
+        key = day.replace(day=1)
+        totals[key] = totals.get(key, 0) + seconds
+    starts = [month_start(today, back=months - 1 - index) for index in range(months)]
+    return [(start, totals.get(start, 0)) for start in starts]
+
+
+def rank_by_seconds(student, *, since=None):
+    """Place of the student among everyone by time learned (1 = most; a tie shares the place)."""
+    mine = total_seconds(student, since=since)
+    ahead = (
+        _log(since).values('student')
+        .annotate(total=Sum('seconds_learned'))
+        .filter(total__gt=mine)
+        .count()
+    )
+    return ahead + 1

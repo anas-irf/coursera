@@ -334,22 +334,3 @@ def test_a_lapsed_plus_subscription_does_not_block_completing_lectures(
     assert r.status_code == 200
     enrollment.refresh_from_db()
     assert enrollment.progress_percentage == 25
-
-
-@pytest.mark.pinned_bug
-def test_no_endpoint_records_watch_time_current_behaviour(auth_client, student, enrolled):
-    """Current behaviour: ``progress_seconds`` / ``last_watched_position`` /
-    ``watch_count`` are never written, even for completed lectures."""
-    bundle, enrollment = enrolled
-    client = auth_client(student)
-    for lecture in bundle.lectures[:2]:
-        assert client.post(complete_url(bundle.course, lecture)).status_code == 200
-
-    payload = client.get(learn_url(bundle.course)).json()
-
-    lectures = payload['sections'][0]['lectures']
-    assert [lec['is_completed'] for lec in lectures] == [True, True, False, False]
-    assert all(lec['progress_seconds'] == 0 for lec in lectures)
-    assert all(lec['last_watched_position'] == 0 for lec in lectures)
-    assert all(lec['watch_count'] == 0 for lec in lectures)
-    assert f.LectureProgress.objects.filter(enrollment=enrollment, progress_seconds__gt=0).count() == 0

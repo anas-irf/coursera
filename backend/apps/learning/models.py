@@ -101,10 +101,15 @@ class CourseBookmark(BaseModel):
         unique_together = ['student', 'course']
 
 class LearningStreak(BaseModel):
+    """One row per student and day with learning activity.
+
+    It is the log behind the streak, the hours and the monthly chart: the player's
+    heartbeat adds the seconds watched, completing a lecture marks the day.
+    """
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                                related_name='learning_streaks')
-    streak_date = models.DateField(unique=True)
-    minutes_learned = models.IntegerField(default=0)
+    streak_date = models.DateField()
+    seconds_learned = models.IntegerField(default=0)
     courses_accessed = models.ManyToManyField(Course)
     
     class Meta:
