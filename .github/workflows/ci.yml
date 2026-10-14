@@ -78,6 +78,22 @@ jobs:
           python manage.py check
           python manage.py makemigrations --check --dry-run
 
+      - name: Production settings (deployment checks)
+        working-directory: backend
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.prod
+          DEBUG: "False"
+          DB_ENGINE: sqlite
+          ALLOWED_HOSTS: api.example.com
+          CORS_ALLOWED_ORIGINS: https://app.example.com
+          FRONTEND_URL: https://app.example.com
+          REDIS_URL: redis://localhost:6379/0
+          BEHIND_TLS_PROXY: "True"
+        run: |
+          SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(64))')"
+          export SECRET_KEY
+          python manage.py check --deploy --fail-level WARNING
+
   backend-test:
     name: Backend tests (Python ${{ matrix.python }}, PostgreSQL ${{ matrix.postgres }})
     needs: changes
@@ -218,6 +234,8 @@ jobs:
 
       - name: Production build (warnings fail it)
         working-directory: frontend
+        env:
+          REACT_APP_API_URL: http://localhost:8000/api
         run: npm run build
 
       - name: Upload the test report
@@ -283,6 +301,8 @@ jobs:
 
       - name: Build the frontend (it talks to the API on localhost:8000)
         working-directory: frontend
+        env:
+          REACT_APP_API_URL: http://localhost:8000/api
         run: npm run build
 
       - name: Migrate and seed the database

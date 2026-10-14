@@ -111,15 +111,25 @@ how to run it locally: [docs/CI.md](docs/CI.md).
 
 ## Configuration
 
+Local development needs none of the backend variables: `config.settings.dev` supplies safe defaults.
+A deployment runs `config.settings.prod` (the default of `wsgi.py` and `asgi.py`), which **refuses to
+start** and names every missing variable marked *required* below.
+
 | Variable | Where | Meaning |
 |---|---|---|
+| `SECRET_KEY` | backend | signs sessions and JWTs; **required in production**, a development key is refused |
+| `ALLOWED_HOSTS` | backend | host names served; **required in production** |
+| `CORS_ALLOWED_ORIGINS` | backend | origins of the React app; **required in production** (localhost in development) |
+| `FRONTEND_URL` | backend | where Stripe sends customers back; **required in production** |
 | `DB_ENGINE` | backend | `sqlite` or `postgres` (default) |
-| `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` | backend | PostgreSQL connection (no default password) |
+| `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` | backend | PostgreSQL connection (no default password; `DB_PASSWORD` is required in production) |
+| `REDIS_URL` | backend | Channels layer; in-memory when empty (required in production unless `CHANNEL_LAYER=memory`) |
+| `BEHIND_TLS_PROXY` | backend | production only: trust the proxy's `X-Forwarded-Proto` |
+| `JWT_ACCESS_LIFETIME_MINUTES`, `JWT_REFRESH_LIFETIME_DAYS` | backend | token lifetimes (60 and 7) |
+| `LOG_LEVEL` | backend | level of the application's loggers (`INFO`) |
 | `SEED_PASSWORD` | backend | password of the users `seed_dev` creates (random when empty) |
-| `REDIS_URL` | backend | Channels layer; in-memory when empty |
-| `FRONTEND_URL` | backend | where Stripe sends customers back |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | backend | Stripe test secret key (no default) and webhook secret |
-| `REACT_APP_API_URL` | frontend | API base, default `http://localhost:8000/api` |
+| `REACT_APP_API_URL` | frontend | API base; **required for a production build** (`npm run build` stops without it), `http://localhost:8000/api` in development |
 | `REACT_APP_WS_URL` | frontend | WebSocket base, derived from the API URL by default |
 
 `backend/.env.example` lists the rest.

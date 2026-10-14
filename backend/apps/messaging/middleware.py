@@ -21,10 +21,10 @@ def get_user_from_token(token_string):
         
         # Get the user
         user = User.objects.get(id=user_id)
-        logger.info(f"WebSocket authentication successful for user: {user.email}")
+        logger.info("WebSocket authentication successful for user id=%s", user.pk)
         return user
     except (InvalidToken, TokenError, User.DoesNotExist) as e:
-        logger.warning(f"WebSocket authentication failed: {e}")
+        logger.warning("WebSocket authentication failed: %s", e)
         return AnonymousUser()
 
 class JWTAuthMiddleware(BaseMiddleware):
@@ -44,7 +44,7 @@ class JWTAuthMiddleware(BaseMiddleware):
             if token:
                 # Get user from token
                 scope['user'] = await get_user_from_token(token)
-                logger.info(f"WebSocket scope user set to: {scope['user']}")
+                logger.debug("WebSocket scope user id=%s", getattr(scope['user'], 'pk', None))
             else:
                 logger.warning("No token found in WebSocket query parameters")
                 scope['user'] = AnonymousUser()

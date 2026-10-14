@@ -62,6 +62,21 @@ Frontend, enforced by ESLint (`frontend/.eslintrc.js`, `import/no-restricted-pat
 * `search` and `reviews` were removed; their tables (`course_reviews`, `review_helpful_votes`, `instructor_ratings`, `search_history`, `saved_searches`, `course_recommendations`, `trending_topics`) are orphaned. Before applying the migrations to a database that held real data, check that they are empty; if one has rows, keep that app registered instead.
 * Models without a live code path were removed, with the columns nothing read: `insights` analytics (the slice owns no tables now), `messaging` discussion threads / replies / votes, `learning` notes, `certificates` templates and verification, `assessments` rubrics, `notifications` preferences and e-mail templates, `content` video qualities and encoding columns, `courses` prerequisites / announcements / resources (the lecture payload keeps its `resources` key, always empty). Their migrations are named `*_drop_*` and use `apps.core.migration_ops`: they stop before dropping a table that holds rows or a column that holds a value, so a database that did use one of them is never emptied silently (`tests/test_migration_ops.py`). `learning.LearningStreak` is kept: it becomes the daily activity log.
 
+## Configuration
+
+`backend/config/settings/` has one module per environment on top of `base.py`: `dev.py` (local defaults),
+`test.py` (the suite) and `prod.py` (what a deployment must supply). `manage.py` selects `dev`; `wsgi.py` and
+`asgi.py` select `prod`. `base.py` carries no development convenience (no secret key, no localhost origins,
+`DEBUG` off). Variables are read through `env.py` (typed helpers over python-decouple; a `.env` next to
+`manage.py` is read too and real variables win) and listed in `backend/.env.example`, which
+`tests/test_env_example.py` keeps in step with the code.
+
+`prod.py` raises `ImproperlyConfigured` naming every missing variable and refuses a placeholder `SECRET_KEY`,
+`CORS_ALLOW_ALL_ORIGINS` and a Stripe key without its webhook secret; it turns on HTTPS redirect, HSTS and
+secure cookies. `tests/test_settings_prod.py` imports it in a subprocess on a copy of the package, and CI runs
+`manage.py check --deploy` against it. The frontend's `npm run build` stops without `REACT_APP_API_URL`
+(`frontend/scripts/require-env.js`).
+
 ## HTTP and WebSocket surface
 
 Every slice is mounted at `/api/<slice>/`: `auth`, `courses`, `learning`, `assessments`, `billing`, `insights`, `certificates`, `messaging`, `notifications`. The one exception is Stripe's webhook, `/api/payments/stripe/webhook/`, which is configured in the Stripe dashboard.
@@ -129,6 +144,6 @@ What the seed cannot show, because the application cannot (see *Known gaps*): th
 
 Documented, not fixed in the restructuring:
 
-* **Security**: the Stripe webhook accepts unsigned bodies when `STRIPE_WEBHOOK_SECRET` is empty; the Django development `SECRET_KEY` has a default in settings (the Stripe secret key has none: it must come from the environment, see `backend/.env.example`); quiz options are not checked to belong to the answered question and the quiz time limit is not enforced on the server; reading HTML is rendered unsanitised; tokens live in `localStorage` and the WebSocket token is in the query string; `/api/messaging/users/` lists every user; the rate limiter's path prefixes never match.
+* **Security**: the Stripe webhook accepts unsigned bodies when `STRIPE_WEBHOOK_SECRET` is empty; quiz options are not checked to belong to the answered question and the quiz time limit is not enforced on the server; reading HTML is rendered unsanitised; tokens live in `localStorage` and the WebSocket token is in the query string; `/api/messaging/users/` lists every user; the rate limiter's path prefixes never match.
 * **Logic**: editing a quiz or assignment recreates it and cascades to attempts / submissions; a completed enrolment can no longer open the player; the subscription end date is not moved on renewal; certificates are never issued and `Certificate.save()` cannot build its number; nothing creates `InstructorEarning` rows (the seed writes them); watch time is not recorded so the weekly chart is a placeholder.
 * **Product**: instructor analytics, instructor settings, admin revenue / reports / settings have no backend.

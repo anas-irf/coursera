@@ -9,14 +9,13 @@ variables, which is what CI does.  Django creates (and drops) a separate
 import tempfile
 from pathlib import Path
 
-from decouple import config
-
 from .base import *  # noqa: F401,F403
 from .base import INSTALLED_APPS as _BASE_APPS
 from .base import MIDDLEWARE as _BASE_MIDDLEWARE
 from .base import postgres_database
+from .env import LOCAL_ORIGINS, env_str
 
-if config('TEST_DB_ENGINE', default='sqlite').lower() != 'postgres':
+if env_str('TEST_DB_ENGINE', 'sqlite').lower() != 'postgres':
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -30,6 +29,12 @@ else:
     # PostgreSQL whatever DB_ENGINE says for the dev server (a .env on sqlite
     # must not silently turn this into a SQLite run)
     DATABASES = {'default': postgres_database()}
+
+# the suite never reads a deployment's secrets: fixed, obviously fake values
+SECRET_KEY = 'test-only-secret-key-not-used-anywhere-else'
+ALLOWED_HOSTS = ['testserver', 'localhost']
+CORS_ALLOWED_ORIGINS = LOCAL_ORIGINS
+FRONTEND_URL = 'http://localhost:3000'
 
 # the seeding tools are tested too, but never installed in production
 INSTALLED_APPS = [*_BASE_APPS, 'apps.seeding']

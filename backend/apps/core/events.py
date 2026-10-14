@@ -36,4 +36,5 @@ def emit(signal, **payload):
     """Send ``signal`` and never raise: receiver errors are logged, not propagated."""
     for receiver, result in signal.send_robust(sender=None, **payload):
         if isinstance(result, Exception):
-            logger.error('Event receiver %s failed: %r', getattr(receiver, '__qualname__', receiver), result)
+            logger.error('Event receiver %s failed: %r', getattr(receiver, '__qualname__', receiver), result,
+                         exc_info=result)

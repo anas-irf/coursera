@@ -1,40 +1,25 @@
 """
-Base settings shared by every environment (see dev.py, prod.py and test.py).
+Base settings shared by every environment (``dev.py``, ``prod.py`` and ``test.py`` extend it).
 
-Values are read from environment variables, or from a ``.env`` file placed next
-to ``manage.py`` (a real environment variable always wins).
+Nothing in here is a development convenience: what only makes sense on a
+developer's machine (the throw-away secret key, localhost origins, DEBUG on) is
+set in ``dev.py`` and ``test.py``, and ``prod.py`` refuses to start without the
+values a deployment must supply.  Every variable is documented in
+``backend/.env.example``.
 
 For more information on this file, see
 https://docs.djangoproject.com/en/5.2/topics/settings/
 """
-from pathlib import Path
+from datetime import timedelta
 
-from decouple import AutoConfig
-from django.core.exceptions import ImproperlyConfigured
+from .env import BASE_DIR, env_bool, env_int, env_list, env_str
 
-# backend/ - this file lives in backend/config/settings/
-BASE_DIR = Path(__file__).resolve().parents[2]
+SECRET_KEY = env_str('SECRET_KEY')
 
-_config = AutoConfig(search_path=BASE_DIR)
+# secure by default: dev.py switches it on locally, prod.py reads the variable
+DEBUG = False
 
-
-def get_env_variable(var_name, default=None):
-    """Get a value from the environment / .env file or raise an exception."""
-    value = _config(var_name, default=None)
-    if value is not None:
-        return value
-    if default is not None:
-        return default
-    raise ImproperlyConfigured(f"Set the {var_name} environment variable")
-
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = get_env_variable('SECRET_KEY', 'django-insecure-development-only-key')
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = get_env_variable('DEBUG', 'True').lower() == 'true'
-
-ALLOWED_HOSTS = get_env_variable('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = env_list('ALLOWED_HOSTS')
 
 
 # Application definition
@@ -45,14 +30,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-]
 
-EXTERNAL_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
     'rest_framework_simplejwt.token_blacklist',
     'channels',  # WebSocket support
+
     # One app per product slice. Packages were renamed to slice names; the
     # AppConfig labels (accounts, courses, enrollments, payments, discussions,
     # analytics, ...) are unchanged, so tables and migrations are untouched.
@@ -69,8 +53,6 @@ EXTERNAL_APPS = [
     'apps.core',
 ]
 
-INSTALLED_APPS += EXTERNAL_APPS
-
 MIDDLEWARE = [
     'apps.core.middleware.RateLimitMiddleware',
     'corsheaders.middleware.CorsMiddleware',
@@ -84,19 +66,12 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# Security Headers
+# Security headers and cookies (prod.py adds HTTPS-only behaviour)
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
-SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
-
-# Session Security
-SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
-CSRF_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_HTTPONLY = True
 
 ROOT_URLCONF = 'config.urls'
@@ -125,7 +100,7 @@ ASGI_APPLICATION = 'config.asgi.application'
 # DB_ENGINE=sqlite gives a zero-setup local database (used by the quickstart
 # and the test-suite); the default stays PostgreSQL.
 
-DB_ENGINE = get_env_variable('DB_ENGINE', 'postgres').lower()
+DB_ENGINE = env_str('DB_ENGINE', 'postgres').lower()
 
 
 def postgres_database():
@@ -137,11 +112,11 @@ def postgres_database():
     """
     return {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': get_env_variable('DB_NAME', 'coursera_db'),
-        'USER': get_env_variable('DB_USER', 'coursera_admin'),
-        'PASSWORD': get_env_variable('DB_PASSWORD', ''),
-        'HOST': get_env_variable('DB_HOST', 'localhost'),
-        'PORT': get_env_variable('DB_PORT', '5432'),
+        'NAME': env_str('DB_NAME', 'coursera_db'),
+        'USER': env_str('DB_USER', 'coursera_admin'),
+        'PASSWORD': env_str('DB_PASSWORD', ''),
+        'HOST': env_str('DB_HOST', 'localhost'),
+        'PORT': env_str('DB_PORT', '5432'),
     }
 
 
@@ -149,7 +124,7 @@ if DB_ENGINE == 'sqlite':
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / get_env_variable('SQLITE_NAME', 'db.sqlite3'),
+            'NAME': BASE_DIR / env_str('SQLITE_NAME', 'db.sqlite3'),
         }
     }
 else:
@@ -191,21 +166,22 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
+
+# Cross-origin access: the origins of the React app.  There is no built-in
+# list; dev.py and test.py default to localhost, prod.py requires the variable.
+CORS_ALLOWED_ORIGINS = env_list('CORS_ALLOWED_ORIGINS')
 
 CORS_ALLOW_CREDENTIALS = True
 
-# SECURITY: Never allow all origins in production
-CORS_ALLOW_ALL_ORIGINS = get_env_variable('CORS_ALLOW_ALL_ORIGINS', 'False').lower() == 'true'
+# SECURITY: never allow all origins in production (prod.py refuses it)
+CORS_ALLOW_ALL_ORIGINS = env_bool('CORS_ALLOW_ALL_ORIGINS', False)
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -215,11 +191,9 @@ REST_FRAMEWORK = {
 }
 
 # JWT Settings
-from datetime import timedelta
-
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=env_int('JWT_ACCESS_LIFETIME_MINUTES', 60)),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=env_int('JWT_REFRESH_LIFETIME_DAYS', 7)),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
@@ -228,7 +202,7 @@ SIMPLE_JWT = {
 # Channels Configuration
 # The in-memory layer only works inside a single process; set REDIS_URL to use
 # Redis when the API and the WebSocket consumers run in different processes.
-REDIS_URL = get_env_variable('REDIS_URL', '')
+REDIS_URL = env_str('REDIS_URL')
 
 if REDIS_URL:
     CHANNEL_LAYERS = {
@@ -248,26 +222,25 @@ else:
         },
     }
 
-# Logging configuration for debugging WebSocket issues
+# Logging: everything goes to the console (the platform collects stdout).  The
+# application's own loggers (``apps.*``) follow LOG_LEVEL; uncaught exceptions
+# of a request are logged by ``django.request`` whatever DEBUG says.
+LOG_LEVEL = env_str('LOG_LEVEL', 'INFO').upper()
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-        },
+    'formatters': {
+        'plain': {'format': '%(asctime)s %(levelname)s %(name)s: %(message)s'},
     },
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler', 'formatter': 'plain'},
+    },
+    'root': {'handlers': ['console'], 'level': 'WARNING'},
     'loggers': {
-        'apps.messaging.consumers': {
-            'handlers': ['console'],
-            'level': 'INFO',
-            'propagate': False,
-        },
-        'apps.messaging.middleware': {
-            'handlers': ['console'],
-            'level': 'INFO',
-            'propagate': False,
-        },
+        'apps': {'handlers': ['console'], 'level': LOG_LEVEL, 'propagate': False},
+        'django.request': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
+        'django.security': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
     },
 }
 
@@ -286,12 +259,12 @@ FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
 # Max upload size is handled by web server (nginx/apache) and not Django directly
 # For development, ensure your web server allows 2GB+ uploads
 
-# Stripe Configuration
-STRIPE_SECRET_KEY = get_env_variable('STRIPE_SECRET_KEY', '')
-STRIPE_WEBHOOK_SECRET = get_env_variable('STRIPE_WEBHOOK_SECRET', '')
+# Stripe: the secret key and the webhook secret have no default
+STRIPE_SECRET_KEY = env_str('STRIPE_SECRET_KEY')
+STRIPE_WEBHOOK_SECRET = env_str('STRIPE_WEBHOOK_SECRET')
 
 # Where Stripe sends the customer back to (the React app)
-FRONTEND_URL = get_env_variable('FRONTEND_URL', 'http://localhost:3000')
+FRONTEND_URL = env_str('FRONTEND_URL')
 
 # Password of the users created by ``manage.py seed_dev`` (random, printed once, when empty)
-SEED_PASSWORD = get_env_variable('SEED_PASSWORD', '')
+SEED_PASSWORD = env_str('SEED_PASSWORD')
