@@ -55,15 +55,15 @@ def test_list_limit_and_include_read_parameters(auth_client, student):
     assert len(client.get(LIST, {'include_read': 'true'}).json()) == 5
 
 
-@pytest.mark.pinned_bug
-def test_list_with_a_non_numeric_limit_is_a_500_current_behaviour(auth_client, student):
-    """A non-numeric limit is answered with a 500 payload."""
+@pytest.mark.parametrize('limit', ['many', '1.5', '-1'])
+def test_list_with_a_bad_limit_is_a_400(auth_client, student, limit):
+    """A limit that is not a whole number >= 0 is the caller's mistake, not a server fault."""
     f.make_notification(student)
 
-    r = auth_client(student).get(LIST, {'limit': 'many'})
+    r = auth_client(student).get(LIST, {'limit': limit})
 
-    assert r.status_code == 500
-    assert 'error' in r.json()
+    assert r.status_code == 400
+    assert 'limit' in r.json()['error']
 
 
 def test_unread_count(auth_client, student, other_student):

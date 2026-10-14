@@ -129,7 +129,7 @@ def test_instructor_earnings_payload(api, auth_client, instructor, student):
     assert api.get(EARNINGS).status_code == 401
     r = auth_client(student).get(EARNINGS)
     assert r.status_code == 403
-    assert r.json() == {'error': 'Not an instructor'}
+    assert 'detail' in r.json()  # the permission class answers, like on every other route
 
 
 def test_instructor_earnings_for_an_instructor_without_earnings(auth_client, instructor):

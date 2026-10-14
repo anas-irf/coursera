@@ -54,7 +54,6 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'apps.core.middleware.RateLimitMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'apps.core.middleware.SecurityMiddleware',
@@ -186,6 +185,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOWED_ORIGINS = env_list('CORS_ALLOWED_ORIGINS')
 
 CORS_ALLOW_CREDENTIALS = True
+CORS_EXPOSE_HEADERS = ['X-Total-Count', 'Link']  # the paging headers (apps.core.api.pagination)
 
 # SECURITY: never allow all origins in production (prod.py refuses it)
 CORS_ALLOW_ALL_ORIGINS = env_bool('CORS_ALLOW_ALL_ORIGINS', False)
@@ -194,6 +194,27 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    # secure by default: a view that forgets to say who may call it is closed, not public
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
+    # named scopes (apps.core.api.throttling); every other view is limited per address or user
+    'DEFAULT_THROTTLE_CLASSES': (
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': env_str('THROTTLE_ANON', '120/min'),
+        'user': env_str('THROTTLE_USER', '1200/min'),
+        'login': env_str('THROTTLE_LOGIN', '10/min'),
+        'signup': env_str('THROTTLE_SIGNUP', '10/hour'),
+        'refresh': env_str('THROTTLE_REFRESH', '60/min'),
+        'messages': env_str('THROTTLE_MESSAGES', '60/min'),
+        'uploads': env_str('THROTTLE_UPLOADS', '30/min'),
+    },
+    # how many proxies sit in front of the app: the client address is the right
+    # X-Forwarded-For hop (0 = REMOTE_ADDR; never trust a header nobody appended)
+    'NUM_PROXIES': env_int('NUM_PROXIES', 0),
     'EXCEPTION_HANDLER': 'apps.core.api.errors.exception_handler',
 }
 
@@ -226,6 +247,16 @@ else:
                 'capacity': 1500,  # Maximum number of messages to store
                 'expiry': 60,      # Messages expire after 60 seconds
             },
+        },
+    }
+
+# Throttle counters (and anything else cached) live in Redis when there is one, so every
+# worker shares them; otherwise each process keeps its own.
+if REDIS_URL:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': REDIS_URL,
         },
     }
 

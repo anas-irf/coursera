@@ -1,7 +1,6 @@
 # insights/api/instructor.py
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsInstructor
@@ -18,12 +17,9 @@ def instructor_dashboard(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsInstructor])
 def instructor_earnings(request):
     """Get instructor earnings based on Coursera model"""
-    if request.user.user_type != 'instructor':
-        return Response({'error': 'Not an instructor'}, status=403)
-
     return Response(instructor.earnings(request.user))
 
 

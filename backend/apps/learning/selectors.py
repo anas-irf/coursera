@@ -7,8 +7,6 @@ from apps.courses.models import Course, Lecture, Section
 
 from .models import CourseBookmark, Enrollment, LectureProgress
 
-CATALOG_LIMIT = 20
-
 
 def _with_card_data(courses):
     """Annotate what a course card shows: module count and video seconds."""
@@ -26,9 +24,11 @@ def _with_card_data(courses):
     )
 
 
-def catalog(user, *, category='all', level='all', course_type='all', search='', sort='popular',
-            limit=CATALOG_LIMIT):
-    """Published courses for the explore page, flagged with the viewer's own state."""
+def catalog(user, *, category='all', level='all', course_type='all', search='', sort='popular'):
+    """Published courses for the explore page, flagged with the viewer's own state.
+
+    A queryset in a stable order, so a caller can take a page of it.
+    """
     courses = Course.objects.filter(status='published')
 
     if category != 'all':
@@ -47,12 +47,13 @@ def catalog(user, *, category='all', level='all', course_type='all', search='', 
             Q(instructor__last_name__icontains=search)
         )
 
-    if sort == 'popular':
-        courses = courses.order_by('-total_enrolled')
-    elif sort == 'rating':
-        courses = courses.order_by('-average_rating')
+    # the id breaks ties, so the same query always pages in the same order
+    if sort == 'rating':
+        courses = courses.order_by('-average_rating', 'id')
     elif sort == 'newest':
-        courses = courses.order_by('-created_at')
+        courses = courses.order_by('-created_at', 'id')
+    else:  # 'popular', which is also what an unknown value has always meant
+        courses = courses.order_by('-total_enrolled', 'id')
 
     courses = _with_card_data(courses)
 
@@ -64,7 +65,7 @@ def catalog(user, *, category='all', level='all', course_type='all', search='', 
             own_progress=Subquery(own_enrollment.values('progress_percentage')[:1]),
         )
 
-    return list(courses[:limit])
+    return courses
 
 
 def enrolled_courses(student):
@@ -102,8 +103,8 @@ def player_outline(course):
 
 
 def course_roster(course):
-    """Enrollments of one course with their students, in database order."""
-    return Enrollment.objects.filter(course=course).select_related('student')
+    """Enrollments of one course with their students, oldest first."""
+    return Enrollment.objects.filter(course=course).select_related('student').order_by('id')
 
 
 def instructor_roster(instructor):

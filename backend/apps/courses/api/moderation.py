@@ -1,18 +1,16 @@
 # courses/api/moderation.py - admin review of submitted courses
-import logging
-
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsAdmin
+from apps.core.api.pagination import paginate
+from apps.core.api.params import object_body
 
 from .. import extensions
 from ..models import Course
 from ..services import lifecycle
-
-logger = logging.getLogger(__name__)
 
 
 def _course_summary(course):
@@ -40,25 +38,17 @@ def _course_summary(course):
 @permission_classes([IsAdmin])
 def admin_pending_courses(request):
     """Get all courses pending admin review"""
-    try:
-        pending_courses = Course.objects.filter(
-            status='pending_review'
-        ).select_related('instructor').order_by('-updated_at')
+    pending_courses, headers = paginate(request, Course.objects.filter(
+        status='pending_review'
+    ).select_related('instructor').order_by('-updated_at', 'id'))
 
-        data = []
-        for course in pending_courses:
-            row = _course_summary(course)
-            row['submitted_date'] = course.updated_at.isoformat()
-            data.append(row)
+    data = []
+    for course in pending_courses:
+        row = _course_summary(course)
+        row['submitted_date'] = course.updated_at.isoformat()
+        data.append(row)
 
-        return Response(data)
-
-    except Exception:
-        logger.exception('Failed to fetch pending courses')
-        return Response(
-            {'error': 'Failed to fetch pending courses'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    return Response(data, headers=headers)
 
 
 @api_view(['POST'])
@@ -81,9 +71,9 @@ def admin_approve_course(request, course_id):
 def admin_reject_course(request, course_id):
     """Reject a course publishing request"""
     course = get_object_or_404(Course, uuid=course_id, status='pending_review')
-    reason = request.data.get('reason', '')
+    reason = object_body(request).get('reason') or ''
 
-    if not reason.strip():
+    if not isinstance(reason, str) or not reason.strip():
         return Response(
             {'error': 'Rejection reason is required'},
             status=status.HTTP_400_BAD_REQUEST
@@ -104,27 +94,20 @@ def admin_reject_course(request, course_id):
 @permission_classes([IsAdmin])
 def admin_all_courses(request):
     """Get all courses for admin dashboard"""
-    try:
-        # Get all courses regardless of status
-        all_courses = Course.objects.select_related('instructor').order_by('-created_at')
+    # all courses regardless of status
+    all_courses, headers = paginate(
+        request, Course.objects.select_related('instructor').order_by('-created_at', 'id'))
 
-        data = []
-        for course in all_courses:
-            row = _course_summary(course)
-            row.update({
-                'status': course.status,
-                'created_date': course.created_at.isoformat(),
-                'published_date': course.published_date.isoformat() if course.published_date else None,
-                'total_enrolled': course.total_enrolled,
-                'average_rating': float(course.average_rating) if course.average_rating else 0,
-            })
-            data.append(row)
+    data = []
+    for course in all_courses:
+        row = _course_summary(course)
+        row.update({
+            'status': course.status,
+            'created_date': course.created_at.isoformat(),
+            'published_date': course.published_date.isoformat() if course.published_date else None,
+            'total_enrolled': course.total_enrolled,
+            'average_rating': float(course.average_rating) if course.average_rating else 0,
+        })
+        data.append(row)
 
-        return Response(data)
-
-    except Exception:
-        logger.exception('Failed to fetch all courses')
-        return Response(
-            {'error': 'Failed to fetch all courses'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    return Response(data, headers=headers)

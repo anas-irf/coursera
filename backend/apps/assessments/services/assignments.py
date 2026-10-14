@@ -1,16 +1,19 @@
 """Assignments: handing in, grading and getting the files back."""
+import logging
 import math
 import mimetypes
 
+from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
-from django.http import Http404
 from django.utils import timezone
 
-from apps.core.api.errors import PermissionDenied, ServiceError
+from apps.core.api.errors import NotFound, PermissionDenied, ServiceError
 from apps.core.events import assignment_graded, emit
 from apps.learning import services as learning
 
 from ..models import AssignmentSubmission
+
+logger = logging.getLogger(__name__)
 
 
 def submit(student, assignment, text, file):
@@ -41,9 +44,9 @@ def submit(student, assignment, text, file):
             original_filename=file.name if file else '',
             is_late=is_late,
         )
-    except Exception as e:
-        # model validation (file type, size, name) reports through the same channel
-        raise ServiceError(f'Failed to create submission: {str(e)}') from e
+    except ValidationError as error:
+        # the model's own rules (file type, size, name) are the student's to fix
+        raise ServiceError('; '.join(error.messages)) from error
 
     if assignment.lecture:
         learning.complete_lecture_once(enrollment, assignment.lecture)
@@ -92,7 +95,7 @@ def readable_submission(user, submission_uuid):
         .first()
     )
     if submission is None:
-        raise Http404('Submission not found')
+        raise NotFound('Submission not found')
 
     if user.user_type == 'student':
         allowed = submission.student_id == user.id
@@ -101,24 +104,25 @@ def readable_submission(user, submission_uuid):
     else:
         allowed = False
     if not allowed:
-        raise Http404('Submission not found')
+        raise NotFound('Submission not found')
     return submission
 
 
 def read_submission_file(submission):
     """``(content, content_type, filename)`` of the stored file."""
     if not submission.submission_file:
-        raise Http404('No file attached to this submission')
+        raise NotFound('No file attached to this submission')
 
     path = submission.submission_file.name
     if not default_storage.exists(path):
-        raise Http404('File not found on server')
+        raise NotFound('File not found on server')
 
     try:
         with default_storage.open(path) as stored:
             content = stored.read()
-    except Exception:
-        raise Http404('Error reading file') from None
+    except OSError:
+        logger.exception('Could not read the stored file of submission %s', submission.pk)
+        raise NotFound('Error reading file') from None
 
     content_type, _ = mimetypes.guess_type(submission.original_filename)
     return content, content_type or 'application/octet-stream', submission.original_filename

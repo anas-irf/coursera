@@ -1,8 +1,8 @@
 """Platform behaviour shared by every endpoint: security headers, CORS and the
 shape of authentication failures.
 
-(The in-memory rate limiter is intentionally not exercised: the suite settings
-remove it because its counters would be shared between tests.)
+(Throttling is covered by test_throttling: the suite settings make every scope
+practically unlimited because thousands of calls come from one address.)
 """
 import pytest
 

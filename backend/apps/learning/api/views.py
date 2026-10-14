@@ -9,6 +9,7 @@ from rest_framework.response import Response
 
 from apps.accounts.permissions import IsInstructor, IsStudent
 from apps.billing.selectors import has_plus_access
+from apps.core.api.pagination import paginate
 from apps.courses.models import Course, Lecture
 
 from .. import selectors, services
@@ -16,19 +17,25 @@ from . import serializers
 
 logger = logging.getLogger(__name__)
 
+CATALOG_PAGE_SIZE = 20  # what the catalogue answers when the caller does not ask for a page
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def all_courses(request):
     """Get all available courses for students to explore"""
     params = request.GET
-    courses = selectors.catalog(
-        request.user,
-        category=params.get('category', 'all'),
-        level=params.get('level', 'all'),
-        course_type=params.get('type', 'all'),
-        search=params.get('search', ''),
-        sort=params.get('sort', 'popular'),
+    courses, headers = paginate(
+        request,
+        selectors.catalog(
+            request.user,
+            category=params.get('category', 'all'),
+            level=params.get('level', 'all'),
+            course_type=params.get('type', 'all'),
+            search=params.get('search', ''),
+            sort=params.get('sort', 'popular'),
+        ),
+        default_size=CATALOG_PAGE_SIZE,
     )
 
     is_student = request.user.is_authenticated and request.user.user_type == 'student'
@@ -37,17 +44,16 @@ def all_courses(request):
     return Response([
         serializers.catalog_card(course, student_view=is_student, has_plus=has_plus)
         for course in courses
-    ])
+    ], headers=headers)
 
 
 @api_view(['GET'])
 @permission_classes([IsStudent])
 def student_enrolled_courses(request):
     """Get student's enrolled courses with progress"""
-    return Response([
-        serializers.enrolled_course_row(enrollment)
-        for enrollment in selectors.enrolled_courses(request.user)
-    ])
+    enrollments, headers = paginate(request, selectors.enrolled_courses(request.user))
+    return Response([serializers.enrolled_course_row(enrollment) for enrollment in enrollments],
+                    headers=headers)
 
 
 @api_view(['POST'])
@@ -131,21 +137,14 @@ def course_students(request, course_uuid):
     """Get list of enrolled students"""
     course = get_object_or_404(Course, uuid=course_uuid, instructor=request.user)
 
-    return Response([
-        serializers.roster_entry(enrollment) for enrollment in selectors.course_roster(course)
-    ])
+    enrollments, headers = paginate(request, selectors.course_roster(course))
+    return Response([serializers.roster_entry(enrollment) for enrollment in enrollments],
+                    headers=headers)
 
 
 @api_view(['GET'])
 @permission_classes([IsInstructor])
 def instructor_students(request):
     """Get all students enrolled in instructor's courses"""
-    try:
-        enrollments = selectors.instructor_roster(request.user)
-        return Response(serializers.student_directory(enrollments))
-    except Exception:
-        logger.exception('Failed to fetch students')
-        return Response(
-            {'error': 'Failed to fetch students'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    enrollments, headers = paginate(request, selectors.instructor_roster(request.user))
+    return Response(serializers.student_directory(enrollments), headers=headers)

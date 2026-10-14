@@ -7,6 +7,8 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsInstructor
+from apps.core.api.params import object_body
+from apps.core.api.throttling import UploadThrottle
 
 from .. import extensions
 from ..models import Course, Lecture, Section
@@ -54,25 +56,16 @@ class SectionViewSet(viewsets.ModelViewSet):
 
     def reorder_sections(self, request, course_uuid=None):
         """Reorder sections within a course"""
-        try:
-            # Get course_uuid from kwargs or parameter
-            course_uuid = course_uuid or self.kwargs.get('course_uuid')
-            course = get_object_or_404(Course, uuid=course_uuid, instructor=request.user)
+        # course_uuid comes from the URL or from the caller
+        course_uuid = course_uuid or self.kwargs.get('course_uuid')
+        course = get_object_or_404(Course, uuid=course_uuid, instructor=request.user)
 
-            curriculum.reorder(
-                Section.objects.filter(course=course),
-                request.data.get('section_orders', []),
-            )
+        curriculum.reorder(
+            Section.objects.filter(course=course),
+            object_body(request).get('section_orders', []),
+        )
 
-            return Response({'message': 'Sections reordered successfully'})
-
-        except Exception:
-            # the cause belongs in the log, not in the response
-            logger.warning('Failed to reorder sections', exc_info=True)
-            return Response(
-                {'error': 'Failed to reorder sections'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        return Response({'message': 'Sections reordered successfully'})
 
     def update(self, request, *args, **kwargs):
         """Override update to prevent editing sections of published courses"""
@@ -96,6 +89,7 @@ class SectionViewSet(viewsets.ModelViewSet):
 class LectureViewSet(viewsets.ModelViewSet):
     serializer_class = LectureSerializer
     permission_classes = [IsInstructor]
+    throttle_classes = [UploadThrottle]  # lectures carry files
     lookup_field = 'uuid'
 
     def get_queryset(self):
@@ -149,28 +143,20 @@ class LectureViewSet(viewsets.ModelViewSet):
 
     def reorder_lectures(self, request, section_uuid=None):
         """Reorder lectures within a section"""
-        try:
-            # Get section_uuid from kwargs or parameter
-            section_uuid = section_uuid or self.kwargs.get('section_uuid')
-            section = get_object_or_404(
-                Section,
-                uuid=section_uuid,
-                course__instructor=request.user
-            )
+        # section_uuid comes from the URL or from the caller
+        section_uuid = section_uuid or self.kwargs.get('section_uuid')
+        section = get_object_or_404(
+            Section,
+            uuid=section_uuid,
+            course__instructor=request.user
+        )
 
-            curriculum.reorder(
-                Lecture.objects.filter(section=section),
-                request.data.get('lecture_orders', []),
-            )
+        curriculum.reorder(
+            Lecture.objects.filter(section=section),
+            object_body(request).get('lecture_orders', []),
+        )
 
-            return Response({'message': 'Lectures reordered successfully'})
-
-        except Exception:
-            logger.warning('Failed to reorder lectures', exc_info=True)
-            return Response(
-                {'error': 'Failed to reorder lectures'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        return Response({'message': 'Lectures reordered successfully'})
 
     def update(self, request, *args, **kwargs):
         """Override update to prevent editing lectures of published courses"""

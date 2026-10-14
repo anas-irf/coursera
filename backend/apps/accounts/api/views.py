@@ -1,11 +1,13 @@
 # accounts/api/views.py
 from django.contrib.auth import authenticate
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
+
+from apps.core.api.throttling import LoginThrottle, SignupThrottle
 
 from .. import services
 from .serializers import (
@@ -15,6 +17,7 @@ from .serializers import (
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([SignupThrottle])
 def signup(request):
     serializer = SignupSerializer(data=request.data)
     if serializer.is_valid():
@@ -31,6 +34,7 @@ def signup(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([LoginThrottle])
 def login(request):
     serializer = LoginSerializer(data=request.data)
     if serializer.is_valid():

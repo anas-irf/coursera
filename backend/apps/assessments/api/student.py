@@ -2,11 +2,12 @@
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsStudent
+from apps.core.api.throttling import UploadThrottle
 from apps.learning import services as learning
 
 from ..models import Assignment, Quiz
@@ -51,6 +52,7 @@ def attempt_quiz(request, quiz_uuid):
 
 @api_view(['POST'])
 @permission_classes([IsStudent])
+@throttle_classes([UploadThrottle])
 def submit_assignment(request, assignment_uuid):
     """Submit assignment with file upload"""
     assignment = get_object_or_404(Assignment, uuid=assignment_uuid)

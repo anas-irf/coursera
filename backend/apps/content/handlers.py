@@ -1,8 +1,7 @@
 """Video and reading lectures: how their content is authored and presented."""
 import os
 
-from rest_framework.exceptions import ValidationError
-
+from apps.core.api.errors import ServiceError
 from apps.courses.extensions import LectureContentHandler, register_content_handler
 
 from .models import Reading, Subtitle, VideoContent
@@ -169,7 +168,7 @@ class ReadingHandler(LectureContentHandler):
         if file_to_upload:
             extension = os.path.splitext(file_to_upload.name)[1].lower()
             if extension not in READING_EXTENSIONS:
-                raise ValidationError('Invalid file type. Only PDF and Markdown files are allowed.')
+                raise ServiceError('Invalid file type. Only PDF and Markdown files are allowed.')
         return file_to_upload
 
     def create(self, lecture, data, files):

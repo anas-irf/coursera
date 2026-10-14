@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsInstructor
+from apps.core.api.pagination import paginate
 
 from .. import extensions
 from ..models import Course
@@ -52,24 +53,23 @@ class InstructorCourseViewSet(mixins.CreateModelMixin,
 
     def list(self, request):
         """List all instructor's courses (slices above courses add columns, e.g. revenue)"""
-        try:
-            data = []
-            for course in self.get_queryset():
-                row = {
-                    'id': str(course.uuid),
-                    'title': course.title,
-                    'status': course.status,
-                    'course_type': course.course_type,
-                    'total_enrolled': course.total_enrolled or 0,
-                    'average_rating': float(course.average_rating or 0),
-                    'created_at': course.created_at.isoformat(),
-                    'thumbnail': course.thumbnail.url if course.thumbnail else None
-                }
-                data.append(extensions.enrich_course_row(course, row))
+        courses, headers = paginate(request, self.get_queryset().order_by('-created_at', 'id'))
 
-            return Response(data)
-        except Exception:
-            return Response([], status=200)  # Return empty list on error
+        data = []
+        for course in courses:
+            row = {
+                'id': str(course.uuid),
+                'title': course.title,
+                'status': course.status,
+                'course_type': course.course_type,
+                'total_enrolled': course.total_enrolled or 0,
+                'average_rating': float(course.average_rating or 0),
+                'created_at': course.created_at.isoformat(),
+                'thumbnail': course.thumbnail.url if course.thumbnail else None
+            }
+            data.append(extensions.enrich_course_row(course, row))
+
+        return Response(data, headers=headers)
 
     def create(self, request):
         """Create a new course"""

@@ -562,11 +562,10 @@ def test_verify_session_with_existing_subscription_does_not_call_stripe(auth_cli
 
 
 def test_verify_session_validation_and_stripe_errors(api, auth_client, student, instructor):
-    """Anonymous 401, non-student 400, missing id 400, Stripe error 400."""
+    """Anonymous 401, non-student 403, missing id 400, Stripe error 400."""
     assert api.post(VERIFY_SESSION, {'session_id': 'x'}, format='json').status_code == 401
-    # current behaviour: non-students get a 400 (not a 403) here
     assert auth_client(instructor).post(VERIFY_SESSION, {'session_id': 'x'},
-                                        format='json').status_code == 400
+                                        format='json').status_code == 403
     assert auth_client(student).post(VERIFY_SESSION, {}, format='json').status_code == 400
 
     with patch('stripe.checkout.Session.retrieve', side_effect=StripeError('no such session')):
@@ -607,7 +606,7 @@ def test_subscription_status_is_student_only(api, auth_client, instructor):
     assert api.get(SUB_STATUS).status_code == 401
     r = auth_client(instructor).get(SUB_STATUS)
     assert r.status_code == 403
-    assert 'error' in r.json()
+    assert 'detail' in r.json()
 
 
 def test_cancel_subscription(auth_client, instructor, student):

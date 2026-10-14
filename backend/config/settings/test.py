@@ -11,7 +11,7 @@ from pathlib import Path
 
 from .base import *  # noqa: F401,F403
 from .base import INSTALLED_APPS as _BASE_APPS
-from .base import MIDDLEWARE as _BASE_MIDDLEWARE
+from .base import REST_FRAMEWORK as _BASE_REST_FRAMEWORK
 from .base import postgres_database
 from .env import LOCAL_ORIGINS, env_str
 
@@ -39,8 +39,12 @@ FRONTEND_URL = 'http://localhost:3000'
 # the seeding tools are tested too, but never installed in production
 INSTALLED_APPS = [*_BASE_APPS, 'apps.seeding']
 
-# the in-memory limiter is shared between tests and would produce flaky 403s
-MIDDLEWARE = [m for m in _BASE_MIDDLEWARE if m != 'apps.core.middleware.RateLimitMiddleware']
+# thousands of calls come from one address: every throttle is practically off, a test
+# that is about throttling sets its own rate
+REST_FRAMEWORK = {
+    **_BASE_REST_FRAMEWORK,
+    'DEFAULT_THROTTLE_RATES': dict.fromkeys(_BASE_REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'], '100000/min'),
+}
 
 # uploads go to a throw-away folder, never into the real media directory
 MEDIA_ROOT = tempfile.mkdtemp(prefix='coursera_test_media_')

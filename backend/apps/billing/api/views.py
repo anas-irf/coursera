@@ -5,8 +5,10 @@ import logging
 from django.conf import settings
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+
+from apps.accounts.permissions import IsStudent
+from apps.core.api.params import object_body
 
 from .. import selectors
 from ..services import gateway, subscriptions
@@ -21,16 +23,9 @@ PAYMENT_PROVIDER_ERROR = 'The payment provider could not process this request. P
 # Checkout
 # --------------------------------------------------------------------------- #
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsStudent])
 def checkout_page_data(request):
     """Get data needed for checkout page"""
-
-    if request.user.user_type != 'student':
-        return Response(
-            {'error': 'Only students can access checkout'},
-            status=status.HTTP_403_FORBIDDEN
-        )
-
     # Check current subscription status
     subscription = selectors.get_subscription(request.user)
     if subscription is not None:
@@ -79,16 +74,9 @@ def checkout_page_data(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsStudent])
 def create_stripe_checkout_session(request):
     """Create a Stripe checkout session for subscription payment"""
-
-    if request.user.user_type != 'student':
-        return Response(
-            {'error': 'Only students can create checkout sessions'},
-            status=status.HTTP_403_FORBIDDEN
-        )
-
     # Check if user already has active subscription
     existing = selectors.get_subscription(request.user)
     if existing is not None and existing.is_active():
@@ -98,7 +86,7 @@ def create_stripe_checkout_session(request):
         )
 
     try:
-        plan_id = request.data.get('plan_id')
+        plan_id = object_body(request).get('plan_id')
         if not plan_id:
             return Response(
                 {'error': 'Plan ID is required'},
@@ -124,12 +112,6 @@ def create_stripe_checkout_session(request):
         return Response(
             {'error': PAYMENT_PROVIDER_ERROR},
             status=status.HTTP_400_BAD_REQUEST
-        )
-    except Exception:
-        logger.exception('Failed to create checkout session')
-        return Response(
-            {'error': 'Failed to create checkout session'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
 
@@ -184,14 +166,11 @@ def stripe_webhook(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsStudent])
 def verify_stripe_session(request):
     """Verify Stripe session and create subscription if webhook failed"""
 
-    if request.user.user_type != 'student':
-        return Response({'error': 'Only for students'}, status=400)
-
-    session_id = request.data.get('session_id')
+    session_id = object_body(request).get('session_id')
     if not session_id:
         return Response({'error': 'session_id is required'}, status=400)
 
@@ -228,28 +207,20 @@ def verify_stripe_session(request):
     except gateway.StripeError:
         logger.exception('Stripe could not retrieve the checkout session')
         return Response({'error': PAYMENT_PROVIDER_ERROR}, status=400)
-    except Exception:
-        logger.exception('verify-session failed')
-        return Response({'error': 'Failed to verify the checkout session'}, status=500)
 
 
 # --------------------------------------------------------------------------- #
 # The student's own subscription
 # --------------------------------------------------------------------------- #
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsStudent])
 def student_subscription_status(request):
     """Get current user's subscription status"""
-    if request.user.user_type != 'student':
-        return Response(
-            {'error': 'Only students can check subscription status'},
-            status=status.HTTP_403_FORBIDDEN
-        )
     return Response(selectors.subscription_status(request.user))
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsStudent])
 def cancel_plus_subscription(request):
     """Cancel Plus subscription"""
     subscription = selectors.get_subscription(request.user)
