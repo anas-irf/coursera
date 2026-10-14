@@ -3,7 +3,6 @@ import logging
 
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
-from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
@@ -53,7 +52,6 @@ class SectionViewSet(viewsets.ModelViewSet):
             order=curriculum.next_order(Section.objects.filter(course=course)),
         )
 
-    @action(detail=False, methods=['post'], url_path='reorder')
     def reorder_sections(self, request, course_uuid=None):
         """Reorder sections within a course"""
         try:
@@ -84,15 +82,6 @@ class SectionViewSet(viewsets.ModelViewSet):
                 'Cannot edit sections of published courses. Please unpublish the course first.',
                 'course_status', section.course)
         return super().update(request, *args, **kwargs)
-
-    def partial_update(self, request, *args, **kwargs):
-        """Override partial_update to prevent editing sections of published courses"""
-        section = self.get_object()
-        if section.course.status == 'published':
-            return _published_response(
-                'Cannot edit sections of published courses. Please unpublish the course first.',
-                'course_status', section.course)
-        return super().partial_update(request, *args, **kwargs)
 
     def perform_destroy(self, instance):
         """Delete a section and renumber the remaining ones 1..n"""
@@ -158,7 +147,6 @@ class LectureViewSet(viewsets.ModelViewSet):
         super().perform_destroy(instance)
         curriculum.resequence(Lecture.objects.filter(section=section))
 
-    @action(detail=False, methods=['post'], url_path='reorder')
     def reorder_lectures(self, request, section_uuid=None):
         """Reorder lectures within a section"""
         try:
@@ -192,12 +180,3 @@ class LectureViewSet(viewsets.ModelViewSet):
                 'Cannot edit lectures of published courses. Please unpublish the course first.',
                 'course_status', lecture.section.course)
         return super().update(request, *args, **kwargs)
-
-    def partial_update(self, request, *args, **kwargs):
-        """Override partial_update to prevent editing lectures of published courses"""
-        lecture = self.get_object()
-        if lecture.section.course.status == 'published':
-            return _published_response(
-                'Cannot edit lectures of published courses. Please unpublish the course first.',
-                'course_status', lecture.section.course)
-        return super().partial_update(request, *args, **kwargs)

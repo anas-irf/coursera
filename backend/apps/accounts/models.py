@@ -59,15 +59,7 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.email} - {self.user_type}"
-    
-    @property
-    def is_student(self):
-        return self.user_type == 'student'
-    
-    @property
-    def is_instructor(self):
-        return self.user_type == 'instructor'
-    
+
     @property
     def is_admin(self):
         return self.user_type == 'admin' or self.is_superuser

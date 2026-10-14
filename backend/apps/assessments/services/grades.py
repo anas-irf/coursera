@@ -41,7 +41,7 @@ class GradeCalculationService:
                 assignment_weight += Decimal(str(assignment.weight))
 
         if assignment_weight > 0:
-            assignment_average = assignment_score / assignment_weight if assignment_weight > 0 else Decimal('0')
+            assignment_average = assignment_score / assignment_weight
             grade_components.append({
                 'type': 'assignments',
                 'score': assignment_average,
@@ -73,7 +73,7 @@ class GradeCalculationService:
                 quiz_weight += Decimal(str(quiz.weight))
 
         if quiz_weight > 0:
-            quiz_average = quiz_score / quiz_weight if quiz_weight > 0 else Decimal('0')
+            quiz_average = quiz_score / quiz_weight
             grade_components.append({
                 'type': 'quizzes',
                 'score': quiz_average,

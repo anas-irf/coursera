@@ -86,9 +86,9 @@ MIDDLEWARE = [
 ]
 
 # Security Headers
-SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
@@ -288,9 +288,7 @@ FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
 # For development, ensure your web server allows 2GB+ uploads
 
 # Stripe Configuration
-STRIPE_PUBLISHABLE_KEY = get_env_variable('STRIPE_PUBLISHABLE_KEY', 'pk_test_51S7ZPzPntOYHMm3396WCOaEmjC0GuO1WWtzB1c8a9XnnGzRkSWpHJAfXDz8XamBuxVO9aetwPP8S2O4jddLvHEOs00PVe1uTVt')
 STRIPE_SECRET_KEY = get_env_variable('STRIPE_SECRET_KEY', '')
-STRIPE_ACCOUNT_ID = get_env_variable('STRIPE_ACCOUNT_ID', 'acct_1S7ZPzPntOYHMm33')
 STRIPE_WEBHOOK_SECRET = get_env_variable('STRIPE_WEBHOOK_SECRET', '')
 
 # Where Stripe sends the customer back to (the React app)

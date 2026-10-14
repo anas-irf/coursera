@@ -127,8 +127,7 @@ def test_create_course_validation_errors(auth_client, instructor):
     assert r.status_code == 400
     assert 'thumbnail' in r.json()
 
-    # current behaviour: the slug is required by the serializer, so the view's
-    # "generate slug from title" fallback can never run
+    # the slug is required by the serializer
     data = {'title': 'No slug', 'description': 'd', 'thumbnail': f.png_file()}
     r = client.post(COURSES, data, format='multipart')
     assert r.status_code == 400

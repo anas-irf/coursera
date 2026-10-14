@@ -1,6 +1,5 @@
 # courses/api/instructor.py - the instructor's own courses
 from django.shortcuts import get_object_or_404
-from django.utils.text import slugify
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -76,10 +75,6 @@ class InstructorCourseViewSet(mixins.CreateModelMixin,
         """Create a new course"""
         serializer = CourseCreateSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
-            # Generate slug from title if not provided
-            if 'slug' not in serializer.validated_data:
-                serializer.validated_data['slug'] = slugify(serializer.validated_data['title'])
-
             course = serializer.save(instructor=request.user)
             return Response({
                 'id': str(course.uuid),

@@ -40,15 +40,11 @@ def login(request):
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
 
+        # the authentication backend refuses inactive accounts itself, so one is answered
+        # exactly like a wrong password and discloses nothing about the account
         user = authenticate(username=email, password=password)
 
         if user:
-            if not user.is_active:
-                return Response(
-                    {'error': 'Your account has been deactivated. Please contact support.'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-
             services.record_login(user, request)
 
             return Response({

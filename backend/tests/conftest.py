@@ -22,9 +22,6 @@ def pytest_configure(config):
     config.addinivalue_line(
         'markers', 'pinned_bug: asserts a known "current behaviour (bug)" of the application; '
                    'expected to be flipped or deleted when the bug is fixed (pytest -m pinned_bug)')
-    config.addinivalue_line(
-        'markers', 'removed_in_s1a: documents an endpoint that refactor step S1a deletes '
-                   '(pytest -m removed_in_s1a)')
 
 
 def _remove_throwaway_media_root():

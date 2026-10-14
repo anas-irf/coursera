@@ -85,7 +85,7 @@ All seeded accounts share one password and use `@example.com` addresses. The one
 
 ### Stripe
 
-Checkout needs test-mode keys in `backend/.env` (`STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`). Point the webhook at `/api/payments/stripe/webhook/` and set `FRONTEND_URL` to where the React app runs.
+Checkout needs a test-mode secret key and the webhook secret in `backend/.env` (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`; checkout redirects to Stripe, so no publishable key is needed). Point the webhook at `/api/payments/stripe/webhook/` and set `FRONTEND_URL` to where the React app runs.
 
 ## Checks
 
@@ -118,7 +118,7 @@ how to run it locally: [docs/CI.md](docs/CI.md).
 | `SEED_PASSWORD` | backend | password of the users `seed_dev` creates (random when empty) |
 | `REDIS_URL` | backend | Channels layer; in-memory when empty |
 | `FRONTEND_URL` | backend | where Stripe sends customers back |
-| `STRIPE_*` | backend | Stripe test keys and webhook secret |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | backend | Stripe test secret key (no default) and webhook secret |
 | `REACT_APP_API_URL` | frontend | API base, default `http://localhost:8000/api` |
 | `REACT_APP_WS_URL` | frontend | WebSocket base, derived from the API URL by default |
 

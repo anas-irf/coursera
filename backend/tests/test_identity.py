@@ -179,10 +179,9 @@ def test_login_rejects_bad_password_unknown_user_and_missing_fields(api):
     assert 'password' in r.json()
 
 
-@pytest.mark.pinned_bug
 def test_login_inactive_user_is_a_plain_401(api):
-    """Current behaviour: ModelBackend refuses inactive users before the view's
-    "account deactivated" 403 branch can run, so that branch is unreachable."""
+    """An inactive account is answered exactly like a wrong password: the backend
+    refuses it before the view runs, so nothing discloses the state of the account."""
     user = f.make_student()
     user.is_active = False
     user.save()

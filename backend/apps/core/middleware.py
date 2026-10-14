@@ -31,11 +31,9 @@ class SecurityMiddleware(MiddlewareMixin):
         )
         response['Content-Security-Policy'] = csp
 
-        # Additional security headers
-        response['X-Content-Type-Options'] = 'nosniff'
-        response['X-Frame-Options'] = 'DENY'
+        # nosniff, X-Frame-Options and Referrer-Policy come from Django's own middleware
+        # (SECURE_CONTENT_TYPE_NOSNIFF, X_FRAME_OPTIONS, SECURE_REFERRER_POLICY)
         response['X-XSS-Protection'] = '1; mode=block'
-        response['Referrer-Policy'] = 'strict-origin-when-cross-origin'
 
         # Prevent caching of sensitive data
         if request.path.startswith('/api/') and 'gradebook' in request.path:

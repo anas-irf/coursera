@@ -97,16 +97,8 @@ class Enrollment(BaseModel):
         # Convert to decimal with exactly 2 decimal places
         decimal_progress = Decimal(str(progress)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-        # Ensure the decimal doesn't exceed max_digits (5 total digits, 2 decimal places = max 999.99)
-        if decimal_progress > Decimal('999.99'):
-            decimal_progress = Decimal('100.00')
-
         self.progress_percentage = decimal_progress
-
-        try:
-            self.save(update_fields=['progress_percentage'])
-        except Exception:
-            raise
+        self.save(update_fields=['progress_percentage'])
 
         # Check if course should be marked complete
         if progress >= 100 and self.status == 'active':
