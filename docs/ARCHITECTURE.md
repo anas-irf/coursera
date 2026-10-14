@@ -52,9 +52,15 @@ Frontend, enforced by ESLint (`frontend/.eslintrc.js`, `import/no-restricted-pat
 
 ## Talking upwards
 
-**Domain events** (`apps/core/events.py`). A slice announces that something happened with `emit(signal, **payload)` after it saved the change. `emit` never raises: a failing receiver is logged. Today only `notifications/receivers.py` subscribes (course submitted / approved / rejected, enrolled, assignment graded, subscription activated / renewed, payment failed) and writes the notification texts, so none of the emitting slices imports `notifications`.
+**Domain events** (`apps/core/events.py`). A slice announces that something happened with `emit(signal, **payload)` after it saved the change. `emit` never raises: a failing receiver is logged. Today only `notifications/receivers.py` subscribes (course submitted / approved / rejected, enrolled, assignment graded, subscription activated / renewed, payment failed) and writes the notification texts, so none of the emitting slices imports `notifications`. `course_completed` (the last lecture of a course was completed) is announced as well and has no subscriber yet.
 
 **Lecture content registry** (`apps/courses/extensions.py`). `courses` owns the lecture, but video, reading, quiz and assignment content belong to other slices. They register a `LectureContentHandler` (create, update, instructor view, student view, duration, grade weight) from their `AppConfig.ready()`; `courses` asks the registry. The same module lets higher slices add a column to the instructor's course list (`billing`: revenue), a key to the lecture payload (`learning`: completion rate) and a guard that blocks deleting a course (`learning`: enrollments exist).
+
+## Progress and the learning log
+
+`learning.services` owns the rules. `complete_lecture` (a student ticks off a video or a reading) and `complete_lecture_once` (a quiz taken or an assignment handed in completes its own lecture) mark a lecture done; `refresh_progress` recomputes the percentage and completes the course when every lecture is, exactly once, announcing `course_completed`. A finished course stays open (`selectors.enrollment_for_access`): the player, its lectures and its quizzes keep working, while gradebooks list running enrolments only. A read never writes: the player returns a lecture that has no progress row yet as not started, and the row is created when the student acts.
+
+The player's heartbeat (`POST /learning/courses/<c>/lectures/<l>/progress/`) stores the resume position and credits the time spent, bounded by the distance the position moved, the real time since the previous beat and 60 s per beat. Everything that is about time (hours, streak, ranks, the monthly chart, the date of a badge) is derived from the daily log, `LearningStreak`: one row per student and day, in seconds. `StudentProfile.learning_streak` and `total_learning_hours` are refreshed from it the first time a student is active each day.
 
 ## Database notes
 
@@ -138,7 +144,7 @@ Rules the seed follows:
 
 To add a person, a course or a story edit the data files and run `seed_dev`; to add an activity that has a service, call it from a step.
 
-What the seed cannot show, because the application cannot (see *Known gaps*): the "Completed" filter of My learning (completed enrolments are not listed), the rejection reason on the instructor's course card, four of the six achievement badges (hard-coded as unearned), the weekly progress chart, instructor analytics and the admin revenue / reports / settings screens (static sample data).
+What the seed cannot show, because the application cannot (see *Known gaps*): the rejection reason on the instructor's course card, instructor analytics and the admin revenue / reports / settings screens (static sample data). Hours, streaks, ranks and the monthly chart come from the learning log, which the seed fills through the same service the player's heartbeat uses (and tops up to each student's story hours).
 
 ## Testing
 
@@ -152,5 +158,5 @@ What the seed cannot show, because the application cannot (see *Known gaps*): th
 Documented, not fixed in the restructuring:
 
 * **Security**: the Stripe webhook accepts unsigned bodies when `STRIPE_WEBHOOK_SECRET` is empty; quiz options are not checked to belong to the answered question and the quiz time limit is not enforced on the server; reading HTML is rendered unsanitised; tokens live in `localStorage` and the WebSocket token is in the query string; `/api/messaging/users/` lists every user.
-* **Logic**: editing a quiz or assignment recreates it and cascades to attempts / submissions; a completed enrolment can no longer open the player; the subscription end date is not moved on renewal; certificates are never issued and `Certificate.save()` cannot build its number; nothing creates `InstructorEarning` rows (the seed writes them); watch time is not recorded so the weekly chart is a placeholder.
+* **Logic**: editing a quiz or assignment recreates it and cascades to attempts / submissions; the subscription end date is not moved on renewal; certificates are never issued and `Certificate.save()` cannot build its number; nothing creates `InstructorEarning` rows (the seed writes them).
 * **Product**: instructor analytics, instructor settings, admin revenue / reports / settings have no backend.

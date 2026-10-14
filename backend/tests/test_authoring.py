@@ -383,10 +383,8 @@ def test_create_reading_lecture_with_markdown_and_text_only(auth_client, instruc
     assert r.json()['reading_document']['file'] is None
 
 
-@pytest.mark.pinned_bug
-def test_reading_with_unsupported_file_is_400_but_lecture_row_is_left_behind(auth_client, instructor):
-    """Current behaviour (bug): the lecture is saved first and the file type is
-    validated afterwards, so the 400 response leaves an orphan lecture behind."""
+def test_reading_with_unsupported_file_is_a_400_and_leaves_no_lecture_behind(auth_client, instructor):
+    """The lecture and its content are one write: a refused file rolls the lecture back."""
     client = auth_client(instructor)
     section = f.make_section(f.make_course(instructor))
 
@@ -394,8 +392,12 @@ def test_reading_with_unsupported_file_is_400_but_lecture_row_is_left_behind(aut
                        reading_file=f.txt_file('notes.txt'))
 
     assert r.status_code == 400
-    lecture = f.Lecture.objects.get(section=section, title='Bad file')
-    assert not f.Reading.objects.filter(lecture=lecture).exists()
+    assert r.json() == {'error': 'Invalid file type. Only PDF and Markdown files are allowed.'}
+    assert not f.Lecture.objects.filter(section=section, title='Bad file').exists()
+    # and the numbering was not advanced by the lecture that did not happen
+    ok = create_lecture(client, section.uuid, title='Fine', content_type='reading',
+                        article_content='text')
+    assert ok.status_code == 201 and ok.json()['order'] == 1
 
 
 def test_create_video_lecture_with_url_and_with_file(auth_client, instructor):
@@ -420,6 +422,42 @@ def test_create_video_lecture_with_url_and_with_file(auth_client, instructor):
     assert video.video_url == ''
     assert video.subtitles.count() == 1
     assert r.json()['video_content']['video_file']
+
+
+def test_the_video_length_sent_by_the_upload_form_is_stored(auth_client, instructor):
+    """The browser reads the duration from the file; the server keeps it (in whole seconds)."""
+    client = auth_client(instructor)
+    section = f.make_section(f.make_course(instructor))
+
+    r = create_lecture(client, section.uuid, title='Timed', content_type='video',
+                       video_url='https://youtu.be/timed', duration='125.4')
+
+    assert r.status_code == 201
+    assert r.json()['video_content']['duration'] == 125
+    lecture = f.Lecture.objects.get(uuid=r.json()['id'])
+    assert f.VideoContent.objects.get(lecture=lecture).duration == 125
+
+    # an update without a duration keeps it, one with a duration replaces it
+    update_lecture(client, lecture.uuid, title='Timed', content_type='video',
+                   video_url='https://youtu.be/timed')
+    assert f.VideoContent.objects.get(lecture=lecture).duration == 125
+    update_lecture(client, lecture.uuid, title='Timed', content_type='video',
+                   video_url='https://youtu.be/timed', duration='300')
+    assert f.VideoContent.objects.get(lecture=lecture).duration == 300
+
+
+@pytest.mark.parametrize('duration', ['soon', '-5', '100000'])
+def test_a_video_length_that_makes_no_sense_is_a_400_and_saves_nothing(
+        auth_client, instructor, duration):
+    client = auth_client(instructor)
+    section = f.make_section(f.make_course(instructor))
+
+    r = create_lecture(client, section.uuid, title='Bad length', content_type='video',
+                       video_url='https://youtu.be/bad', duration=duration)
+
+    assert r.status_code == 400
+    assert 'duration' in r.json()['error']
+    assert not f.Lecture.objects.filter(section=section).exists()
 
 
 def test_video_lecture_without_url_or_file_has_no_video_content_row(auth_client, instructor):

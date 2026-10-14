@@ -221,6 +221,21 @@ def test_catalog_card_data_comes_from_one_query_per_page(instructor, student, dj
     assert len(courses) == 5
 
 
+def test_my_courses_come_from_one_query_whatever_their_number(instructor, student, django_assert_max_num_queries):
+    for index in range(4):
+        built = f.build_course(instructor, status='published', title=f'Mine {index}')
+        enrollment = f.enroll(student, built.course)
+        services.complete_lecture(enrollment, built.video)
+
+    with django_assert_max_num_queries(1):
+        rows = [serializers.enrolled_course_row(e) for e in selectors.enrolled_courses(student)]
+
+    assert len(rows) == 4
+    assert {row['completed_lessons'] for row in rows} == {1}
+    assert {row['total_lessons'] for row in rows} == {4}
+    assert {row['next_lesson'] for row in rows} == {'Reading 1'}
+
+
 # --------------------------------------------------------------------------- #
 # rosters
 # --------------------------------------------------------------------------- #

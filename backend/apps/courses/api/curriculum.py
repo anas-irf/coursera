@@ -1,6 +1,7 @@
 # courses/api/curriculum.py - sections and lectures of an instructor's course
 import logging
 
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.exceptions import ValidationError
@@ -115,22 +116,25 @@ class LectureViewSet(viewsets.ModelViewSet):
         if section.course.status == 'published':
             raise ValidationError('Cannot add lectures to published courses. Please unpublish the course first.')
 
-        lecture = serializer.save(
-            section=section,
-            order=curriculum.next_order(Lecture.objects.filter(section=section)),
-        )
+        # the lecture and its content are one write: a content that is refused leaves no lecture
+        with transaction.atomic():
+            lecture = serializer.save(
+                section=section,
+                order=curriculum.next_order(Lecture.objects.filter(section=section)),
+            )
 
-        # the content slice that owns this lecture type creates its rows
-        handler = extensions.get_content_handler(lecture.content_type)
-        if handler is not None:
-            handler.create(lecture, self.request.data, self.request.FILES)
+            # the content slice that owns this lecture type creates its rows
+            handler = extensions.get_content_handler(lecture.content_type)
+            if handler is not None:
+                handler.create(lecture, self.request.data, self.request.FILES)
 
     def perform_update(self, serializer):
-        lecture = serializer.save()
+        with transaction.atomic():
+            lecture = serializer.save()
 
-        handler = extensions.get_content_handler(lecture.content_type)
-        if handler is not None:
-            handler.update(lecture, self.request.data, self.request.FILES)
+            handler = extensions.get_content_handler(lecture.content_type)
+            if handler is not None:
+                handler.update(lecture, self.request.data, self.request.FILES)
 
     def perform_destroy(self, instance):
         """Delete a lecture and renumber the remaining ones 1..n"""

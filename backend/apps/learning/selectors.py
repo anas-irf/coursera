@@ -2,6 +2,7 @@
 from datetime import date, timedelta
 
 from django.db.models import Count, Exists, OuterRef, Q, Subquery, Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from apps.content.models import VideoContent
@@ -98,8 +99,25 @@ def student_enrollments(student, *, statuses=ACTIVE):
 
 def enrolled_courses(student, *, view='active'):
     """The student's courses (``view`` is a key of ``ENROLLED_VIEWS``), most recently visited first."""
+    course_lectures = Lecture.objects.filter(section__course=OuterRef('course')).order_by()
+    total = course_lectures.values('section__course').annotate(n=Count('pk')).values('n')
+    done = (
+        LectureProgress.objects.filter(enrollment=OuterRef('pk'), is_completed=True).order_by()
+        .values('enrollment').annotate(n=Count('pk')).values('n')
+    )
+    finished_ids = LectureProgress.objects.filter(
+        enrollment=OuterRef(OuterRef('pk')), is_completed=True).values('lecture_id')
+    upcoming = (
+        Lecture.objects.filter(section__course=OuterRef('course')).exclude(pk__in=finished_ids)
+        .order_by('section__order', 'order').values('title')[:1]
+    )
+
     return student_enrollments(student, statuses=ENROLLED_VIEWS[view]).select_related(
         'course', 'course__instructor'
+    ).annotate(
+        total_lessons=Coalesce(Subquery(total), 0),
+        completed_lessons=Coalesce(Subquery(done), 0),
+        next_lesson_title=Subquery(upcoming),
     ).order_by('-last_accessed', '-id')
 
 

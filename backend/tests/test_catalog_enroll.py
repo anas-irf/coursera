@@ -15,7 +15,8 @@ ALL = '/api/v1/learning/courses/'
 ENROLLED = '/api/v1/learning/enrolled/'
 
 CATALOG_KEYS = {'id', 'title', 'instructor', 'instructor_id', 'thumbnail', 'rating',
-                'students', 'duration', 'level', 'category', 'course_type', 'modules',
+                'students', 'duration', 'duration_seconds', 'level', 'category', 'course_type',
+                'modules',
                 'description', 'is_enrolled', 'is_bookmarked', 'can_enroll',
                 'enrollment_message', 'progress'}
 
@@ -80,9 +81,8 @@ def test_catalogue_filters_and_sorting(api, instructor):
     assert ids(api.get(ALL)) == ids(api.get(ALL, {'sort': 'popular'}))
 
 
-@pytest.mark.pinned_bug
-def test_catalogue_reports_module_count_and_video_hours(api, instructor):
-    """``modules`` counts sections; ``duration`` is the video seconds as whole hours."""
+def test_catalogue_reports_module_count_and_video_length(api, instructor):
+    """``modules`` counts sections; ``duration`` is the length of the videos, not floored hours."""
     course = f.make_course(instructor, status='published')
     first = f.make_section(course)
     second = f.make_section(course)
@@ -93,7 +93,23 @@ def test_catalogue_reports_module_count_and_video_hours(api, instructor):
     (row,) = api.get(ALL).json()
 
     assert row['modules'] == 2
-    assert row['duration'] == '5 hours'
+    assert row['duration'] == '5.5 hours'
+    assert row['duration_seconds'] == 5 * 3600 + 1800
+
+
+@pytest.mark.parametrize('seconds, shown', [
+    (None, '-'), (0, '-'),                 # never recorded: not "0 hours"
+    (45, '1 min'), (20 * 60, '20 min'), (3599, '1 hour'),
+    (3600, '1 hour'), (7200, '2 hours'), (5400, '1.5 hours'), (19800, '5.5 hours'),
+])
+def test_catalogue_duration_is_shown_the_way_a_person_says_it(api, instructor, seconds, shown):
+    course = f.make_course(instructor, status='published')
+    if seconds is not None:
+        f.make_video(f.make_section(course), duration=seconds)
+
+    (row,) = api.get(ALL).json()
+
+    assert row['duration'] == shown
 
 
 def test_catalogue_search_filters_by_title(api, instructor):

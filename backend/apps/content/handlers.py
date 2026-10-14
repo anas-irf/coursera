@@ -7,6 +7,21 @@ from apps.courses.extensions import LectureContentHandler, register_content_hand
 from .models import Reading, Subtitle, VideoContent
 
 READING_EXTENSIONS = ('.pdf', '.md', '.markdown')
+MAX_VIDEO_SECONDS = 24 * 3600
+
+
+def _duration(data):
+    """The length in seconds the upload form read from the video, or ``None`` when it sent none."""
+    raw = data.get('duration')
+    if raw in (None, ''):
+        return None
+    try:
+        seconds = round(float(raw))
+    except (TypeError, ValueError, OverflowError):
+        raise ServiceError('duration must be a number of seconds') from None
+    if not 0 <= seconds <= MAX_VIDEO_SECONDS:
+        raise ServiceError('duration must be between 0 and 24 hours')
+    return seconds
 
 
 def _file_name(file_field):
@@ -27,6 +42,7 @@ class VideoHandler(LectureContentHandler):
                 lecture=lecture,
                 video_file=video_file,
                 video_url=video_url,
+                duration=_duration(data) or 0,
             )
 
             # Handle subtitle file if provided
@@ -59,6 +75,9 @@ class VideoHandler(LectureContentHandler):
                 if video_file:
                     video_content.video_file = video_file
                 video_content.video_url = video_url
+                seconds = _duration(data)
+                if seconds is not None:
+                    video_content.duration = seconds
                 video_content.save()
             else:
                 # Create new video content
@@ -66,6 +85,7 @@ class VideoHandler(LectureContentHandler):
                     lecture=lecture,
                     video_file=video_file,
                     video_url=video_url,
+                    duration=_duration(data) or 0,
                 )
 
             # Handle subtitle file if provided
