@@ -6,8 +6,9 @@ import { errorMessage } from '../../../shared/api/errors';
 import { PageSpinner } from '../../../shared/ui/Spinner';
 import { useConfirm } from '../../../shared/ui/ConfirmDialog';
 import { useToast } from '../../../shared/ui/Toast';
-import * as learningApi from '../api';
 import LectureContent, { LectureIcon } from '../components/LectureContent';
+import { useCompleteLecture, usePlayer, useRefreshProgress } from '../hooks/usePlayer';
+import { allLectures, firstIncomplete } from '../lib/player';
 
 const storageKey = (courseId) => `selectedLecture_${courseId}`;
 
@@ -27,13 +28,6 @@ const writeSelection = (courseId, lectureId) => {
   }
 };
 
-const allLectures = (sections) => sections.flatMap((section) => section.lectures);
-
-const firstIncomplete = (sections) => {
-  const lectures = allLectures(sections);
-  return lectures.find((lecture) => !lecture.is_completed) || lectures[0] || null;
-};
-
 /** The learning interface of one course: outline sidebar and the selected lecture. */
 const CoursePlayerPage = () => {
   const { courseId } = useParams();
@@ -41,70 +35,38 @@ const CoursePlayerPage = () => {
   const toast = useToast();
   const { confirm } = useConfirm();
 
-  const [course, setCourse] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [selectedId, setSelectedId] = useState(null);
+  const player = usePlayer(courseId);
+  const completeLecture = useCompleteLecture(courseId);
+  const refreshProgress = useRefreshProgress(courseId);
+
+  const [chosenId, setChosenId] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [expanded, setExpanded] = useState({});
+  const [collapsed, setCollapsed] = useState({});
   const quizActive = useRef(false);
 
-  const load = useCallback(
-    async ({ first = false } = {}) => {
-      try {
-        const data = await learningApi.fetchPlayer(courseId);
-        setCourse(data);
+  const course = player.data || null;
+  const status = player.error && player.error.response ? player.error.response.status : null;
 
-        if (first) {
-          setExpanded(Object.fromEntries(data.sections.map((section) => [section.id, true])));
-
-          const saved = readSelection(courseId);
-          const lectures = allLectures(data.sections);
-          const initial =
-            (saved && lectures.find((lecture) => lecture.id === saved)) || firstIncomplete(data.sections);
-          if (initial) {
-            setSelectedId(initial.id);
-            if (!saved) writeSelection(courseId, initial.id);
-          }
-        }
-      } catch (err) {
-        if (err.response && err.response.status === 403) {
-          toast.error('You must be enrolled in this course to access learning materials', 'Access Denied');
-          navigate('/student', { replace: true });
-        } else if (first) {
-          setCourse(null);
-        } else {
-          toast.error(errorMessage(err, 'Failed to refresh the course.'), 'Refresh Failed');
-        }
-      } finally {
-        setLoading(false);
-      }
-    },
-    [courseId, navigate, toast]
-  );
-
+  // an enrolment is required: the student is sent home with the reason
   useEffect(() => {
-    setLoading(true);
-    load({ first: true });
-    // toast changes identity on every render of its provider; only the course matters here
+    if (status === 403) {
+      toast.error('You must be enrolled in this course to access learning materials', 'Access Denied');
+      navigate('/student', { replace: true });
+    }
+    // toast changes identity on every render of its provider; only the failure matters here
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [courseId]);
+  }, [status]);
 
+  // the lecture shown: the student's choice, else where they stopped last time, else the first
+  // one they have not finished
   const selected = useMemo(() => {
     if (!course) return null;
-    return allLectures(course.sections).find((lecture) => lecture.id === selectedId) || null;
-  }, [course, selectedId]);
-
-  const reload = useCallback(() => load(), [load]);
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await load();
-    } finally {
-      setRefreshing(false);
-    }
-  };
+    const lectures = allLectures(course.sections);
+    const wanted = chosenId || readSelection(courseId);
+    return (
+      lectures.find((lecture) => lecture.id === wanted) || firstIncomplete(course.sections)
+    );
+  }, [course, chosenId, courseId]);
 
   const select = async (lecture) => {
     if (quizActive.current) {
@@ -120,16 +82,20 @@ const CoursePlayerPage = () => {
     }
 
     setSidebarOpen(false);
-    setSelectedId(lecture.id);
+    setChosenId(lecture.id);
     writeSelection(courseId, lecture.id);
   };
 
-  const complete = async (lectureId) => {
-    try {
-      await learningApi.completeLecture(courseId, lectureId);
-      await load();
-    } catch (err) {
-      toast.error(errorMessage(err, 'Failed to mark lecture as complete. Please try again.'), 'Update Failed');
+  const complete = (lectureId) =>
+    completeLecture.mutate(lectureId, {
+      onError: (err) =>
+        toast.error(errorMessage(err, 'Failed to mark lecture as complete. Please try again.'), 'Update Failed'),
+    });
+
+  const handleRefresh = async () => {
+    const result = await player.refetch();
+    if (result.isError) {
+      toast.error(errorMessage(result.error, 'Failed to refresh the course.'), 'Refresh Failed');
     }
   };
 
@@ -137,7 +103,7 @@ const CoursePlayerPage = () => {
     quizActive.current = active;
   }, []);
 
-  if (loading) {
+  if (player.isPending || status === 403) {
     return <PageSpinner className="min-h-screen" />;
   }
 
@@ -149,12 +115,19 @@ const CoursePlayerPage = () => {
           <p className="text-gray-500">
             The course you're looking for doesn't exist or you don't have access to it.
           </p>
+          <button
+            onClick={() => player.refetch()}
+            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+          >
+            Try again
+          </button>
         </div>
       </div>
     );
   }
 
   const progress = course.progress;
+  const refreshing = player.isFetching;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -186,6 +159,7 @@ const CoursePlayerPage = () => {
               <button
                 onClick={handleRefresh}
                 disabled={refreshing}
+                aria-label="Refresh course data"
                 className={`p-2 rounded-lg transition-colors ${
                   refreshing ? 'text-gray-400 cursor-not-allowed' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                 }`}
@@ -229,6 +203,7 @@ const CoursePlayerPage = () => {
             </div>
             <button
               onClick={() => setSidebarOpen(false)}
+              aria-label="Close course content"
               className="lg:hidden p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
             >
               <X size={20} />
@@ -236,55 +211,61 @@ const CoursePlayerPage = () => {
           </div>
 
           <div className="divide-y divide-gray-200">
-            {course.sections.map((section) => (
-              <div key={section.id}>
-                <button
-                  onClick={() => setExpanded((prev) => ({ ...prev, [section.id]: !prev[section.id] }))}
-                  className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center justify-between"
-                >
-                  <div>
-                    <h3 className="font-medium text-gray-900">{section.title}</h3>
-                    <p className="text-sm text-gray-500">
-                      {section.completed_lectures}/{section.total_lectures} lectures
-                    </p>
-                  </div>
-                  {expanded[section.id] ? (
-                    <ChevronDown size={16} className="text-gray-400" />
-                  ) : (
-                    <ChevronRight size={16} className="text-gray-400" />
-                  )}
-                </button>
+            {course.sections.map((section) => {
+              const open = !collapsed[section.id];
+              return (
+                <div key={section.id}>
+                  <button
+                    onClick={() => setCollapsed((prev) => ({ ...prev, [section.id]: open }))}
+                    aria-expanded={open}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center justify-between"
+                  >
+                    <div>
+                      <h3 className="font-medium text-gray-900">{section.title}</h3>
+                      <p className="text-sm text-gray-500">
+                        {section.completed_lectures}/{section.total_lectures} lectures
+                      </p>
+                    </div>
+                    {open ? (
+                      <ChevronDown size={16} className="text-gray-400" />
+                    ) : (
+                      <ChevronRight size={16} className="text-gray-400" />
+                    )}
+                  </button>
 
-                {expanded[section.id] && (
-                  <div className="bg-gray-50">
-                    {section.lectures.map((lecture) => (
-                      <button
-                        key={lecture.id}
-                        onClick={() => select(lecture)}
-                        className={`w-full px-6 py-3 text-left hover:bg-gray-100 flex items-center space-x-3 ${
-                          selectedId === lecture.id ? 'bg-indigo-50 border-r-2 border-indigo-600' : ''
-                        }`}
-                      >
-                        <LectureIcon type={lecture.content_type} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{lecture.title}</p>
-                          <p className="text-xs text-gray-500 capitalize">{lecture.content_type}</p>
-                        </div>
-                        {lecture.is_completed && <CheckCircle size={16} className="text-green-500 flex-shrink-0" />}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+                  {open && (
+                    <div className="bg-gray-50">
+                      {section.lectures.map((lecture) => (
+                        <button
+                          key={lecture.id}
+                          onClick={() => select(lecture)}
+                          className={`w-full px-6 py-3 text-left hover:bg-gray-100 flex items-center space-x-3 ${
+                            selected && selected.id === lecture.id ? 'bg-indigo-50 border-r-2 border-indigo-600' : ''
+                          }`}
+                        >
+                          <LectureIcon type={lecture.content_type} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{lecture.title}</p>
+                            <p className="text-xs text-gray-500 capitalize">{lecture.content_type}</p>
+                          </div>
+                          {lecture.is_completed && <CheckCircle size={16} className="text-green-500 flex-shrink-0" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 
         <div className="flex-1 bg-white lg:ml-0 transition-all duration-300 ease-in-out">
           <LectureContent
+            courseId={courseId}
             lecture={selected}
             onComplete={complete}
-            onReload={reload}
+            completing={completeLecture.isPending}
+            onReload={refreshProgress}
             onQuizActiveChange={onQuizActiveChange}
           />
         </div>

@@ -1,4 +1,4 @@
-import { timeAgo } from './time';
+import { formatClock, timeAgo } from './time';
 
 const now = new Date('2026-10-12T12:00:00Z');
 const ago = (ms) => new Date(now.getTime() - ms).toISOString();
@@ -13,4 +13,13 @@ test('recent times are relative', () => {
 test('older times are dates', () => {
   const old = ago(30 * 86400 * 1000);
   expect(timeAgo(old, now)).toBe(new Date(old).toLocaleDateString());
+});
+
+test('a length of time reads as a clock', () => {
+  expect(formatClock(0)).toBe('0:00');
+  expect(formatClock(59)).toBe('0:59');
+  expect(formatClock(272)).toBe('4:32');
+  expect(formatClock(3723)).toBe('1:02:03');
+  expect(formatClock(-5)).toBe('0:00');
+  expect(formatClock(null)).toBe('0:00');
 });

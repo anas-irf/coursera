@@ -22,6 +22,12 @@ export function errorMessage(error, fallback = 'Something went wrong. Please try
   return fallback;
 }
 
+/** The stable machine-readable `code` of an error response ("time_limit_exceeded"), else `null`. */
+export function errorCode(error) {
+  const data = error && error.response && error.response.data;
+  return data && typeof data === 'object' && typeof data.code === 'string' ? data.code : null;
+}
+
 /** Field errors of a serializer response: {email: "..."} (first message per field). */
 export function fieldErrors(error) {
   const data = error && error.response && error.response.data;

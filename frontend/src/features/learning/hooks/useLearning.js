@@ -18,6 +18,7 @@ export const learningKeys = {
   mine: (status) => ['learning', 'mine', status],
   catalog: (filters) => ['learning', 'catalog', filters],
   recommended: ['learning', 'recommended'],
+  player: (courseId) => ['learning', 'player', courseId],
   instructorStudents: ['learning', 'instructor-students'],
 };
 

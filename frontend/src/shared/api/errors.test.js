@@ -1,4 +1,4 @@
-import { errorMessage, fieldErrors } from './errors';
+import { errorCode, errorMessage, fieldErrors } from './errors';
 
 const failure = (data, status = 400) => ({ response: { status, data } });
 
@@ -23,4 +23,11 @@ test('field errors keep the first message per field', () => {
     email: 'bad',
     password: 'short',
   });
+});
+
+test('the stable code of an error is read when there is one', () => {
+  expect(errorCode(failure({ error: 'Time is up', code: 'time_limit_exceeded' }))).toBe('time_limit_exceeded');
+  expect(errorCode(failure({ error: 'plain' }))).toBeNull();
+  expect(errorCode(failure('<html></html>', 500))).toBeNull();
+  expect(errorCode(new Error('offline'))).toBeNull();
 });

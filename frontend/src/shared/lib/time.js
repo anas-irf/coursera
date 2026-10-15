@@ -31,3 +31,12 @@ export function formatDateTime(dateString) {
     minute: '2-digit',
   });
 }
+
+/** A length of time as a clock: 272 -> "4:32", 3723 -> "1:02:03" (negative and missing count as 0). */
+export function formatClock(totalSeconds) {
+  const seconds = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const rest = String(seconds % 60).padStart(2, '0');
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${rest}` : `${minutes}:${rest}`;
+}
