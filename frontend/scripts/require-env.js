@@ -1,4 +1,4 @@
-// Runs before `npm run build` (the npm "prebuild" script).
+// Runs before `pnpm run build` (its "prebuild" script).
 //
 // A production build bakes the API address into the bundle, so a build without
 // REACT_APP_API_URL would ship an app that talks to localhost.  The variable

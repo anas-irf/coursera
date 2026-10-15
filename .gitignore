@@ -30,6 +30,7 @@ db.sqlite3
 # uploaded media
 media
 node_modules/
+.pnpm-store/
 # test and coverage output
 ctrf/
 coverage/

@@ -4,7 +4,7 @@ The platform is split into **slices**: each product phase owns its models, rules
 
 ```
 backend/    Django 5 + DRF + Channels     python manage.py ...
-frontend/   React 19 (Create React App)   npm start
+frontend/   React 19 (Create React App)   pnpm start
 docs/       this file
 ```
 
@@ -114,7 +114,7 @@ The lecture form posts nested structures as JSON strings; `authoring` parses and
 `prod.py` raises `ImproperlyConfigured` naming every missing variable and refuses a placeholder `SECRET_KEY`,
 `CORS_ALLOW_ALL_ORIGINS` and a Stripe key without its webhook secret; it turns on HTTPS redirect, HSTS and
 secure cookies. `tests/test_settings_prod.py` imports it in a subprocess on a copy of the package, and CI runs
-`manage.py check --deploy` against it. The frontend's `npm run build` stops without `REACT_APP_API_URL`
+`manage.py check --deploy` against it. The frontend's `pnpm run build` stops without `REACT_APP_API_URL`
 (`frontend/scripts/require-env.js`).
 
 ## HTTP and WebSocket surface
@@ -154,7 +154,7 @@ src/
 * **Watch time and quizzes.** The player reports where a student is in a video (uploaded files through the `<video>` events, YouTube through the IFrame Player API attached to the embed; every 15 s while playing, on pause, at the end, on leaving) and resumes from the stored place; the answer is folded into the cached outline. A quiz with a time limit counts down to the `expires_at` the server sent and hands the answers in by itself; a late answer is refused by the server (`time_limit_exceeded`) and said so. The length of an uploaded video is read from the file by the server (MP4 / MOV and WebM headers, `apps/content/media.py`), never taken on the client's word; a client may send `duration` as a fallback for a container the server cannot read.
 * **No third-party requests for pictures**: avatars are initials drawn locally, a course without a picture gets a local placeholder.
 * **Dialogs are one component** (`shared/ui/Modal`): a named `role="dialog"`, Escape closes the top-most, Tab stays inside, focus returns to the opener, the page behind does not scroll.
-* **TypeScript, strict** (`npm run typecheck`, in CI, the tests included). The shapes the API answers are written down once per slice in `features/<slice>/types.ts` (taken from the serializers and views: the OpenAPI document has response schemas only for course authoring) and the `api.ts` modules return them through `api.get<T>(...)`; what several slices share (`UserType`, `CourseStatus`, the error body) is in `shared/types.ts`. A failed request is an axios error with the `{error}` / `{detail}` / field-map body, so `error.response?.status` is typed in hooks and callbacks, and a `catch` variable is `unknown`, read through `shared/api/errors`. `any` and `@ts-ignore` are lint errors.
+* **TypeScript, strict** (`pnpm run typecheck`, in CI, the tests included). The shapes the API answers are written down once per slice in `features/<slice>/types.ts` (taken from the serializers and views: the OpenAPI document has response schemas only for course authoring) and the `api.ts` modules return them through `api.get<T>(...)`; what several slices share (`UserType`, `CourseStatus`, the error body) is in `shared/types.ts`. A failed request is an axios error with the `{error}` / `{detail}` / field-map body, so `error.response?.status` is typed in hooks and callbacks, and a `catch` variable is `unknown`, read through `shared/api/errors`. `any` and `@ts-ignore` are lint errors.
 
 Screens without a backend (instructor analytics, instructor settings, admin revenue / reports / platform settings) say so on the page; their sample data lives in `features/admin/sampleData.ts`.
 
@@ -165,7 +165,7 @@ Screens without a backend (instructor analytics, instructor settings, admin reve
 3. Something another slice must react to: add a signal to `core/events.py` and a receiver; something that plugs into lectures: register a handler.
 4. Tests next to the behaviour: API tests in `backend/tests` use literal URLs and the factories; update `tests/routes.expected.txt` and `tests/openapi.v1.yaml` (`UPDATE_ROUTES=1 pytest tests/test_routes.py`, `UPDATE_OPENAPI=1 pytest tests/test_openapi.py`) and look at the diff: it is the contract change.
 5. Frontend: `features/<slice>/api.ts` for the requests and `types.ts` for the shapes they answer, `hooks/` for the queries and mutations (keys `[slice, resource, params]`), `lib/` for the rules, pages and components using the hooks, export the public parts (and their types) from `index.ts`, add the route in `app/App.tsx` (lazily: `page(loader, name)`, which checks the export name).
-6. `lint-imports`, `ruff`, `tsc`, `eslint`, `pytest`, `npm test` must pass; CI runs all of them, plus the browser specs.
+6. `lint-imports`, `ruff`, `tsc`, `eslint`, `pytest`, `pnpm test` must pass; CI runs all of them, plus the browser specs.
 
 ## Development data
 
@@ -192,7 +192,7 @@ What the seed cannot show, because the application cannot (see *Known gaps*): th
 ## Testing
 
 * `cd backend && python -m pytest` (SQLite by default; `TEST_DB_ENGINE=postgres` plus the `DB_*` variables runs the same suite on PostgreSQL, which CI does). Uploads go to a temporary `MEDIA_ROOT`.
-* `cd frontend && npm test` (Jest through react-scripts; `package.json` maps axios and react-router for Jest 27). Rules are unit-tested in `lib/`; screens are tested through their hooks and api modules with only the HTTP client replaced, so a test also proves the query keys and the invalidation. The coverage floor is 60 / 48 / 52 / 61 % (statements / branches / functions / lines).
+* `cd frontend && pnpm test` (Jest through react-scripts; `package.json` maps axios and react-router for Jest 27). Rules are unit-tested in `lib/`; screens are tested through their hooks and api modules with only the HTTP client replaced, so a test also proves the query keys and the invalidation. The coverage floor is 60 / 48 / 52 / 61 % (statements / branches / functions / lines).
 * `tests/` characterises behaviour at the HTTP level (literal URLs, models only through `factories.py`), so a refactor shows up as a failing test instead of a silent change; a known bug is fixed together with the test that pinned it, not left marked.
 * `e2e/` holds Playwright specs that run against the seeded stack (`seed_dev`); they cover what only a browser proves. The pipeline, its gates and how to run every check locally are in [CI.md](CI.md).
 

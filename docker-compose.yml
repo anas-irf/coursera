@@ -4,7 +4,7 @@
 #
 # then point backend/.env at it (DB_ENGINE=postgres, the same DB_* values and
 # REDIS_URL=redis://localhost:6379/0).  The applications themselves run on the
-# host: `python manage.py runserver` and `npm start`.
+# host: `python manage.py runserver` and `pnpm start`.
 services:
   postgres:
     image: postgres:16
