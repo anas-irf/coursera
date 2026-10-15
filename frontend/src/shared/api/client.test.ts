@@ -1,18 +1,29 @@
 import axios from 'axios';
+import type { AxiosAdapter, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 
 import { API_URL } from '../config';
+import type { User } from '../auth/types';
 import { session } from '../lib/session';
 import { api } from './client';
 
 // whatever the build is configured with (a developer's .env must not matter)
 const API = API_URL;
 
+type Handler = (config: InternalAxiosRequestConfig) => [number, unknown];
+
+interface Call {
+  key: string;
+  headers: InternalAxiosRequestConfig['headers'];
+  withCredentials: boolean | undefined;
+  data: unknown;
+}
+
 // A scripted server: ``routes`` maps "METHOD path" to a function (config) => [status, data].
-function installServer(routes) {
-  const calls = [];
-  const adapter = (config) => {
-    const path = config.url.replace(API, '');
-    const key = `${config.method.toUpperCase()} ${path}`;
+function installServer(routes: Record<string, Handler>): Call[] {
+  const calls: Call[] = [];
+  const adapter: AxiosAdapter = (config) => {
+    const path = (config.url ?? '').replace(API, '');
+    const key = `${(config.method ?? 'get').toUpperCase()} ${path}`;
     const handler = routes[key];
     calls.push({
       key,
@@ -21,7 +32,7 @@ function installServer(routes) {
       data: config.data,
     });
     const [status, data] = handler ? handler(config) : [404, {}];
-    const response = { data, status, statusText: '', headers: {}, config, request: {} };
+    const response: AxiosResponse = { data, status, statusText: '', headers: {}, config, request: {} };
     if (status >= 200 && status < 300) return Promise.resolve(response);
     return Promise.reject(new axios.AxiosError(`status ${status}`, 'ERR_BAD_RESPONSE', config, {}, response));
   };
@@ -30,7 +41,7 @@ function installServer(routes) {
   return calls;
 }
 
-const user = { id: 1, user_type: 'student' };
+const user = { id: 1, user_type: 'student' } as User;
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -67,14 +78,14 @@ test('refreshes an expired session once and replays the request', async () => {
   expect(response.data).toEqual(['ok']);
   expect(attempts).toBe(2);
   const refresh = calls.find((c) => c.key === 'POST /auth/token/refresh/');
-  expect(refresh.withCredentials).toBe(true);
-  expect(refresh.data).toBeFalsy();   // the refresh token is a cookie, not a body
+  expect(refresh?.withCredentials).toBe(true);
+  expect(refresh?.data).toBeFalsy();   // the refresh token is a cookie, not a body
   expect(session.isAuthenticated()).toBe(true);
 });
 
 test('concurrent requests share one refresh', async () => {
   let refreshed = false;
-  const answer = (value) => () => (refreshed ? [200, value] : [401, {}]);
+  const answer = (value: string) => (): [number, unknown] => (refreshed ? [200, value] : [401, {}]);
   const calls = installServer({
     'GET /a/': answer('a'),
     'GET /b/': answer('b'),

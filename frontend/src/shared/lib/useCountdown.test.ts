@@ -27,7 +27,7 @@ test('no deadline, no countdown', () => {
 
 test('a new deadline restarts the countdown', () => {
   const now = () => Date.parse('2026-10-12T12:00:00Z');
-  const { result, rerender } = renderHook(({ at }) => useCountdown(at, now), {
+  const { result, rerender } = renderHook(({ at }: { at: string }) => useCountdown(at, now), {
     initialProps: { at: '2026-10-12T12:00:10Z' },
   });
   expect(result.current).toBe(10);

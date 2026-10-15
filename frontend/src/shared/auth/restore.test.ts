@@ -1,20 +1,24 @@
 import axios from 'axios';
+import type { AxiosAdapter, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 
 import { API_URL } from '../config';
 import { api } from '../api/client';
 import { session } from '../lib/session';
 import { restoreSession } from './restore';
+import type { User } from './types';
 
-const user = { id: 3, email: 'a@example.com', user_type: 'instructor' };
+const user = { id: 3, email: 'a@example.com', user_type: 'instructor' } as User;
 
-function installServer(routes) {
-  const calls = [];
-  const adapter = (config) => {
-    const key = `${config.method.toUpperCase()} ${config.url.replace(API_URL, '')}`;
+type Handler = (config: InternalAxiosRequestConfig) => [number, unknown];
+
+function installServer(routes: Record<string, Handler>): { key: string; data: string | undefined }[] {
+  const calls: { key: string; data: string | undefined }[] = [];
+  const adapter: AxiosAdapter = (config) => {
+    const key = `${(config.method ?? 'get').toUpperCase()} ${(config.url ?? '').replace(API_URL, '')}`;
     calls.push({ key, data: config.data });
     const handler = routes[key];
     const [status, data] = handler ? handler(config) : [404, {}];
-    const response = { data, status, statusText: '', headers: {}, config, request: {} };
+    const response: AxiosResponse = { data, status, statusText: '', headers: {}, config, request: {} };
     if (status === 0) return Promise.reject(new axios.AxiosError('Network Error', 'ERR_NETWORK', config));
     if (status >= 200 && status < 300) return Promise.resolve(response);
     return Promise.reject(new axios.AxiosError(`status ${status}`, 'ERR_BAD_RESPONSE', config, {}, response));
@@ -83,7 +87,7 @@ test('a session from the release before cookies is moved over once and leaves no
 
   await restoreSession();
 
-  expect(JSON.parse(calls[0].data)).toEqual({ refresh: 'old-refresh' });
+  expect(JSON.parse(calls[0].data as string)).toEqual({ refresh: 'old-refresh' });
   expect(calls[1].key).toBe('GET /auth/profile/');
   expect(session.isAuthenticated()).toBe(true);
   expect(window.localStorage.getItem('refresh_token')).toBeNull();

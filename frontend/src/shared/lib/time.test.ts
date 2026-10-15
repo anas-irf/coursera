@@ -1,7 +1,7 @@
 import { formatClock, timeAgo } from './time';
 
 const now = new Date('2026-10-12T12:00:00Z');
-const ago = (ms) => new Date(now.getTime() - ms).toISOString();
+const ago = (ms: number) => new Date(now.getTime() - ms).toISOString();
 
 test('recent times are relative', () => {
   expect(timeAgo(ago(10 * 1000), now)).toBe('Just now');

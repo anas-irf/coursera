@@ -1,9 +1,10 @@
+import { errorStatus } from '../api/errors';
 import { session } from '../lib/session';
 import * as accountsApi from './api';
 
-let restoring = null;
+let restoring: Promise<void> | null = null;
 
-async function restore() {
+async function restore(): Promise<void> {
   const legacy = session.legacyRefreshToken();
   if (!legacy && !session.hasHint()) {
     session.setAnonymous(); // a visitor: nothing to ask
@@ -24,7 +25,7 @@ async function restore() {
     const { user, profile } = await accountsApi.fetchProfile();
     session.start({ user, profile });
   } catch (error) {
-    if (error.response && error.response.status === 401) {
+    if (errorStatus(error) === 401) {
       session.setAnonymous();
     } else {
       session.setUnavailable(); // the session is not known to be over
@@ -33,7 +34,7 @@ async function restore() {
 }
 
 /** Find out from the server who is signed in (the answer lands in the session store). */
-export function restoreSession() {
+export function restoreSession(): Promise<void> {
   if (!restoring) {
     restoring = restore().finally(() => {
       restoring = null;

@@ -1,6 +1,6 @@
-import { errorCode, errorMessage, errorSummary, fieldErrors } from './errors';
+import { errorCode, errorMessage, errorStatus, errorSummary, fieldErrors } from './errors';
 
-const failure = (data, status = 400) => ({ response: { status, data } });
+const failure = (data: unknown, status = 400) => ({ response: { status, data } });
 
 test('domain errors use the error key', () => {
   expect(errorMessage(failure({ error: 'Already enrolled in this course' }))).toBe('Already enrolled in this course');
@@ -30,6 +30,13 @@ test('the stable code of an error is read when there is one', () => {
   expect(errorCode(failure({ error: 'plain' }))).toBeNull();
   expect(errorCode(failure('<html></html>', 500))).toBeNull();
   expect(errorCode(new Error('offline'))).toBeNull();
+});
+
+test('the status is that of the answer, and nothing when there was none', () => {
+  expect(errorStatus(failure({}, 402))).toBe(402);
+  expect(errorStatus(new Error('offline'))).toBeUndefined();
+  expect(errorStatus(null)).toBeUndefined();
+  expect(errorStatus('boom')).toBeUndefined();
 });
 
 test('a form response is summarised with every field that is wrong', () => {

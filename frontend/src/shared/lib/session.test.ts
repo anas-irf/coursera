@@ -1,6 +1,7 @@
+import type { User } from '../auth/types';
 import { session, STATUS } from './session';
 
-const user = { id: 7, email: 'a@example.com', user_type: 'student' };
+const user = { id: 7, email: 'a@example.com', user_type: 'student' } as User;
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -87,7 +88,7 @@ test('what the release before cookies kept in localStorage can be found and drop
 });
 
 describe('another tab', () => {
-  const storage = (newValue) =>
+  const storage = (newValue: string | null) =>
     window.dispatchEvent(new StorageEvent('storage', { key: 'session_hint', newValue }));
 
   test('signing out signs this tab out', () => {

@@ -16,7 +16,7 @@ const CONFIG = {
  * The server cleans it when it is stored; this is the second line, applied at
  * the one place that renders it.
  */
-export function safeHtml(html) {
+export function safeHtml(html: unknown): string {
   if (!html) return '';
   return DOMPurify.sanitize(String(html), CONFIG);
 }

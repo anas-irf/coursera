@@ -10,27 +10,38 @@
 //   may have refreshed in the meantime (the cookies are shared), and only then ends the
 //   session; the auth provider reacts and sends the user to the login page.
 import axios from 'axios';
+import type { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 
 import { API_URL } from '../config';
 import { session } from '../lib/session';
+
+declare module 'axios' {
+  // the type parameter has to repeat the one of axios for the declarations to merge, used or not
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+  interface AxiosRequestConfig<D = any> {
+    /** Set on a request that was replayed after a refresh, so that it is replayed only once. */
+    _retry?: boolean;
+  }
+}
 
 const HEADERS = { 'X-Requested-With': 'XMLHttpRequest' };
 
 export const api = axios.create({ baseURL: API_URL, withCredentials: true, headers: HEADERS });
 
-let refreshing = null;
+let refreshing: Promise<AxiosResponse> | null = null;
 
-const callRefresh = () =>
+const callRefresh = (): Promise<AxiosResponse> =>
   axios.post(`${API_URL}/auth/token/refresh/`, null, { withCredentials: true, headers: HEADERS });
 
 // one refresh at a time across tabs: a second tab would send the cookie the first one just rotated
-const inOneTabAtATime = (task) =>
+// (the lib types of ``request`` do not unwrap a promise the callback returns; the browser does)
+const inOneTabAtATime = <T>(task: () => Promise<T>): Promise<T> =>
   typeof navigator !== 'undefined' && navigator.locks && navigator.locks.request
-    ? navigator.locks.request('coursera-session-refresh', task)
+    ? (navigator.locks.request('coursera-session-refresh', task) as unknown as Promise<T>)
     : task();
 
 /** Ask the server for a new session; the cookies are set by its answer. */
-export function refreshSession() {
+export function refreshSession(): Promise<AxiosResponse> {
   if (!refreshing) {
     refreshing = inOneTabAtATime(callRefresh).finally(() => {
       refreshing = null;
@@ -40,12 +51,12 @@ export function refreshSession() {
 }
 
 // a 401 from these means "wrong credentials" or "no session", not "expired session"
-const isCredentialCall = (config) =>
+const isCredentialCall = (config: AxiosRequestConfig): boolean =>
   /\/auth\/(login|signup|logout|token\/refresh)\//.test(config.url || '');
 
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
+  async (error: AxiosError) => {
     const { config, response } = error;
     const expired = response && response.status === 401 && config && !config._retry;
 

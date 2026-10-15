@@ -6,7 +6,7 @@ beforeEach(() => jest.useFakeTimers());
 afterEach(() => jest.useRealTimers());
 
 test('the value follows only after it stopped changing', () => {
-  const { result, rerender } = renderHook(({ value }) => useDebouncedValue(value, 300), {
+  const { result, rerender } = renderHook(({ value }: { value: string }) => useDebouncedValue(value, 300), {
     initialProps: { value: 'p' },
   });
   expect(result.current).toBe('p');

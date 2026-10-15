@@ -15,7 +15,9 @@
 //
 // Everything that needs to know who is signed in goes through this module, and everything that
 // can change it (login, logout, a failed refresh, another tab) notifies subscribers.
-export const STATUS = {
+import type { Profile, SessionSnapshot, SessionStatus, User } from '../auth/types';
+
+export const STATUS: { readonly [K in SessionStatus]: K } = {
   unknown: 'unknown',
   authenticated: 'authenticated',
   anonymous: 'anonymous',
@@ -26,9 +28,17 @@ const HINT_KEY = 'session_hint';
 // what the release before cookies kept in localStorage
 const LEGACY_KEYS = ['access_token', 'refresh_token', 'user', 'profile'];
 
-const listeners = new Set();
+type Listener = () => void;
 
-const read = (key) => {
+interface SessionState {
+  status: SessionStatus;
+  user: User | null;
+  profile: Profile | null;
+}
+
+const listeners = new Set<Listener>();
+
+const read = (key: string): string | null => {
   try {
     return window.localStorage.getItem(key);
   } catch (error) {
@@ -36,7 +46,7 @@ const read = (key) => {
   }
 };
 
-const write = (key, value) => {
+const write = (key: string, value: string | null | undefined): void => {
   try {
     if (value === null || value === undefined) {
       window.localStorage.removeItem(key);
@@ -48,9 +58,9 @@ const write = (key, value) => {
   }
 };
 
-let state = { status: STATUS.unknown, user: null, profile: null };
+let state: SessionState = { status: STATUS.unknown, user: null, profile: null };
 
-const build = () => ({
+const build = (): SessionSnapshot => ({
   status: state.status,
   authenticated: state.status === STATUS.authenticated,
   user: state.user,
@@ -61,60 +71,60 @@ const build = () => ({
 // useSyncExternalStore without causing renders.
 let snapshot = build();
 
-const set = (next) => {
+const set = (next: Partial<SessionState>): void => {
   state = { ...state, ...next };
   snapshot = build();
   listeners.forEach((listener) => listener());
 };
 
 export const session = {
-  getSnapshot: () => snapshot,
+  getSnapshot: (): SessionSnapshot => snapshot,
 
-  subscribe(listener) {
+  subscribe(listener: Listener): () => boolean {
     listeners.add(listener);
     return () => listeners.delete(listener);
   },
 
-  getStatus: () => snapshot.status,
-  getUser: () => snapshot.user,
-  getProfile: () => snapshot.profile,
-  isAuthenticated: () => snapshot.authenticated,
+  getStatus: (): SessionStatus => snapshot.status,
+  getUser: (): User | null => snapshot.user,
+  getProfile: (): Profile | null => snapshot.profile,
+  isAuthenticated: (): boolean => snapshot.authenticated,
 
   /** This browser signed in before (and has not signed out): worth asking the server about. */
-  hasHint: () => Boolean(read(HINT_KEY)),
+  hasHint: (): boolean => Boolean(read(HINT_KEY)),
 
   /** A user signed in (login, or the server confirmed the cookie session on boot). */
-  start({ user, profile }) {
+  start({ user, profile }: { user: User; profile?: Profile | null }): void {
     write(HINT_KEY, String(Date.now()));
     set({ status: STATUS.authenticated, user, profile: profile || null });
   },
 
   /** Nobody is signed in (logout, an expired session, another tab signed out). */
-  setAnonymous() {
+  setAnonymous(): void {
     write(HINT_KEY, null);
     set({ status: STATUS.anonymous, user: null, profile: null });
   },
 
   /** The server could not be asked: keep what the page shows, offer a retry. */
-  setUnavailable() {
+  setUnavailable(): void {
     set({ status: STATUS.unavailable });
   },
 
   /** Ask the server again (the retry of the "cannot reach the server" screen, another tab's login). */
-  setUnknown() {
+  setUnknown(): void {
     set({ status: STATUS.unknown });
   },
 
   /** The refresh token the release before cookies left in localStorage, if any. */
-  legacyRefreshToken: () => read('refresh_token'),
+  legacyRefreshToken: (): string | null => read('refresh_token'),
 
   /** Forget what the release before cookies kept (tokens, user, profile). */
-  dropLegacy() {
+  dropLegacy(): void {
     LEGACY_KEYS.forEach((key) => write(key, null));
   },
 
   /** Back to the very beginning (tests). */
-  reset() {
+  reset(): void {
     write(HINT_KEY, null);
     LEGACY_KEYS.forEach((key) => write(key, null));
     set({ status: STATUS.unknown, user: null, profile: null });
@@ -123,7 +133,7 @@ export const session = {
 
 // another tab signed in or out
 if (typeof window !== 'undefined' && window.addEventListener) {
-  window.addEventListener('storage', (event) => {
+  window.addEventListener('storage', (event: StorageEvent) => {
     if (event.key !== HINT_KEY && event.key !== null) return;
     if (event.newValue) {
       if (snapshot.status !== STATUS.authenticated) set({ status: STATUS.unknown });

@@ -8,13 +8,13 @@ import { QueryClient } from '@tanstack/react-query';
  * and the badge all update.  A failed query is retried once and then reported by the component
  * (``ErrorState``); it is never turned into an empty list.
  */
-export function createQueryClient({ retryDelay } = {}) {
+export function createQueryClient({ retryDelay }: { retryDelay?: number } = {}): QueryClient {
   return new QueryClient({
     defaultOptions: {
       queries: {
         ...(retryDelay !== undefined && { retryDelay }), // tests do not wait a second to see an error
         retry: (failureCount, error) => {
-          const status = error && error.response && error.response.status;
+          const status = error?.response?.status;
           if (status && status >= 400 && status < 500) return false; // the answer will not change
           return failureCount < 1;
         },
