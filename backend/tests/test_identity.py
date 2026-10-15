@@ -224,6 +224,7 @@ def test_logout_blacklists_the_refresh_token(api):
     """Logout answers 205 and the refresh token stops working."""
     student = f.make_student()
     tokens = do_login(api, student.email).json()['tokens']
+    api.cookies.clear()
     api.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access']}")
 
     r = api.post(LOGOUT, {'refresh': tokens['refresh']}, format='json')
@@ -235,23 +236,27 @@ def test_logout_blacklists_the_refresh_token(api):
     assert r.status_code == 401
 
 
-def test_logout_with_invalid_refresh_token_is_400_and_requires_auth(api):
-    """Logout needs authentication; a bad refresh token is a 400."""
+def test_logout_is_authenticated_by_the_refresh_token_and_a_bad_one_is_a_400(api):
+    """Signing out must work when the access token has expired, so the credential is the refresh
+    token; one that is not valid is a 400."""
     student = f.make_student()
     tokens = do_login(api, student.email).json()['tokens']
+    api.cookies.clear()
 
-    assert api.post(LOGOUT, {'refresh': tokens['refresh']}, format='json').status_code == 401
-
-    api.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access']}")
     r = api.post(LOGOUT, {'refresh': 'garbage'}, format='json')
     assert r.status_code == 400
-    assert 'error' in r.json()
+    assert r.json() == {'error': 'Invalid or expired refresh token'}
+
+    # no access token at all, and it still works
+    assert api.post(LOGOUT, {'refresh': tokens['refresh']}, format='json').status_code == 205
+    assert api.post(REFRESH, {'refresh': tokens['refresh']}, format='json').status_code == 401
 
 
 def test_token_refresh_rotates_and_blacklists_the_old_refresh_token(api):
     """Refresh returns a new refresh token and blacklists the old one."""
     student = f.make_student()
     old_refresh = do_login(api, student.email).json()['tokens']['refresh']
+    api.cookies.clear()
 
     r = api.post(REFRESH, {'refresh': old_refresh}, format='json')
 

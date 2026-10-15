@@ -192,7 +192,7 @@ CORS_ALLOW_ALL_ORIGINS = env_bool('CORS_ALLOW_ALL_ORIGINS', False)
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'apps.accounts.authentication.CookieJWTAuthentication',
     ),
     # secure by default: a view that forgets to say who may call it is closed, not public
     'DEFAULT_PERMISSION_CLASSES': (
@@ -227,6 +227,21 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
+
+# --- the session cookies of a browser (apps/accounts/cookies.py) ---
+# The JWT pair lives in HttpOnly cookies, out of reach of scripts.  Secure is forced on in
+# production; SameSite=Lax needs the app and the API on the same site (one registrable
+# domain, e.g. app. and api.), SameSite=None needs Secure.
+AUTH_COOKIE_ACCESS = env_str('AUTH_COOKIE_ACCESS', 'coursera_access')
+AUTH_COOKIE_REFRESH = env_str('AUTH_COOKIE_REFRESH', 'coursera_refresh')
+AUTH_COOKIE_REFRESH_PATH = '/api/'
+AUTH_COOKIE_SECURE = env_bool('AUTH_COOKIE_SECURE', False)
+AUTH_COOKIE_SAMESITE = env_str('AUTH_COOKIE_SAMESITE', 'Lax')
+AUTH_COOKIE_DOMAIN = env_str('AUTH_COOKIE_DOMAIN') or None
+# While true the login answer carries the token pair and the refresh endpoint accepts it in the
+# body: that is what the front end of the release before cookies, and scripts, use.  Turn it off
+# once those are gone (callers that send X-Auth-Transport: bearer keep working).
+AUTH_LEGACY_TOKEN_TRANSPORT = env_bool('AUTH_LEGACY_TOKEN_TRANSPORT', True)
 
 # Channels Configuration
 # The in-memory layer only works inside a single process; set REDIS_URL to use

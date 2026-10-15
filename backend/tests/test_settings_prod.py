@@ -35,7 +35,7 @@ except ImproperlyConfigured as error:
     sys.exit(0)
 names = ['DEBUG', 'SECRET_KEY', 'ALLOWED_HOSTS', 'CORS_ALLOWED_ORIGINS', 'FRONTEND_URL',
          'SECURE_SSL_REDIRECT', 'SECURE_PROXY_SSL_HEADER', 'SECURE_HSTS_SECONDS',
-         'SESSION_COOKIE_SECURE', 'CSRF_COOKIE_SECURE']
+         'SESSION_COOKIE_SECURE', 'CSRF_COOKIE_SECURE', 'AUTH_COOKIE_SECURE']
 print(json.dumps({name: getattr(module, name, None) for name in names}))
 """
 
@@ -88,6 +88,7 @@ def test_a_complete_environment_gives_https_only_settings(package):
     assert settings['SECURE_SSL_REDIRECT'] is True
     assert settings['SESSION_COOKIE_SECURE'] is True
     assert settings['CSRF_COOKIE_SECURE'] is True
+    assert settings['AUTH_COOKIE_SECURE'] is True    # the session cookies of the browser
     assert settings['SECURE_HSTS_SECONDS'] == 31536000
     assert settings['SECURE_PROXY_SSL_HEADER'] is None
 

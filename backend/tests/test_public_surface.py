@@ -11,6 +11,7 @@ PUBLIC = {
     'api/payments/stripe/webhook/',     # Stripe calls it; the payload is verified by its signature
     'api/v1/auth/login/',
     'api/v1/auth/signup/',
+    'api/v1/auth/logout/',              # the refresh token is the credential, so an expired access token still signs out
     'api/v1/auth/token/refresh/',       # the refresh token is the credential
     'api/v1/learning/courses/',         # the public catalogue
 }
