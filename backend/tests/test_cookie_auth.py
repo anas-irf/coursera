@@ -151,6 +151,23 @@ def test_a_garbage_cookie_is_a_401(api):
     assert api.get(PROFILE).status_code == 401
 
 
+def test_the_browser_may_send_the_cookie_and_the_header_across_origins(api, student):
+    """The front end and the API are different origins: the preflight must allow credentials and
+    X-Requested-With, and name the app's origin exactly (a wildcard is refused with credentials)."""
+    r = api.options(
+        PROFILE, HTTP_ORIGIN=ORIGIN, HTTP_ACCESS_CONTROL_REQUEST_METHOD='POST',
+        HTTP_ACCESS_CONTROL_REQUEST_HEADERS='content-type,x-requested-with')
+
+    assert r['Access-Control-Allow-Origin'] == ORIGIN
+    assert r['Access-Control-Allow-Credentials'] == 'true'
+    assert 'x-requested-with' in r['Access-Control-Allow-Headers'].lower()
+
+    sign_in(api, student)
+    answer = api.get(PROFILE, HTTP_ORIGIN=ORIGIN)
+    assert answer['Access-Control-Allow-Origin'] == ORIGIN
+    assert answer['Access-Control-Allow-Credentials'] == 'true'
+
+
 # --------------------------------------------------------------------------- #
 # refresh
 # --------------------------------------------------------------------------- #

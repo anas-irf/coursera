@@ -1,6 +1,6 @@
-// Signing in for the specs: the API gives the session, the page gets it before the
-// application starts, so a spec begins on the page it is about (the login form has
-// its own spec).
+// Signing in for the specs: the API gives the session cookies to the browser context of the
+// page, so a spec begins on the page it is about, signed in exactly as after the login form
+// (the login form has its own spec).
 const { test: base, expect } = require('@playwright/test');
 
 const API_URL = process.env.E2E_API_URL || 'http://localhost:8000/api/v1';
@@ -19,15 +19,12 @@ async function apiLogin(request, email, password = PASSWORD) {
 
 const test = base.extend({
   /** ``await signIn('demo.student@example.com', '/student/grades')`` */
-  signIn: async ({ page, request }, use) => {
+  signIn: async ({ page }, use) => {
     await use(async (email, path = '/') => {
-      const session = await apiLogin(request, email);
-      await page.addInitScript(({ tokens, user, profile }) => {
-        window.localStorage.setItem('access_token', tokens.access);
-        window.localStorage.setItem('refresh_token', tokens.refresh);
-        window.localStorage.setItem('user', JSON.stringify(user));
-        if (profile) window.localStorage.setItem('profile', JSON.stringify(profile));
-      }, session);
+      // the page's own browser context: the answer's Set-Cookie headers become its session
+      const session = await apiLogin(page.context().request, email);
+      // the app asks the server who is signed in when this browser has signed in before
+      await page.addInitScript(() => window.localStorage.setItem('session_hint', String(Date.now())));
       await page.goto(path);
       return session.user;
     });

@@ -1,78 +1,117 @@
-import { session } from './session';
+import { session, STATUS } from './session';
 
-const tokens = { access: 'access-1', refresh: 'refresh-1' };
 const user = { id: 7, email: 'a@example.com', user_type: 'student' };
 
 beforeEach(() => {
   window.localStorage.clear();
-  session.clear();
+  session.reset();
 });
 
-test('starts empty', () => {
+test('starts unknown: the server has not been asked yet', () => {
+  expect(session.getStatus()).toBe(STATUS.unknown);
   expect(session.isAuthenticated()).toBe(false);
   expect(session.getUser()).toBeNull();
-  expect(session.getAccessToken()).toBeNull();
 });
 
-test('start stores tokens, user and profile', () => {
-  session.start({ tokens, user, profile: { bio: 'hi' } });
+test('start keeps the user and profile in memory and leaves a hint, never a token', () => {
+  session.start({ user, profile: { bio: 'hi' } });
 
   expect(session.isAuthenticated()).toBe(true);
-  expect(session.getAccessToken()).toBe('access-1');
-  expect(session.getRefreshToken()).toBe('refresh-1');
+  expect(session.getStatus()).toBe(STATUS.authenticated);
   expect(session.getUser()).toEqual(user);
   expect(session.getProfile()).toEqual({ bio: 'hi' });
+  expect(session.hasHint()).toBe(true);
+
+  // nothing about the session that a script could use is persisted
+  const stored = Object.keys(window.localStorage);
+  expect(stored).toEqual(['session_hint']);
+  expect(window.localStorage.getItem('user')).toBeNull();
 });
 
-test('setTokens keeps the refresh token when the server did not rotate it', () => {
-  session.start({ tokens, user });
+test('setAnonymous forgets the user and the hint', () => {
+  session.start({ user, profile: {} });
 
-  session.setTokens({ access: 'access-2' });
-  expect(session.getAccessToken()).toBe('access-2');
-  expect(session.getRefreshToken()).toBe('refresh-1');
+  session.setAnonymous();
 
-  session.setTokens({ access: 'access-3', refresh: 'refresh-2' });
-  expect(session.getRefreshToken()).toBe('refresh-2');
-});
-
-test('clear forgets everything', () => {
-  session.start({ tokens, user, profile: {} });
-
-  session.clear();
-
-  expect(session.isAuthenticated()).toBe(false);
+  expect(session.getStatus()).toBe(STATUS.anonymous);
   expect(session.getUser()).toBeNull();
-  expect(window.localStorage.getItem('refresh_token')).toBeNull();
+  expect(session.hasHint()).toBe(false);
+});
+
+test('unavailable is not signed out', () => {
+  session.start({ user });
+
+  session.setUnavailable();
+
+  expect(session.getStatus()).toBe(STATUS.unavailable);
+  expect(session.getUser()).toEqual(user);
+  expect(session.hasHint()).toBe(true);
 });
 
 test('subscribers are told about every change and can unsubscribe', () => {
   const listener = jest.fn();
   const unsubscribe = session.subscribe(listener);
 
-  session.start({ tokens, user });
-  session.setTokens({ access: 'access-2' });
-  session.clear();
+  session.start({ user });
+  session.setUnavailable();
+  session.setAnonymous();
   expect(listener).toHaveBeenCalledTimes(3);
 
   unsubscribe();
-  session.start({ tokens, user });
+  session.start({ user });
   expect(listener).toHaveBeenCalledTimes(3);
 });
 
 test('the snapshot only changes when the session does', () => {
-  session.start({ tokens, user });
+  session.start({ user });
   const first = session.getSnapshot();
 
   expect(session.getSnapshot()).toBe(first);
-  session.setTokens({ access: 'access-2' });
+  session.setUnavailable();
   expect(session.getSnapshot()).not.toBe(first);
 });
 
-test('a corrupt stored user is treated as logged out user data', () => {
+test('what the release before cookies kept in localStorage can be found and dropped', () => {
   window.localStorage.setItem('access_token', 'a');
   window.localStorage.setItem('refresh_token', 'r');
-  window.localStorage.setItem('user', '{not json');
-  session.setTokens({ access: 'a', refresh: 'r' });
+  window.localStorage.setItem('user', '{"id":1}');
+  window.localStorage.setItem('profile', '{}');
 
-  expect(session.getUser()).toBeNull();
+  expect(session.legacyRefreshToken()).toBe('r');
+
+  session.dropLegacy();
+
+  expect(session.legacyRefreshToken()).toBeNull();
+  expect(window.localStorage.getItem('user')).toBeNull();
+  expect(window.localStorage.getItem('access_token')).toBeNull();
+});
+
+describe('another tab', () => {
+  const storage = (newValue) =>
+    window.dispatchEvent(new StorageEvent('storage', { key: 'session_hint', newValue }));
+
+  test('signing out signs this tab out', () => {
+    session.start({ user });
+
+    storage(null);
+
+    expect(session.getStatus()).toBe(STATUS.anonymous);
+    expect(session.getUser()).toBeNull();
+  });
+
+  test('signing in makes this tab ask the server who is signed in', () => {
+    session.setAnonymous();
+
+    storage('1715000000000');
+
+    expect(session.getStatus()).toBe(STATUS.unknown);
+  });
+
+  test('a tab that is signed in stays so when another one signs in too', () => {
+    session.start({ user });
+
+    storage('1715000000000');
+
+    expect(session.getStatus()).toBe(STATUS.authenticated);
+  });
 });

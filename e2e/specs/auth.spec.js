@@ -1,5 +1,5 @@
 // The login form, the role areas and what happens to visitors who are not allowed in.
-const { test, expect, PASSWORD } = require('../support/session');
+const { test, expect, PASSWORD, API_URL } = require('../support/session');
 
 const ACCOUNTS = [
   { email: 'demo.student@example.com', area: /\/student$/, label: 'student' },
@@ -53,6 +53,45 @@ test('a role cannot open the area of another role', async ({ page, signIn }) => 
 
 test('a deactivated account cannot sign in', async ({ page }) => {
   await submitLogin(page, 'grace.mwangi@example.com', PASSWORD);
+
+  await expect(page).toHaveURL(/\/login/);
+});
+
+test('the session is kept out of reach of scripts', async ({ page }) => {
+  await submitLogin(page, 'demo.student@example.com', PASSWORD);
+  await expect(page).toHaveURL(/\/student$/);
+
+  // whatever a script on the page could read: storage and the cookies it can see
+  const readable = await page.evaluate(() => ({
+    storage: JSON.stringify(Object.fromEntries(Object.entries(window.localStorage))),
+    cookies: document.cookie,
+  }));
+  expect(readable.storage).not.toMatch(/access_token|refresh_token|eyJ/);
+  expect(readable.cookies).not.toContain('coursera_access');
+  expect(readable.cookies).not.toContain('coursera_refresh');
+
+  // yet the session is there: the browser context holds both HttpOnly cookies
+  const names = (await page.context().cookies()).map((cookie) => cookie.name);
+  expect(names).toEqual(expect.arrayContaining(['coursera_access', 'coursera_refresh']));
+});
+
+test('a signed in user stays signed in after a reload', async ({ page, signIn }) => {
+  await signIn('demo.student@example.com', '/student');
+
+  await page.reload();
+
+  await expect(page).toHaveURL(/\/student$/);
+  await expect(page.locator('main, body')).toContainText('Welcome back');
+});
+
+test('after the server ended the session the next visit is sent to the login page', async ({ page, signIn }) => {
+  await signIn('demo.student@example.com', '/student');
+  const logout = await page.context().request.post(`${API_URL}/auth/logout/`, {
+    headers: { 'X-Requested-With': 'XMLHttpRequest', Origin: 'http://localhost:3000' },
+  });
+  expect(logout.status()).toBe(205);
+
+  await page.goto('/student/grades');
 
   await expect(page).toHaveURL(/\/login/);
 });

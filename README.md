@@ -126,6 +126,8 @@ start** and names every missing variable marked *required* below.
 | `REDIS_URL` | backend | Channels layer; in-memory when empty (required in production unless `CHANNEL_LAYER=memory`) |
 | `BEHIND_TLS_PROXY` | backend | production only: trust the proxy's `X-Forwarded-Proto` |
 | `JWT_ACCESS_LIFETIME_MINUTES`, `JWT_REFRESH_LIFETIME_DAYS` | backend | token lifetimes (60 and 7) |
+| `AUTH_COOKIE_ACCESS`, `AUTH_COOKIE_REFRESH`, `AUTH_COOKIE_SECURE`, `AUTH_COOKIE_SAMESITE`, `AUTH_COOKIE_DOMAIN` | backend | the HttpOnly session cookies (`Secure` is always on in production; `Lax` needs the app and the API on one site) |
+| `AUTH_LEGACY_TOKEN_TRANSPORT` | backend | keep the token pair in login answers and accept the refresh token in a body (`True`: the release before cookies, scripts) |
 | `LOG_LEVEL` | backend | level of the application's loggers (`INFO`) |
 | `THROTTLE_LOGIN`, `THROTTLE_SIGNUP`, `THROTTLE_REFRESH`, `THROTTLE_MESSAGES`, `THROTTLE_UPLOADS`, `THROTTLE_PROGRESS`, `THROTTLE_ANON`, `THROTTLE_USER` | backend | request rates (`10/min` ... `1200/min`); counters are shared through `REDIS_URL` |
 | `NUM_PROXIES` | backend | reverse proxies in front of the API (0): the client address is the matching `X-Forwarded-For` hop |

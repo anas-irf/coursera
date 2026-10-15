@@ -69,6 +69,10 @@ The player's heartbeat (`POST /learning/courses/<c>/lectures/<l>/progress/`) sto
 
 **Reading HTML** is written by instructors and rendered in every learner's browser, so it is cleaned twice: on write (`apps.core.utils.sanitize_html`, `nh3`) and on render (`shared/lib/html.js`, DOMPurify). Formatting, links, images and tables stay; scripts, event handlers, `javascript:` URLs, frames and forms do not. `python manage.py clean_reading_html [--dry-run]` repairs what was stored before.
 
+## Sessions
+
+The browser's JWT pair lives in two `HttpOnly` cookies (`AUTH_COOKIE_*`): the access token at path `/` (the WebSocket needs it) and the refresh token at `/api/`. Login sets them; token refresh rotates them (a browser gets `204` and never sees a token); logout is authenticated by the refresh token, blacklists it and always clears both cookies. Because a browser attaches cookies to requests made by any page, a request that **changes data** and is authenticated by the cookie must come from our own front end: it carries `X-Requested-With` and an `Origin` that is in `CORS_ALLOWED_ORIGINS` (a bearer header, which a page has to know, needs neither). The app and the API must be on one site (`localhost` for both in development, `app.` and `api.` of one domain in production). Scripts and mobile clients keep using `Authorization: Bearer` and may ask for tokens in the body with `X-Auth-Transport: bearer`; while `AUTH_LEGACY_TOKEN_TRANSPORT` is on (the default) login answers also carry the token pair and the refresh endpoint accepts it in the body, which is how the release before cookies moves its session over. Turn it off once nothing of that is left.
+
 ## Billing and earnings
 
 **Plans.** `billing/plans.py` is where a Coursera Plus plan is written down: the active `SubscriptionPlan` row of a cycle (`monthly` / `yearly`) is what the checkout page lists and what Stripe is asked to charge, and until a row exists the built-in default of the cycle is used. Nothing else holds a price.
@@ -116,12 +120,12 @@ Every slice is mounted at `/api/v1/<slice>/`: `auth`, `courses`, `learning`, `as
 
 **What every endpoint inherits** (`REST_FRAMEWORK` in `config/settings/base.py`):
 
-* **Closed by default.** `DEFAULT_PERMISSION_CLASSES` is `IsAuthenticated`, so a view that forgets to declare its permissions is closed. The anonymous routes are exactly the five in `tests/test_public_surface.py` (login, signup, token refresh, the public catalogue and Stripe's webhook); opening another is a change to that list. Role checks are permission classes (`IsStudent`, `IsInstructor`, `IsAdmin`), not `if user.user_type` lines in a view.
+* **Closed by default.** `DEFAULT_PERMISSION_CLASSES` is `IsAuthenticated`, so a view that forgets to declare its permissions is closed. The anonymous routes are exactly the five in `tests/test_public_surface.py` (login, signup, logout, token refresh, the public catalogue and Stripe's webhook); opening another is a change to that list. Role checks are permission classes (`IsStudent`, `IsInstructor`, `IsAdmin`), not `if user.user_type` lines in a view.
 * **Throttled.** Scoped DRF throttles on a shared cache (Redis when `REDIS_URL` is set): `login`, `signup` and `refresh` per client address, `messages` and `uploads` per user, plus broad `anon` / `user` rates, all from `THROTTLE_*` variables. `NUM_PROXIES` says how many reverse proxies sit in front, so the client address is the right hop of `X-Forwarded-For`. A scope ignores the path, so `/api/v1/` and its alias share one bucket; a throttled call is a 429 with `Retry-After`.
 * **One error contract.** A service raises `ServiceError` (`NotFound` and `PermissionDenied` are its subclasses) and the handler in `apps/core/api/errors.py` answers `{"error": ...}`; DRF's own exceptions keep their `{"detail": ...}` and field-map shapes. Anything else is a bug: the traceback is logged and the client gets `{"error": "Something went wrong on our side. ...", "code": "server_error"}` with status 500, never the exception text. Views therefore do not wrap themselves in `except Exception`; one that must translate a specific failure catches that one (`StripeError`). Bad input is a 400, not a 500: `int_param()` and `object_body()` (`apps/core/api/params.py`) read query parameters and JSON bodies defensively.
 * **Pagination is opt-in.** The bare array is the v1 contract, so `?page=2&page_size=20` (at most 100) selects a page and nothing else changes. Every list answers `X-Total-Count`; a paged answer carries `Link` with `rel="next"` / `"prev"`; both are exposed to browsers through `CORS_EXPOSE_HEADERS`. The public catalogue has always answered its first 20 courses, so that is its default page (`apps/core/api/pagination.py`).
 
-WebSockets: `/ws/user/` (everything addressed to the user) and `/ws/chat/<conversation_id>/` (typing indicators of one conversation), authenticated with `?token=<access token>`.
+WebSockets: `/ws/user/` (everything addressed to the user) and `/ws/chat/<conversation_id>/` (typing indicators of one conversation), authenticated by the session cookie of the handshake (its `Origin` must be one of `CORS_ALLOWED_ORIGINS`) or, while `AUTH_LEGACY_TOKEN_TRANSPORT` is on, by `?token=<access token>`.
 
 `backend/tests/routes.expected.txt` is the route table; `tests/test_url_contract.py` resolves every request in the frontend's `api.js` modules against it.
 
@@ -135,8 +139,8 @@ src/
               api.js  pages/  components/  hooks/  index.js
 ```
 
-* **One client.** `shared/api/client.js` adds the token, refreshes it once on a 401 (concurrent requests share the refresh) and stores the rotated refresh token. If the session cannot be refreshed it is cleared and `AuthProvider` sends the user to the login page.
-* **One session.** `shared/lib/session.js` is the only reader and writer of the tokens; components read it through `useAuth()`.
+* **One client.** `shared/api/client.js` sends the session cookies (`withCredentials`) and `X-Requested-With`, refreshes the session once on a 401 (concurrent requests, across tabs through `navigator.locks`, share the refresh) and replays the request. If the refresh fails it asks for the profile once, because another tab may have refreshed, and only then ends the session; `AuthProvider` sends the user to the login page.
+* **One session.** `shared/lib/session.js` holds who is signed in and the status (`unknown` while the server is asked, `authenticated`, `anonymous`, `unavailable` when it cannot be reached) in memory; the tokens are HttpOnly cookies the page cannot read. Only a *hint* that this browser has a session is stored, which also tells other tabs about a login or a logout. Guards show a spinner while the status is `unknown` and never treat `unavailable` as signed out. A session left in `localStorage` by the release before cookies is exchanged once and removed.
 * **Real URLs.** `/student/...`, `/instructor/...`, `/admin/...` and `/courses/:id/learn`. The backend's notification links (`/instructor/courses`, `/admin/courses/approvals`, ...) are routes; `/student/dashboard`, `/instructor/dashboard`, `/admin/dashboard` and `/admindashboard` redirect.
 * **Media** is loaded from the API host through `mediaUrl()`; the WebSocket base comes from `REACT_APP_WS_URL` or the API URL.
 
@@ -184,6 +188,5 @@ What the seed cannot show, because the application cannot (see *Known gaps*): th
 
 Documented, not fixed in the restructuring:
 
-* **Security**: tokens live in `localStorage` and the WebSocket token is in the query string.
 * **Logic**: payouts to instructors do not exist (earnings are calculated and recorded only).
 * **Product**: instructor analytics, instructor settings, admin revenue / reports / settings have no backend.

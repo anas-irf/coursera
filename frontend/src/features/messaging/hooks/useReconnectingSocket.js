@@ -1,18 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { refreshAccessToken } from '../../../shared/api/client';
+import { fetchProfile } from '../../../shared/auth/api';
 import { WS_URL } from '../../../shared/config';
 import { session } from '../../../shared/lib/session';
 
 const MAX_DELAY_MS = 30000;
 
 /**
- * A WebSocket that lives as long as the component, reconnects with a growing
- * delay and always connects with the current access token.
+ * A WebSocket that lives as long as the component and reconnects with a growing delay.
  *
- * ``path`` is e.g. "/ws/user/"; pass ``null`` to stay disconnected.  Frames are
- * parsed as JSON and handed to the latest ``onMessage`` (changing it does not
- * reconnect).  ``send`` returns false when the socket is not open.
+ * It carries no token: the browser sends the session cookie with the handshake.  After
+ * repeated failures the session itself is checked (``/auth/profile/``, whose 401 makes the
+ * client refresh or end the session) instead of retrying blindly with a session that expired.
+ *
+ * ``path`` is e.g. "/ws/user/"; pass ``null`` to stay disconnected.  Frames are parsed as JSON
+ * and handed to the latest ``onMessage`` (changing it does not reconnect).  ``send`` returns
+ * false when the socket is not open.
  */
 export function useReconnectingSocket({ path, onMessage }) {
   const [status, setStatus] = useState('closed');
@@ -31,10 +34,9 @@ export function useReconnectingSocket({ path, onMessage }) {
     let timer = null;
 
     const connect = () => {
-      const token = session.getAccessToken();
-      if (!token || stopped) return;
+      if (stopped || !session.isAuthenticated()) return;
 
-      const socket = new WebSocket(`${WS_URL}${path}?token=${encodeURIComponent(token)}`);
+      const socket = new WebSocket(`${WS_URL}${path}`);
       socketRef.current = socket;
 
       socket.onopen = () => {
@@ -61,11 +63,11 @@ export function useReconnectingSocket({ path, onMessage }) {
         attempt += 1;
         timer = setTimeout(async () => {
           if (attempt > 2) {
-            // repeated failures are most often an expired access token
+            // repeated failures are most often an expired session: ask the server about it
             try {
-              await refreshAccessToken();
+              await fetchProfile();
             } catch (error) {
-              // the session is cleared by the client; the unmount stops us
+              // the client has ended the session; the unmount stops us
             }
           }
           connect();

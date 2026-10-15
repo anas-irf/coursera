@@ -22,15 +22,20 @@ import { ConfirmProvider } from '../shared/ui/ConfirmDialog';
 import { ToastProvider } from '../shared/ui/Toast';
 import { AuthProvider, useAuth } from '../shared/auth/AuthProvider';
 import { homePathFor } from '../shared/auth/paths';
-import { HomeRedirect, RedirectKeepingSearch, RequireAuth, RequireRole } from './guards';
+import { HomeRedirect, RedirectKeepingSearch, RequireAuth, RequireRole, SessionGate } from './guards';
 import AdminLayout from './layouts/AdminLayout';
 import InstructorLayout from './layouts/InstructorLayout';
 import StudentLayout from './layouts/StudentLayout';
 
-// "/login" for visitors; users that are already logged in go to their own home
+// "/login" for visitors; users that are already logged in go to their own home (the page waits
+// until the server has said who is signed in, so a returning user does not see the form flash)
 function LoginRoute() {
   const { isAuthenticated, userType } = useAuth();
-  return isAuthenticated ? <Navigate to={homePathFor(userType)} replace /> : <LoginPage />;
+  return (
+    <SessionGate>
+      {isAuthenticated ? <Navigate to={homePathFor(userType)} replace /> : <LoginPage />}
+    </SessionGate>
+  );
 }
 
 function App() {

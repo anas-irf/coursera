@@ -27,15 +27,12 @@ function renderAt(path) {
   );
 }
 
-const loginAs = (userType) =>
-  session.start({
-    tokens: { access: 'a', refresh: 'r' },
-    user: { id: 1, user_type: userType },
-  });
+const loginAs = (userType) => session.start({ user: { id: 1, user_type: userType } });
 
 beforeEach(() => {
   window.localStorage.clear();
-  session.clear();
+  session.reset();
+  session.setAnonymous();
 });
 
 test('visitors are sent to the login page', () => {
@@ -67,4 +64,26 @@ test('unknown paths lead to the home of the user', () => {
   renderAt('/nowhere');
 
   expect(screen.getByText('instructor home')).toBeInTheDocument();
+});
+
+test('while the server is being asked nobody is sent anywhere', () => {
+  // a browser that has a session hint: the provider asks the server and waits for the answer
+  window.localStorage.setItem('session_hint', '1');
+  session.setUnknown();
+
+  renderAt('/student');
+
+  expect(screen.queryByText('login page')).not.toBeInTheDocument();
+  expect(screen.queryByText('student home')).not.toBeInTheDocument();
+});
+
+test('an unreachable server is not a signed out user', () => {
+  session.start({ user: { id: 1, user_type: 'student' } });
+  session.setUnavailable();
+
+  renderAt('/student');
+
+  expect(screen.getByText('We cannot reach the server')).toBeInTheDocument();
+  expect(screen.queryByText('login page')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
 });
