@@ -313,5 +313,9 @@ QUIZ_SUBMIT_GRACE_SECONDS = env_int('QUIZ_SUBMIT_GRACE_SECONDS', 30)
 # and the "passing" flags of the gradebooks.
 COURSE_PASSING_GRADE = env_int('COURSE_PASSING_GRADE', 60)
 
+# The share (percent) of what students pay for Coursera Plus that goes to the instructors; the
+# platform keeps the rest.
+INSTRUCTOR_REVENUE_SHARE_PERCENT = env_int('INSTRUCTOR_REVENUE_SHARE_PERCENT', 40)
+
 # Password of the users created by ``manage.py seed_dev`` (random, printed once, when empty)
 SEED_PASSWORD = env_str('SEED_PASSWORD')

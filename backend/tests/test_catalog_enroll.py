@@ -218,10 +218,16 @@ def test_plus_course_without_subscription_is_402(auth_client, instructor, studen
 
 
 def test_plus_course_with_lapsed_subscription_is_402(auth_client, instructor, student):
-    """Cancelled or expired subscriptions do not unlock Plus courses."""
+    """A cancelled subscription unlocks Plus courses until its paid period ends; after that, and for
+    an expired or suspended one, they stay locked."""
     course = f.build_course(instructor, status='published', course_type='coursera_plus').course
-    sub = f.give_plus(student, status='cancelled')
+    sub = f.give_plus(student, status='suspended')
 
+    assert auth_client(student).post(enroll_url(course)).status_code == 402
+
+    sub.status = 'cancelled'
+    sub.end_date = timezone.now() - timedelta(days=1)
+    sub.save()
     assert auth_client(student).post(enroll_url(course)).status_code == 402
 
     sub.status = 'active'

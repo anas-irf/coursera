@@ -63,6 +63,16 @@ Frontend, enforced by ESLint (`frontend/.eslintrc.js`, `import/no-restricted-pat
 
 The player's heartbeat (`POST /learning/courses/<c>/lectures/<l>/progress/`) stores the resume position and credits the time spent, bounded by the distance the position moved, the real time since the previous beat and 60 s per beat. Everything that is about time (hours, streak, ranks, the monthly chart, the date of a badge) is derived from the daily log, `LearningStreak`: one row per student and day, in seconds. `StudentProfile.learning_streak` and `total_learning_hours` are refreshed from it the first time a student is active each day.
 
+## Billing and earnings
+
+**Plans.** `billing/plans.py` is where a Coursera Plus plan is written down: the active `SubscriptionPlan` row of a cycle (`monthly` / `yearly`) is what the checkout page lists and what Stripe is asked to charge, and until a row exists the built-in default of the cycle is used. Nothing else holds a price.
+
+**Webhook.** `/api/payments/stripe/webhook/` accepts nothing it cannot verify: without `STRIPE_WEBHOOK_SECRET` it answers 503 and never parses the body. Subscribe the endpoint to `checkout.session.completed`, `invoice.payment_succeeded`, `invoice.payment_failed`, `customer.subscription.updated` and `customer.subscription.deleted`. Handlers are atomic and idempotent (a payment is recorded once per Stripe transaction: the payment intent, the checkout session, or `<invoice>:<attempt>` for a failed attempt) and a failure answers 5xx so that Stripe delivers the event again. A renewal moves `end_date` to the period end Stripe reports (else one plan period); the first payment of a subscription is the checkout's, not a renewal.
+
+**Cancelling** stops the renewal at Stripe (`cancel_at_period_end`) and here (`status: cancelled`, `auto_renew: false`); the member keeps Plus until `end_date`, the end of the period they paid for. A subscription whose status is `suspended` (three failed attempts) or `expired` has no access.
+
+**Earnings.** `python manage.py calculate_earnings [--month YYYY-MM] [--dry-run]` (schedule it for the first day of every month, for the month before). The pool is `INSTRUCTOR_REVENUE_SHARE_PERCENT` of the month's completed Plus payments and is conserved: each Plus course that the month's learners enrolled in gets a share in proportion to its enrollments times a performance multiplier, normalised so the amounts add up to the pool to the cent. A month is calculated once, after it ended, and then frozen. Only figures are recorded; nothing pays an instructor (`is_paid` stays false).
+
 ## Certificates
 
 `certificates` sits above `assessments` (it needs the weighted grade). A certificate is issued by the application when the enrollment is **completed** and the weighted grade reaches `COURSE_PASSING_GRADE`; hand-ins still waiting for the instructor's grade postpone the decision, and a course with nothing graded certifies on completion. Because the course usually completes before the last grade arrives, three events ask the same idempotent question (`services.issue_if_eligible`): the course completed, an assignment graded, a quiz attempt finished (a retake can lift the grade). One enrollment has at most one certificate and its number never changes; numbers and verification codes are random (`secrets`). `python manage.py issue_certificates [--dry-run] [--notify]` issues the ones earned before this existed (silently unless asked).
@@ -168,6 +178,6 @@ What the seed cannot show, because the application cannot (see *Known gaps*): th
 
 Documented, not fixed in the restructuring:
 
-* **Security**: the Stripe webhook accepts unsigned bodies when `STRIPE_WEBHOOK_SECRET` is empty; reading HTML is rendered unsanitised; tokens live in `localStorage` and the WebSocket token is in the query string; `/api/messaging/users/` lists every user.
-* **Logic**: the subscription end date is not moved on renewal; nothing creates `InstructorEarning` rows (the seed writes them).
+* **Security**: reading HTML is rendered unsanitised; tokens live in `localStorage` and the WebSocket token is in the query string; `/api/messaging/users/` lists every user.
+* **Logic**: payouts to instructors do not exist (earnings are calculated and recorded only).
 * **Product**: instructor analytics, instructor settings, admin revenue / reports / settings have no backend.

@@ -36,6 +36,7 @@ from apps.assessments.models import (  # noqa: E402,F401
 from apps.notifications.models import Notification  # noqa: E402,F401
 from apps.billing.models import (  # noqa: E402,F401
     InstructorEarning, SubscriptionPlan, StudentPlusSubscription, StudentPlusPayment,
+    CourseraRevenuePool,
 )
 from apps.certificates.models import Certificate  # noqa: E402,F401
 from apps.messaging.models import DirectMessage  # noqa: E402,F401

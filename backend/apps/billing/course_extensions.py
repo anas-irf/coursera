@@ -8,12 +8,9 @@ from .models import InstructorEarning
 
 def course_revenue(course):
     """Extra column of the instructor's course list: revenue earned by the course."""
-    try:
-        revenue = InstructorEarning.objects.filter(
-            course=course
-        ).aggregate(Sum('final_amount'))['final_amount__sum'] or 0
-    except Exception:
-        revenue = 0
+    revenue = InstructorEarning.objects.filter(
+        course=course
+    ).aggregate(Sum('final_amount'))['final_amount__sum'] or 0
     return {'total_revenue': float(revenue)}
 
 

@@ -5,8 +5,7 @@ The text of an exception can carry SQL, file paths or the request details of Str
 an unexpected failure anywhere in a view is answered by the exception handler with one
 fixed body, ``{"error": ..., "code": "server_error"}`` and status 500, and the cause goes
 to the server log (CodeQL ``py/stack-trace-exposure``).  Views do not catch ``Exception``
-to get there.  The exception to that rule is the Stripe webhook, which still answers with
-its own text until its handlers become retryable.
+to get there, the Stripe webhook included (a 5xx is what makes Stripe deliver the event again).
 
 Making a read endpoint fail needs a patch one level inside the application;
 Stripe is patched at library level, like in ``test_billing.py``.
@@ -158,4 +157,4 @@ def test_stripe_failures_do_not_echo_the_cause(api, auth_client, student, caplog
     with patch('stripe.Webhook.construct_event', side_effect=RuntimeError(SECRET)):
         r = api.post(WEBHOOK, data='{}', content_type='application/json',
                      HTTP_STRIPE_SIGNATURE='t=1,v1=signature')
-    assert_failure_is_not_echoed(r, caplog, body={'error': 'Webhook processing failed'})
+    assert_failure_is_not_echoed(r, caplog)

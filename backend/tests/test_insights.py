@@ -122,10 +122,12 @@ def test_instructor_earnings_payload(api, auth_client, instructor, student):
     assert earning['status'] == 'Paid'
     assert earning['amount'] == pytest.approx(25.0)
 
-    # "transactions" are simulated from enrolments
+    # "transactions" are the earning rows themselves (a share of the pool, not one student's payment)
     (transaction,) = body['recent_transactions']
     assert set(transaction) == {'date', 'course', 'student_email', 'amount', 'status'}
-    assert transaction['student_email'] == student.email
+    assert transaction['student_email'] is None
+    assert transaction['amount'] == pytest.approx(25.0)
+    assert transaction['status'] == 'Paid'
 
     assert api.get(EARNINGS).status_code == 401
     r = auth_client(student).get(EARNINGS)

@@ -370,7 +370,7 @@ def test_plus_access_follows_the_subscription_stories(world):
 
     assert access('demo.student@example.com') and access('amara.okoye@example.com')
     assert access('liam.chen@example.com')
-    assert not access('sara.haddad@example.com')          # cancelled
+    assert access('sara.haddad@example.com')              # cancelled, paid until the period ends
     assert not access('mateo.alvarez@example.com')        # lapsed after a failed payment
     assert not access('ethan.walker@example.com')         # never subscribed
 

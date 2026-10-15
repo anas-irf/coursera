@@ -1,5 +1,4 @@
 # billing/api/views.py
-import json
 import logging
 
 from django.conf import settings
@@ -8,15 +7,16 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsStudent
+from apps.core.api.errors import ServiceError
 from apps.core.api.params import object_body
 
-from .. import selectors
+from .. import plans, selectors
 from ..services import gateway, subscriptions
 
 logger = logging.getLogger(__name__)
 
 # what the client is told when Stripe refuses a request; the details go to the log
-PAYMENT_PROVIDER_ERROR = 'The payment provider could not process this request. Please try again later.'
+PAYMENT_PROVIDER_ERROR = subscriptions.PROVIDER_ERROR
 
 
 # --------------------------------------------------------------------------- #
@@ -46,12 +46,7 @@ def checkout_page_data(request):
         }
 
     plans_data = selectors.plans_data()
-
-    # Calculate savings for annual plan
-    monthly_price = 49.99
-    yearly_price = 399.99
-    yearly_savings = (monthly_price * 12) - yearly_price
-    yearly_savings_percentage = round((yearly_savings / (monthly_price * 12)) * 100)
+    yearly_savings, yearly_savings_percentage = plans.savings()
 
     return Response({
         'student': {
@@ -63,7 +58,7 @@ def checkout_page_data(request):
         'plans': plans_data['plans'],
         'currency': plans_data['currency'],
         'savings': {
-            'yearly_savings_amount': yearly_savings,
+            'yearly_savings_amount': float(yearly_savings),
             'yearly_savings_percentage': yearly_savings_percentage
         },
         'payment_methods': [
@@ -85,27 +80,22 @@ def create_stripe_checkout_session(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
+    plan_id = object_body(request).get('plan_id')
+    if not plan_id:
+        return Response(
+            {'error': 'Plan ID is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    offer = plans.offer(plan_id) if isinstance(plan_id, str) else None
+    if offer is None:
+        return Response(
+            {'error': 'Invalid plan selected'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
     try:
-        plan_id = object_body(request).get('plan_id')
-        if not plan_id:
-            return Response(
-                {'error': 'Plan ID is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if plan_id not in gateway.CHECKOUT_PLANS:
-            return Response(
-                {'error': 'Invalid plan selected'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        checkout_session = gateway.create_checkout_session(request.user, plan_id)
-
-        return Response({
-            'checkout_url': checkout_session.url,
-            'session_id': checkout_session.id
-        })
-
+        checkout_session = gateway.create_checkout_session(request.user, offer)
     except gateway.StripeError:
         # Stripe's own message can carry request details (even part of the API key)
         logger.exception('Stripe rejected the checkout session request')
@@ -114,55 +104,39 @@ def create_stripe_checkout_session(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
+    return Response({
+        'checkout_url': checkout_session.url,
+        'session_id': checkout_session.id
+    })
+
 
 # --------------------------------------------------------------------------- #
 # Stripe -> us
 # --------------------------------------------------------------------------- #
-def _run(handler, payload):
-    """Run a subscription handler; a failure is logged and never fails the webhook."""
-    try:
-        handler(payload)
-    except Exception:
-        logger.exception('Stripe event handler %s failed', handler.__name__)
-
-
 @api_view(['POST'])
-@permission_classes([])  # Webhook doesn't need authentication
+@permission_classes([])  # Stripe calls it; the signature of the payload is the credential
 def stripe_webhook(request):
-    """Handle Stripe webhook events"""
-    payload = request.body
-    sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
-    endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
+    """Handle Stripe webhook events.
+
+    Without a webhook secret nothing can be verified, so nothing is accepted (503, never
+    parsed).  A handler that fails answers 5xx so that Stripe delivers the event again.
+    """
+    secret = settings.STRIPE_WEBHOOK_SECRET
+    if not secret:
+        logger.error('Stripe webhook refused: STRIPE_WEBHOOK_SECRET is not configured')
+        return Response({'error': 'Webhook is not configured'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
     try:
-        # For development, skip signature verification if no secret is set
-        if endpoint_secret:
-            event = gateway.construct_event(payload, sig_header, endpoint_secret)
-        else:
-            # For testing without webhook secret
-            event = json.loads(payload)
-
-        event_type = event['type']
-        logger.info('Stripe webhook %s (%s)', event_type, event.get('id'))
-
-        if event_type == 'checkout.session.completed':
-            _run(subscriptions.activate_from_checkout, event['data']['object'])
-        elif event_type == 'invoice.payment_succeeded':
-            _run(subscriptions.renew_from_invoice, event['data']['object'])
-        elif event_type == 'invoice.payment_failed':
-            _run(subscriptions.record_failed_payment, event['data']['object'])
-        else:
-            logger.info('Unhandled Stripe event type: %s', event_type)
-
-        return Response({'status': 'success'})
-
+        event = gateway.construct_event(
+            request.body, request.META.get('HTTP_STRIPE_SIGNATURE'), secret)
     except ValueError:
-        return Response({'error': 'Invalid payload'}, status=400)
+        return Response({'error': 'Invalid payload'}, status=status.HTTP_400_BAD_REQUEST)
     except gateway.SignatureVerificationError:
-        return Response({'error': 'Invalid signature'}, status=400)
-    except Exception:
-        logger.exception('Stripe webhook failed')
-        return Response({'error': 'Webhook processing failed'}, status=500)
+        return Response({'error': 'Invalid signature'}, status=status.HTTP_400_BAD_REQUEST)
+
+    logger.info('Stripe webhook %s (%s)', event.get('type'), event.get('id'))
+    subscriptions.handle_event(event)
+    return Response({'status': 'success'})
 
 
 @api_view(['POST'])
@@ -174,39 +148,38 @@ def verify_stripe_session(request):
     if not session_id:
         return Response({'error': 'session_id is required'}, status=400)
 
-    try:
-        # Check if subscription already exists
-        existing = selectors.get_subscription(request.user)
-        if existing is not None:
-            return Response({
-                'message': 'Subscription already exists',
-                'has_subscription': True,
-                'subscription': {
-                    'type': existing.subscription_type,
-                    'status': existing.status,
-                    'is_active': existing.is_active()
-                }
-            })
-
-        # Retrieve session from Stripe
-        session = gateway.retrieve_session(session_id)
-
-        if session.payment_status == 'paid':
-            _run(subscriptions.activate_from_checkout, session)
-
-            return Response({
-                'message': 'Subscription created successfully',
-                'has_subscription': True
-            })
+    # Check if subscription already exists
+    existing = selectors.get_subscription(request.user)
+    if existing is not None:
         return Response({
-            'message': 'Session not paid yet',
-            'has_subscription': False,
-            'payment_status': session.payment_status
+            'message': 'Subscription already exists',
+            'has_subscription': True,
+            'subscription': {
+                'type': existing.subscription_type,
+                'status': existing.status,
+                'is_active': existing.is_active()
+            }
         })
 
+    # Retrieve session from Stripe
+    try:
+        session = gateway.retrieve_session(session_id)
     except gateway.StripeError:
         logger.exception('Stripe could not retrieve the checkout session')
         return Response({'error': PAYMENT_PROVIDER_ERROR}, status=400)
+
+    if session.payment_status == 'paid':
+        subscriptions.activate_from_checkout(session)
+
+        return Response({
+            'message': 'Subscription created successfully',
+            'has_subscription': True
+        })
+    return Response({
+        'message': 'Session not paid yet',
+        'has_subscription': False,
+        'payment_status': session.payment_status
+    })
 
 
 # --------------------------------------------------------------------------- #
@@ -222,18 +195,15 @@ def student_subscription_status(request):
 @api_view(['POST'])
 @permission_classes([IsStudent])
 def cancel_plus_subscription(request):
-    """Cancel Plus subscription"""
+    """Cancel Plus: it stops renewing, and stays usable until the paid period ends."""
     subscription = selectors.get_subscription(request.user)
     if subscription is None:
-        return Response(
-            {'error': 'No active subscription found'},
-            status=status.HTTP_404_NOT_FOUND
-        )
+        raise ServiceError('No active subscription found', status_code=status.HTTP_404_NOT_FOUND)
 
-    subscription.status = 'cancelled'
-    subscription.auto_renew = False
-    subscription.save()
+    subscriptions.cancel(subscription)
 
     return Response({
-        'message': 'Subscription cancelled successfully'
+        'message': 'Subscription cancelled successfully',
+        'status': subscription.status,
+        'access_until': subscription.end_date.isoformat() if subscription.end_date else None,
     })

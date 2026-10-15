@@ -132,6 +132,7 @@ start** and names every missing variable marked *required* below.
 | `API_LEGACY_ALIASES`, `API_LEGACY_SUNSET` | backend | keep the unversioned `/api/<slice>/` paths (deprecated) and announce the day they go |
 | `QUIZ_SUBMIT_GRACE_SECONDS` | backend | how late a quiz answer may arrive after its time limit (30) |
 | `COURSE_PASSING_GRADE` | backend | weighted grade that earns a certificate (60) |
+| `INSTRUCTOR_REVENUE_SHARE_PERCENT` | backend | share of the month's Plus payments that goes to instructors (40) |
 | `SEED_PASSWORD` | backend | password of the users `seed_dev` creates (random when empty) |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | backend | Stripe test secret key (no default) and webhook secret |
 | `REACT_APP_API_URL` | frontend | API base; **required for a production build** (`npm run build` stops without it), `http://localhost:8000/api/v1` in development |

@@ -7,8 +7,8 @@ moved to its final state by ``settle`` once the activity is over: cancelled
 after a failed payment).
 """
 from datetime import timedelta
-from decimal import Decimal
 
+from apps.billing import plans
 from apps.billing.models import StudentPlusPayment, StudentPlusSubscription
 from apps.core.events import emit, payment_failed, subscription_activated, subscription_renewed
 
@@ -17,8 +17,8 @@ from ..data.stories import STORIES
 
 TITLE = 'Plus subscriptions'
 
-PRICE = {'monthly': Decimal('49.99'), 'yearly': Decimal('399.99')}
-PERIOD = {'monthly': 30, 'yearly': 365}
+PRICE = {cycle: plans.offer(cycle).price for cycle in plans.CYCLES}
+PERIOD = {cycle: plans.PERIOD[cycle].days for cycle in plans.CYCLES}
 
 
 def run(ctx):

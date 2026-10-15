@@ -2,6 +2,7 @@
 from datetime import timedelta
 from decimal import Decimal
 
+from django.conf import settings
 from django.db.models import Avg, DecimalField, Sum, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
@@ -96,37 +97,31 @@ def earnings(instructor):
         avg_engagement=Avg('engagement_score')
     )
 
-    # "transactions" are simulated from enrolments for the frontend's table
-    recent_transactions = []
-    recent_enrollments = Enrollment.objects.filter(
-        course__instructor=instructor
-    ).select_related('student', 'course').order_by('-enrolled_date')[:10]
-    for enrollment in recent_enrollments:
-        amount = 49.99  # default amount for a Coursera Plus revenue share
-        if enrollment.course.level == 'advanced':
-            amount = 59.99
-        elif enrollment.course.level == 'beginner':
-            amount = 39.99
+    # what was earned, newest first: the rows of the calculation, one per course and month
+    latest = InstructorEarning.objects.filter(instructor=instructor).select_related('course')
+    recent_transactions = [
+        {
+            'date': earning.created_at.date().isoformat(),
+            'course': earning.course.title,
+            'student_email': None,   # a share of the pool, not a payment by one student
+            'amount': float(earning.final_amount),
+            'status': 'Paid' if earning.is_paid else 'Pending',
+        }
+        for earning in latest.order_by('-month', '-id')[:10]
+    ]
 
-        recent_transactions.append({
-            'date': enrollment.enrolled_date.date().isoformat(),
-            'course': enrollment.course.title,
-            'student_email': enrollment.student.email,
-            'amount': amount,
-            'status': 'Paid'  # Plus subscriptions are pre-paid
-        })
-
-    # last six months (months are approximated with 30 days)
+    # the last six calendar months, oldest first
     today = timezone.now().date()
     monthly_chart = []
-    for i in range(6):
-        month_start = (today - timedelta(days=30 * (5 - i))).replace(day=1)
+    for back in range(5, -1, -1):
+        index = today.year * 12 + today.month - 1 - back
+        month_begin = today.replace(year=index // 12, month=index % 12 + 1, day=1)
         month_earnings = InstructorEarning.objects.filter(
             instructor=instructor,
-            month=month_start
+            month=month_begin
         ).aggregate(Sum('final_amount'))['final_amount__sum'] or 0
         monthly_chart.append({
-            'month': month_start.strftime('%b'),
+            'month': month_begin.strftime('%b'),
             'earnings': float(month_earnings)
         })
 
@@ -152,7 +147,8 @@ def earnings(instructor):
             'total_earnings': float(total_earnings),
             'pending_earnings': float(pending_earnings),
             'monthly_earnings': float(monthly_earnings),
-            'platform_fee_rate': 30  # the frontend expects this field
+            # what the platform keeps of the Plus revenue (the instructors' share is the rest)
+            'platform_fee_rate': 100 - settings.INSTRUCTOR_REVENUE_SHARE_PERCENT,
         },
         'recent_transactions': recent_transactions,
         'monthly_chart': monthly_chart,
@@ -163,8 +159,9 @@ def earnings(instructor):
         },
         'recent_earnings': recent_earnings,
         'earnings_model': {
-            'description': 'Earnings are calculated based on student enrollments, course completions, '
-                           'and engagement metrics',
+            'description': f'{settings.INSTRUCTOR_REVENUE_SHARE_PERCENT}% of what students pay for Coursera '
+                           'Plus each month is shared among the Plus courses by their enrollments, '
+                           'completions and engagement',
             'factors': [
                 'Number of enrollments in Coursera Plus courses',
                 'Course completion rate',

@@ -1,10 +1,11 @@
 """Instructor earnings and the monthly revenue pools.
 
-Nothing in the application creates ``InstructorEarning`` rows (the calculator is
-not scheduled and uses a placeholder pool), so the dashboards would stay at
-zero.  The rows written here follow the shape the earnings screens read: one
-row per Plus course and month, paid for the older months, pending for the last
-two.  Only Plus courses earn; free courses pay nothing.
+The application calculates earnings from the month's Plus payments
+(``calculate_earnings``), and the handful of seeded payments would give pools of a
+few dollars.  The platform has many more learners than the seed's cast, so the rows
+written here are narrative: one row per Plus course and month in the shape the
+earnings screens read, paid for the older months, pending for the last two, and
+each month's pool is exactly what its rows add up to.  Only Plus courses earn.
 """
 import random
 from datetime import UTC, datetime, time, timedelta
@@ -25,16 +26,11 @@ INSTRUCTOR_SHARE = Decimal('0.40')
 
 
 def month_starts(today):
-    """The first-of-month dates the instructor dashboard charts.
-
-    It steps back 30 days at a time and truncates to the first of the month, so
-    the rows must use exactly these dates (they are distinct for six steps).
-    """
+    """The first-of-month dates the instructor dashboard charts: the last six calendar months."""
     months = []
-    for step in range(6):
-        month = (today - timedelta(days=30 * (5 - step))).replace(day=1)
-        if month not in months:
-            months.append(month)
+    for back in range(5, -1, -1):
+        index = today.year * 12 + today.month - 1 - back
+        months.append(today.replace(year=index // 12, month=index % 12 + 1, day=1))
     return months
 
 
