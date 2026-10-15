@@ -6,6 +6,15 @@ import { session } from '../shared/lib/session';
 import { AuthProvider } from '../shared/auth/AuthProvider';
 import { HomeRedirect, RequireAuth, RequireRole } from './guards';
 
+// the guards are about what the session says, not about the network: the server never answers
+jest.mock('../shared/auth/api', () => ({
+  fetchProfile: jest.fn(() => new Promise(() => {})),
+  exchangeLegacyToken: jest.fn(() => new Promise(() => {})),
+  login: jest.fn(),
+  signup: jest.fn(),
+  logout: jest.fn(),
+}));
+
 function renderAt(path) {
   return render(
     <MemoryRouter initialEntries={[path]}>
