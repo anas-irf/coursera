@@ -125,8 +125,8 @@ def test_a_checkout_body_that_is_not_an_object_is_a_400(auth_client, student):
 # --------------------------------------------------------------------------- #
 def test_a_failure_while_creating_the_profile_leaves_no_account_behind(api, auth_client):
     payload = {
-        'email': 'half.done@example.com', 'password': 'Str0ng-Passw0rd-xyz',
-        'confirm_password': 'Str0ng-Passw0rd-xyz', 'user_type': 'student',
+        'email': 'half.done@example.com', 'password': f.DEFAULT_PASSWORD,
+        'confirm_password': f.DEFAULT_PASSWORD, 'user_type': 'student',
         'first_name': 'Half', 'last_name': 'Done',
     }
 
