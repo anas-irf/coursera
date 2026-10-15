@@ -32,7 +32,8 @@ Backend, enforced by `lint-imports` (`backend/.importlinter`, CI):
 ```
 seeding                    development tooling: may import anything, nothing imports it
 insights | notifications
-assessments | certificates
+certificates
+assessments
 learning
 billing | messaging | content
 courses
@@ -52,7 +53,7 @@ Frontend, enforced by ESLint (`frontend/.eslintrc.js`, `import/no-restricted-pat
 
 ## Talking upwards
 
-**Domain events** (`apps/core/events.py`). A slice announces that something happened with `emit(signal, **payload)` after it saved the change. `emit` never raises: a failing receiver is logged. Today only `notifications/receivers.py` subscribes (course submitted / approved / rejected, enrolled, assignment graded, subscription activated / renewed, payment failed) and writes the notification texts, so none of the emitting slices imports `notifications`. `course_completed` (the last lecture of a course was completed) is announced as well and has no subscriber yet.
+**Domain events** (`apps/core/events.py`). A slice announces that something happened with `emit(signal, **payload)` after it saved the change. `emit` never raises: a failing receiver is logged. Today only `notifications/receivers.py` subscribes (course submitted / approved / rejected, enrolled, assignment graded, subscription activated / renewed, payment failed) and writes the notification texts, so none of the emitting slices imports `notifications`. `course_completed` (the last lecture of a course was completed), `assignment_graded` and `quiz_attempt_finished` are what `certificates/receivers.py` subscribes to; `certificate_issued` is turned into a notification.
 
 **Lecture content registry** (`apps/courses/extensions.py`). `courses` owns the lecture, but video, reading, quiz and assignment content belong to other slices. They register a `LectureContentHandler` (create, update, instructor view, student view, duration, grade weight) from their `AppConfig.ready()`; `courses` asks the registry. The same module lets higher slices add a column to the instructor's course list (`billing`: revenue), a key to the lecture payload (`learning`: completion rate) and a guard that blocks deleting a course (`learning`: enrollments exist).
 
@@ -61,6 +62,10 @@ Frontend, enforced by ESLint (`frontend/.eslintrc.js`, `import/no-restricted-pat
 `learning.services` owns the rules. `complete_lecture` (a student ticks off a video or a reading) and `complete_lecture_once` (a quiz taken or an assignment handed in completes its own lecture) mark a lecture done; `refresh_progress` recomputes the percentage and completes the course when every lecture is, exactly once, announcing `course_completed`. A finished course stays open (`selectors.enrollment_for_access`): the player, its lectures and its quizzes keep working, while gradebooks list running enrolments only. A read never writes: the player returns a lecture that has no progress row yet as not started, and the row is created when the student acts.
 
 The player's heartbeat (`POST /learning/courses/<c>/lectures/<l>/progress/`) stores the resume position and credits the time spent, bounded by the distance the position moved, the real time since the previous beat and 60 s per beat. Everything that is about time (hours, streak, ranks, the monthly chart, the date of a badge) is derived from the daily log, `LearningStreak`: one row per student and day, in seconds. `StudentProfile.learning_streak` and `total_learning_hours` are refreshed from it the first time a student is active each day.
+
+## Certificates
+
+`certificates` sits above `assessments` (it needs the weighted grade). A certificate is issued by the application when the enrollment is **completed** and the weighted grade reaches `COURSE_PASSING_GRADE`; hand-ins still waiting for the instructor's grade postpone the decision, and a course with nothing graded certifies on completion. Because the course usually completes before the last grade arrives, three events ask the same idempotent question (`services.issue_if_eligible`): the course completed, an assignment graded, a quiz attempt finished (a retake can lift the grade). One enrollment has at most one certificate and its number never changes; numbers and verification codes are random (`secrets`). `python manage.py issue_certificates [--dry-run] [--notify]` issues the ones earned before this existed (silently unless asked).
 
 ## Assessments
 
@@ -143,7 +148,7 @@ steps/     one module per phase, run in order: people, catalogue, courses, subsc
 Rules the seed follows:
 
 * **Through the services.** Enrolling, finishing a lecture, attempting a quiz, handing in and grading, submitting and approving a course all call the application's own use-cases, so counters, grades and notifications are the real ones. A rule change that makes a story impossible fails `tests/test_seed_dev.py` instead of leaving stale demo data.
-* **Directly only where nothing writes the row**: certificates (explicit numbers), instructor earnings and revenue pools, ratings, subscriptions and their payments, the notification kinds no event emits, `StudentProfile` hours, `last_login`. Direct writes live in the steps named for them.
+* **Directly only where nothing writes the row**: instructor earnings and revenue pools, ratings, subscriptions and their payments, the notification kinds no event emits, `StudentProfile` hours, `last_login`. Direct writes live in the steps named for them.
 * **Then back-dated.** A service stamps "now"; `clock.py` moves the dates of what a step created into the past with queryset updates.
 * **Units are idempotent.** A course, an enrolment, a conversation is skipped when it exists, so a second run creates nothing and keeps passwords.
 * **Stories are validated.** A student cannot enrol before the course was published or before the account existed; a finished quiz needs an outcome; retakes of the last lecture of a completed course cannot happen. Authoring mistakes raise while seeding.
@@ -164,5 +169,5 @@ What the seed cannot show, because the application cannot (see *Known gaps*): th
 Documented, not fixed in the restructuring:
 
 * **Security**: the Stripe webhook accepts unsigned bodies when `STRIPE_WEBHOOK_SECRET` is empty; reading HTML is rendered unsanitised; tokens live in `localStorage` and the WebSocket token is in the query string; `/api/messaging/users/` lists every user.
-* **Logic**: the subscription end date is not moved on renewal; certificates are never issued and `Certificate.save()` cannot build its number; nothing creates `InstructorEarning` rows (the seed writes them).
+* **Logic**: the subscription end date is not moved on renewal; nothing creates `InstructorEarning` rows (the seed writes them).
 * **Product**: instructor analytics, instructor settings, admin revenue / reports / settings have no backend.

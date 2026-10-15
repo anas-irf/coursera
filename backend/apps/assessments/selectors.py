@@ -62,3 +62,14 @@ def quiz_weight(course):
 def assignment_weight(course):
     """Share of the final grade the course's assignments carry."""
     return Assignment.objects.filter(course=course).aggregate(total=Sum('weight'))['total'] or Decimal('0')
+
+
+def awaiting_grade(student, course):
+    """Whether a hand-in that counts towards the course grade has not been graded yet."""
+    return AssignmentSubmission.objects.filter(
+        student=student,
+        assignment__course=course,
+        assignment__is_active=True,
+        assignment__weight__gt=0,
+        grade__isnull=True,
+    ).exists()

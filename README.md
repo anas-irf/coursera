@@ -127,6 +127,11 @@ start** and names every missing variable marked *required* below.
 | `BEHIND_TLS_PROXY` | backend | production only: trust the proxy's `X-Forwarded-Proto` |
 | `JWT_ACCESS_LIFETIME_MINUTES`, `JWT_REFRESH_LIFETIME_DAYS` | backend | token lifetimes (60 and 7) |
 | `LOG_LEVEL` | backend | level of the application's loggers (`INFO`) |
+| `THROTTLE_LOGIN`, `THROTTLE_SIGNUP`, `THROTTLE_REFRESH`, `THROTTLE_MESSAGES`, `THROTTLE_UPLOADS`, `THROTTLE_PROGRESS`, `THROTTLE_ANON`, `THROTTLE_USER` | backend | request rates (`10/min` ... `1200/min`); counters are shared through `REDIS_URL` |
+| `NUM_PROXIES` | backend | reverse proxies in front of the API (0): the client address is the matching `X-Forwarded-For` hop |
+| `API_LEGACY_ALIASES`, `API_LEGACY_SUNSET` | backend | keep the unversioned `/api/<slice>/` paths (deprecated) and announce the day they go |
+| `QUIZ_SUBMIT_GRACE_SECONDS` | backend | how late a quiz answer may arrive after its time limit (30) |
+| `COURSE_PASSING_GRADE` | backend | weighted grade that earns a certificate (60) |
 | `SEED_PASSWORD` | backend | password of the users `seed_dev` creates (random when empty) |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | backend | Stripe test secret key (no default) and webhook secret |
 | `REACT_APP_API_URL` | frontend | API base; **required for a production build** (`npm run build` stops without it), `http://localhost:8000/api/v1` in development |

@@ -15,6 +15,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.core.api.errors import ServiceError
+from apps.core.events import emit, quiz_attempt_finished
 from apps.learning import services as learning
 
 from ..models import QuestionResponse, QuizAttempt
@@ -204,6 +205,9 @@ def submit_attempt(student, quiz, enrollment, attempt_uuid, answers):
             'Time is up: this attempt was submitted after the time limit and scored zero',
             code=TIME_LIMIT_EXCEEDED,
         )
+
+    # a graded attempt can change the final grade (a retake), so whoever cares is told
+    emit(quiz_attempt_finished, attempt=attempt)
 
     standing = summary(student, quiz)
     return {

@@ -15,7 +15,8 @@ type = layers
 layers =
     apps.seeding
     apps.insights | apps.notifications
-    apps.assessments | apps.certificates
+    apps.certificates
+    apps.assessments
     apps.learning
     apps.billing | apps.messaging | apps.content
     apps.courses

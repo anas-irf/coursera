@@ -341,17 +341,16 @@ def test_student_certificates_listing(api, auth_client, instructor, student, oth
     assert auth_client(instructor).get(CERTIFICATES).status_code == 403
 
 
-@pytest.mark.pinned_bug
-def test_certificate_model_cannot_generate_its_own_number_current_behaviour(instructor, student):
-    """Current behaviour (bug): ``Certificate.save()`` builds the number from
-    ``course.id[:8]`` - slicing an integer - so a certificate can only be stored
-    with explicit ``certificate_number`` / ``verification_code`` values."""
+def test_a_certificate_builds_its_own_number_and_code(instructor, student):
+    """``Certificate.save()`` used to slice an integer and could only store explicit values."""
     course = f.make_course(instructor, status='published')
     enrollment = f.enroll(student, course, status='completed')
 
-    with pytest.raises(TypeError):
-        f.Certificate.objects.create(enrollment=enrollment, student=student, course=course,
-                                     completion_date=timezone.now())
+    certificate = f.Certificate.objects.create(
+        enrollment=enrollment, student=student, course=course, completion_date=timezone.now())
+
+    assert certificate.certificate_number.startswith('CERT-')
+    assert len(certificate.verification_code) == 20
 
 
 # --------------------------------------------------------------------------- #

@@ -309,5 +309,9 @@ FRONTEND_URL = env_str('FRONTEND_URL')
 # attempt is closed at zero.
 QUIZ_SUBMIT_GRACE_SECONDS = env_int('QUIZ_SUBMIT_GRACE_SECONDS', 30)
 
+# The weighted course grade (percent) a student needs for a pass: it decides the certificate
+# and the "passing" flags of the gradebooks.
+COURSE_PASSING_GRADE = env_int('COURSE_PASSING_GRADE', 60)
+
 # Password of the users created by ``manage.py seed_dev`` (random, printed once, when empty)
 SEED_PASSWORD = env_str('SEED_PASSWORD')

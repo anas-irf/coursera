@@ -25,6 +25,10 @@ course_completed = Signal()   # enrollment: the last lecture was completed
 
 # --- assessments ---------------------------------------------------------- #
 assignment_graded = Signal()  # submission, grade, graded_by
+quiz_attempt_finished = Signal()   # attempt: graded, so a retake can lift the final grade
+
+# --- certificates --------------------------------------------------------- #
+certificate_issued = Signal()  # certificate
 
 # --- billing -------------------------------------------------------------- #
 subscription_activated = Signal()  # user, subscription, amount

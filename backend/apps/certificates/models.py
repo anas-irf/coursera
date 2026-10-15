@@ -4,8 +4,7 @@ from django.conf import settings
 from apps.core.models import BaseModel
 from apps.courses.models import Course
 from apps.learning.models import Enrollment
-import uuid
-import hashlib
+import secrets
 
 class Certificate(BaseModel):
     enrollment = models.OneToOneField(Enrollment, on_delete=models.CASCADE,
@@ -37,11 +36,12 @@ class Certificate(BaseModel):
         ]
     
     def generate_certificate_number(self):
-        return f"CERT-{self.course.id[:8]}-{uuid.uuid4().hex[:8].upper()}"
-    
+        """``CERT-<course>-<random>``: readable, and not derivable from anything else."""
+        return f'CERT-{self.course.uuid.hex[:8].upper()}-{secrets.token_hex(5).upper()}'
+
     def generate_verification_code(self):
-        data = f"{self.student.id}{self.course.id}{self.issue_date}"
-        return hashlib.sha256(data.encode()).hexdigest()[:20]
+        """Random (80 bits): knowing a student and a course does not give the code."""
+        return secrets.token_hex(10)
     
     def save(self, *args, **kwargs):
         if not self.certificate_number:

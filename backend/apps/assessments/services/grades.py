@@ -1,6 +1,8 @@
 """Grade calculation for students and courses."""
 from decimal import Decimal, ROUND_HALF_UP
 
+from django.conf import settings
+
 from apps.learning import selectors as learning
 
 from .. import selectors
@@ -12,7 +14,8 @@ class GradeCalculationService:
     @staticmethod
     def calculate_student_course_grade(student, course):
         """Calculate a student's final grade for a course"""
-        if learning.enrollment_for(student, course) is None:
+        # a finished course keeps its grade (the gradebooks only ask for running ones)
+        if learning.enrollment_for_access(student, course) is None:
             return None
 
         grade_components = []
@@ -102,7 +105,7 @@ class GradeCalculationService:
             'letter_grade': GradeCalculationService.get_letter_grade(final_score),
             'components': grade_components,
             'total_weight': float(total_weight),
-            'is_passing': final_score >= 60  # Assuming 60% is passing
+            'is_passing': final_score >= settings.COURSE_PASSING_GRADE
         }
 
     @staticmethod
@@ -162,8 +165,8 @@ class GradeCalculationService:
             'average_grade': sum(grades) / len(grades) if grades else 0,
             'highest_grade': max(grades) if grades else 0,
             'lowest_grade': min(grades) if grades else 0,
-            'passing_students': len([g for g in grades if g >= 60]),
-            'failing_students': len([g for g in grades if g < 60]),
+            'passing_students': len([g for g in grades if g >= settings.COURSE_PASSING_GRADE]),
+            'failing_students': len([g for g in grades if g < settings.COURSE_PASSING_GRADE]),
             'grade_distribution': GradeCalculationService._calculate_grade_distribution(grades)
         }
 

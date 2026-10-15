@@ -103,6 +103,19 @@ def assignment_graded(sender, submission, grade, graded_by, **kwargs):
     )
 
 
+# --- certificates --------------------------------------------------------- #
+@receiver(events.certificate_issued, dispatch_uid='notifications.certificate_issued')
+def certificate_issued(sender, certificate, **kwargs):
+    course = certificate.course
+    notify(
+        certificate.student, 'certificate_earned',
+        f'Certificate earned: "{course.title}"',
+        f'Congratulations! You completed "{course.title}" and earned a certificate. '
+        'You can download and share it from your certificates page.',
+        related=certificate, action_url='/student/certificates',
+    )
+
+
 # --- billing -------------------------------------------------------------- #
 def _admins():
     """Who hears about money: every admin (the name is kept, the audience is the one definition)."""
