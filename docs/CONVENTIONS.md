@@ -75,17 +75,18 @@ it. Behaviour that other people configure is listed in `backend/.env.example` **
 
 ```
 src/features/<slice>/
-  api.js         the requests of the slice: one function per endpoint, returns the response data
+  api.ts         the requests of the slice: one function per endpoint, returns the typed response data
+  types.ts       the shapes the slice's API answers and its hooks hand out
   hooks/         queries and mutations (TanStack Query) and the state hooks of the slice
   lib/           pure functions: rules, formatting, validation (unit-tested)
   pages/         one component per route
   components/    what pages are made of
-  index.js       what other features and the app shell may import
+  index.ts       what other features and the app shell may import (types with `export type`)
 ```
 
-* **Screens do not import `api.js`** **(lint)**. `pages/` and `components/` use the hooks of their feature,
+* **Screens do not import `api.ts`** **(lint)**. `pages/` and `components/` use the hooks of their feature,
   which own the query keys, what a change refreshes and how a failure is reported.
-* **Features reach each other only through `index.js`**, in the direction the backend slices have
+* **Features reach each other only through `index.ts`**, in the direction the backend slices have
   **(lint)**. `shared/` knows neither features nor the app shell **(lint)**.
 * **No `console`** **(lint)**: a failure is shown to the user (`ErrorState`, a toast) or handled.
 
@@ -117,6 +118,21 @@ src/features/<slice>/
 course's state. Grade weights are compared with `shared/lib/gradeWeight` (exact hundredths) and money is
 shown with `formatMoney`. A control that has no handler does not exist: it is wired, linked or removed.
 
+### Types
+
+TypeScript runs in strict mode (`npm run typecheck`, CI, the tests included).
+
+* **The shape of an answer is written once**, in the slice's `types.ts`, and the request returns it
+  (`api.get<Course[]>('/...')`). Keep `const BASE = '...';` literal and the URL as the first argument of the
+  call: `tests/test_url_contract.py` reads the `api.ts` modules **(test)**.
+* **Unions the slices share** (`UserType`, `CourseStatus`, ...) and the error body are in `shared/types.ts`;
+  `shared/` takes structural props (`{ title; thumbnail? }`), never a feature's type.
+* **A failure is `unknown` in a `catch`**: read it with `shared/api/errors`. Inside a query or a mutation it is
+  an axios error with the API's body.
+* **No `any`, no `@ts-ignore`** **(lint)**. A cast belongs at the edge (a `<select>` hands over text: narrow it
+  with a guard built from the option list) or in a test fixture; a `!` says in a comment what makes it safe.
+* A component has an `interface XProps` and no `React.FC`; state that starts empty is `useState<T | null>(null)`.
+
 ### Naming and data shapes
 
 * Components are `PascalCase`, hooks `useThing`, helpers `camelCase`; files are named after what they export.
@@ -126,7 +142,7 @@ shown with `formatMoney`. A control that has no handler does not exist: it is wi
 
 ### Tests
 
-* Pure rules are unit-tested next to the module (`lib/*.test.js`).
+* Pure rules are unit-tested next to the module (`lib/*.test.ts`).
 * Screens are tested through their hooks and api modules with only the HTTP client replaced
   (`jest.mock('<path to shared/api/client>')`), so a test also proves the query keys and the invalidation.
 * Browser specs (`e2e/`) cover what only a browser proves, against the seeded stack.

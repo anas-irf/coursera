@@ -45,10 +45,14 @@ updates:
       react:
         patterns: ["react", "react-dom", "react-router*"]
       tooling:
-        patterns: ["@testing-library/*", "jest*", "eslint*", "tailwindcss", "postcss", "autoprefixer"]
+        patterns: ["@testing-library/*", "jest*", "eslint*", "tailwindcss", "postcss", "autoprefixer", "typescript", "@types/*"]
     ignore:
       # Create React App (react-scripts 5) is end of life; a major step is a migration, not an update
       - dependency-name: "react-scripts"
+        update-types: ["version-update:semver-major"]
+      # its type checker, setup check and typescript-eslint use the JavaScript compiler API: TypeScript 6
+      # deprecates the options CRA forces and 7 (the native compiler) has no such API
+      - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
     labels: [dependencies, frontend]
 

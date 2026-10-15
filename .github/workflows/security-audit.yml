@@ -27,9 +27,10 @@ jobs:
         with:
           requirements: requirements-ci.txt
 
+      # the ignored advisories are the ones of the backend-security job in ci.yml, with their reasons
       - name: Python packages
         working-directory: backend
-        run: pip-audit -r requirements.txt --strict --progress-spinner off
+        run: pip-audit -r requirements.txt --strict --progress-spinner off --ignore-vuln CVE-2026-106454
 
       - name: Set up the frontend
         uses: ./.github/actions/setup-frontend

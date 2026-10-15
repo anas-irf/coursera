@@ -1,9 +1,9 @@
 """The frontend and the backend agree on URLs.
 
-Every request the frontend's ``api.js`` modules can make is resolved against
-Django's URLconf: the path must exist and accept the HTTP method.  The check
-reads the modules' source, so a typo in a path or a rename on either side fails
-here instead of in somebody's browser.
+Every request the frontend's ``api`` modules (``features/<slice>/api.ts`` and ``shared/auth/api.ts``)
+can make is resolved against Django's URLconf: the path must exist and accept the HTTP method.  The
+check reads the modules' source, so a typo in a path or a rename on either side fails here instead
+of in somebody's browser.
 """
 import re
 import uuid
@@ -17,13 +17,16 @@ import route_table
 FRONTEND = Path(__file__).resolve().parents[2] / 'frontend' / 'src'
 pytestmark = pytest.mark.skipif(not FRONTEND.exists(), reason='frontend sources are not checked out')
 
-CALL = re.compile(r"""\bapi\s*\.\s*(get|post|put|patch|delete)\(\s*(?P<url>`[^`]*`|'[^']*')""", re.S)
+# ``api.get('/x/')`` and ``api.get<Course[]>('/x/')``: a type argument may sit before the parenthesis
+CALL = re.compile(
+    r"""\bapi\s*\.\s*(get|post|put|patch|delete)\s*(?:<[^()]*>)?\s*\(\s*(?P<url>`[^`]*`|'[^']*')""", re.S
+)
 CONSTANT = re.compile(r"""^const\s+([A-Z_]+)\s*=\s*['"]([^'"]+)['"];""", re.M)
 SAMPLE_UUID = str(uuid.uuid4())
 
 
 def api_modules():
-    files = sorted(FRONTEND.glob('features/*/api.js')) + [FRONTEND / 'shared/auth/api.js']
+    files = sorted(FRONTEND.glob('features/*/api.ts')) + [FRONTEND / 'shared/auth/api.ts']
     return [path for path in files if path.exists()]
 
 
@@ -59,6 +62,23 @@ def test_the_api_modules_were_found():
     assert sum(len(requests_of(path)) for path in api_modules()) > 40
 
 
+def test_a_call_with_a_type_argument_is_read(tmp_path):
+    module = tmp_path / 'api.ts'
+    module.write_text(
+        "const BASE = '/courses/instructor';\n"
+        "export const list = () => api.get<Course[]>(`${BASE}/courses/`).then((r) => r.data);\n"
+        "export const make = (body: Body) => api.post<{ id: string; title: string }>('/courses/x/', body);\n"
+        "export const drop = (id: string) => api.delete(`${BASE}/sections/${id}/`);\n",
+        encoding='utf-8',
+    )
+
+    assert requests_of(module) == [
+        ('GET', '/courses/instructor/courses/'),
+        ('POST', '/courses/x/'),
+        ('DELETE', '/courses/instructor/sections/${id}/'),
+    ]
+
+
 @pytest.mark.parametrize('module', api_modules(), ids=lambda path: path.parent.name)
 def test_every_frontend_request_matches_a_route(module):
     problems = []
@@ -79,7 +99,7 @@ def test_every_frontend_request_matches_a_route(module):
 
 
 def test_websocket_paths_used_by_the_frontend_exist():
-    source = (FRONTEND / 'features/messaging/hooks/useChat.js').read_text(encoding='utf-8')
+    source = (FRONTEND / 'features/messaging/hooks/useChat.ts').read_text(encoding='utf-8')
     paths = re.findall(r"""path:\s*(?:activeId\s*\?\s*)?[`'](/ws/[^`']+)[`']""", source)
     routes = [line.split(' | ')[0] for line in route_table.collect_routes() if ' | WS | ' in line]
 

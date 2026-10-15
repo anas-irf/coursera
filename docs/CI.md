@@ -8,7 +8,7 @@ browser specs.
 ```
 changes ──┬─ backend-lint ────── ruff, import contracts, Django checks, model drift
           ├─ backend-test ─────── pytest + coverage on Python 3.13 / PostgreSQL 16 and 3.14 / 18
-          ├─ frontend ─────────── ESLint, Jest + coverage, production build
+          ├─ frontend ─────────── TypeScript, ESLint, Jest + coverage, production build
           ├─ e2e ──────────────── Playwright specs against the seeded stack
           ├─ workflows ────────── actionlint, zizmor
           ├─ backend-security ─── pip-audit, bandit
@@ -31,7 +31,7 @@ Besides `ci.yml`: `codeql.yml` (code scanning, results under *Security*), `secur
 |---|---|---|
 | Backend lint and contracts | ruff finds a bug pattern (`F E9 E7 B UP C4 SIM S`, see `backend/ruff.toml`), a module or class has no docstring (`D100`, `D101`), `django.http` is imported outside the HTTP adapters (`TID251`), a slice imports upwards or the domain imports DRF (`lint-imports`), `manage.py check` fails, a model changed without a migration, `manage.py check --deploy --fail-level WARNING` fails under `config.settings.prod` | `cd backend && ruff check apps config tests && lint-imports && python manage.py makemigrations --check --dry-run` |
 | Backend tests | a test fails (that includes the route table and the OpenAPI contract of v1: `tests/routes.expected.txt`, `tests/openapi.v1.yaml`), coverage drops under 90 % (`backend/.coveragerc`), the lines the pull request changes are covered under 85 % (diff coverage), `seed_dev` / `--reset` break on PostgreSQL 18 | `cd backend && python -m pytest --cov` (`TEST_DB_ENGINE=postgres` for PostgreSQL) |
-| Frontend | ESLint reports anything (module boundaries, "screens use hooks, not `api.js`" and `no-console` included, no warnings allowed), a Jest test fails, coverage drops under the floor in `package.json`, the production build has a warning or `REACT_APP_API_URL` is not set | `cd frontend && npm run lint && npm run test:ci && REACT_APP_API_URL=http://localhost:8000/api/v1 npm run build` |
+| Frontend | `tsc` reports a type error (strict, the tests included), ESLint reports anything (module boundaries, "screens use hooks, not `api.ts`", `no-console`, `any` and `@ts-ignore` included, no warnings allowed), a Jest test fails, coverage drops under the floor in `package.json`, the production build has a warning or `REACT_APP_API_URL` is not set | `cd frontend && npm run typecheck && npm run lint && npm run test:ci && REACT_APP_API_URL=http://localhost:8000/api/v1 npm run build` |
 | Browser specs | a spec in `e2e/specs` fails twice (one retry; a spec that only passes on the retry is reported as *flaky*) | see below |
 | Workflow lint and security | `actionlint` / shellcheck find an error, `zizmor` finds a medium or worse issue (injection, over-broad permissions, an action not pinned by SHA) | `actionlint` and `zizmor --min-severity medium .` |
 | Secret scan | gitleaks finds a credential in the commits of the change (`.gitleaks.toml`) | `gitleaks git --redact .` |
@@ -42,6 +42,14 @@ Besides `ci.yml`: `codeql.yml` (code scanning, results under *Security*), `secur
 Coverage is a floor, not a goal: the backend sits at ~93 %, the frontend at ~66 %. Raise
 `fail_under` in `backend/.coveragerc` and `coverageThreshold` in `frontend/package.json` when the
 numbers grow; never lower them to make a pull request pass.
+
+A new advisory fails every branch at once, because nothing in the code changed. One that has no
+fixed release and does not reach the application is ignored **by id** in both `pip-audit` calls
+(`ci.yml` and `security-audit.yml`, `--ignore-vuln`), with the reason written next to it; the ignore
+is removed when a fix ships. Today there is one: `CVE-2026-106454`, a ReDoS in the IMAP server of
+Twisted (`twisted.mail`), which nothing here serves (Daphne uses Twisted for HTTP and WebSockets);
+the fix is in `twisted/twisted#12788` and not released yet. Anything else that appears is fixed by
+upgrading the pinned requirement.
 
 ## The test report
 
