@@ -5,21 +5,31 @@
 // teaches everyone to ignore it. The packages that ship to users are the direct
 // dependencies of the app; those are gated. The toolchain is summarised, not gated.
 //
-// For every advisory pnpm names the dependency paths that reach the vulnerable package
-// (".>react-router-dom>react-router"): the second segment is the direct dependency, and
-// that is what is gated.
+// pnpm 10 answers with a map of advisories, each naming the dependency paths that reach the
+// vulnerable package (".>react-router-dom>react-router"): the second segment is the direct
+// dependency. npm's v2 report, which a later pnpm may answer with, is a map of packages with
+// a severity for every package that is affected, direct dependencies included. Both are read.
+// An answer that is neither (an error, another schema) stops the job with exit code 2: it is
+// never taken for "nothing found".
 //
 //   node ../.github/scripts/audit-runtime-dependencies.mjs      (from frontend/)
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 
 const BUILD_TOOLS = ['react-scripts'];
-const GATED = new Set(['high', 'critical']);
+// the severities that block, the worse one with the higher rank
+const GATED = { high: 1, critical: 2 };
 
 const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
 const runtime = Object.keys(manifest.dependencies || {}).filter(
   (name) => !BUILD_TOOLS.includes(name) && !name.startsWith('@testing-library/'),
 );
+
+function stop(message, detail) {
+  console.error(`::error::${message}`);
+  if (detail) console.error(detail);
+  process.exit(2);
+}
 
 let raw;
 try {
@@ -36,29 +46,49 @@ let report;
 try {
   report = JSON.parse(raw);
 } catch (error) {
-  console.error('::error::pnpm audit did not answer with a report (is the registry reachable?)');
-  console.error(String(raw).slice(0, 500));
-  process.exit(2);
+  stop('pnpm audit did not answer with a report (is the registry reachable?)', String(raw).slice(0, 500));
 }
 
-// the direct runtime dependencies that reach a package with a high or critical advisory
+const isMap = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
+if (!isMap(report)) {
+  stop('pnpm audit did not answer with a report', String(raw).slice(0, 500));
+}
+if (report.error) {
+  stop('pnpm audit answered with an error', JSON.stringify(report.error).slice(0, 500));
+}
+if (!isMap(report.advisories) && !isMap(report.vulnerabilities)) {
+  stop(
+    'pnpm audit answered with a report that has neither "advisories" nor "vulnerabilities"',
+    `keys: ${Object.keys(report).join(', ') || '(none)'}`,
+  );
+}
+
+// the direct runtime dependencies that reach a package with a high or critical advisory:
+// (direct dependency, vulnerable package) -> the worst severity found
 const reached = new Map();
-Object.values(report.advisories || {})
-  .filter((advisory) => GATED.has(advisory.severity))
-  .forEach((advisory) => {
-    (advisory.findings || []).forEach((finding) => {
-      (finding.paths || []).forEach((path) => {
-        const direct = path.split('>')[1];
-        if (runtime.includes(direct)) {
-          reached.set(`${direct}>${advisory.module_name}`, {
-            direct,
-            module: advisory.module_name,
-            severity: advisory.severity,
-          });
-        }
-      });
+const reach = (direct, module, severity) => {
+  if (!runtime.includes(direct) || !Object.hasOwn(GATED, severity)) return;
+  const key = `${direct}>${module}`;
+  const known = reached.get(key);
+  if (!known || GATED[severity] > GATED[known.severity]) {
+    reached.set(key, { direct, module, severity });
+  }
+};
+
+Object.values(report.advisories || {}).forEach((advisory) => {
+  (advisory.findings || []).forEach((finding) => {
+    (finding.paths || []).forEach((path) => {
+      if (typeof path === 'string') reach(path.split('>')[1], advisory.module_name, advisory.severity);
     });
   });
+});
+
+Object.entries(report.vulnerabilities || {}).forEach(([name, entry]) => {
+  // `via` names the vulnerable package for a direct dependency that is only affected through it
+  const through = (entry.via || []).find((item) => isMap(item) && item.name);
+  reach(name, through ? through.name : name, entry.severity);
+});
+
 const blocking = [...reached.values()];
 const blockedPackages = [...new Set(blocking.map((entry) => entry.direct))];
 
