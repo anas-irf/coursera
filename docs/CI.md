@@ -2,7 +2,8 @@
 
 Every pull request, and every push to `main`, runs `.github/workflows/ci.yml`. The jobs run in
 parallel, only for the areas a change touches, and end in one job, **CI gate**: that is the check to
-require on `main`. A pull request also gets one comment with the test report.
+require on `main`. A pull request also gets two comments: the test report and the recordings of the
+browser specs.
 
 ```
 changes ──┬─ backend-lint ────── ruff, import contracts, Django checks, model drift
@@ -15,6 +16,8 @@ changes ──┬─ backend-lint ────── ruff, import contracts, Dja
 secrets ───── gitleaks over the commits of the change
 dependency-review ── what the pull request adds (pull requests only)
 report ────── one test-report comment on the pull request
+previews ──── an animated image of every browser-spec recording (no write token, ffmpeg)
+recordings ── one comment: the link to the report and the videos, the images shown inline
 gate ──────── passes when every job above passed or was skipped on purpose
 ```
 
@@ -49,6 +52,47 @@ trace, flaky and slowest tests) and into the job summary. The comment is updated
 holds the only write token of the pipeline and runs no repository code. Pull requests from forks
 only get the job summary.
 
+## The recordings
+
+CI films every browser spec, not only the failures, and puts the recordings on the pull request in
+a second sticky comment that is updated in place:
+
+* **The verdict and the link.** The *Browser specs* job writes a short text
+  (`.github/scripts/e2e-recordings.mjs`): how many specs passed, failed or passed only on the retry,
+  how many recordings there are, the commit they belong to, and a link to the `playwright-evidence`
+  artifact with the HTML report and the video of every spec. Unzip it and open
+  `playwright-report/index.html`; the videos are also plain files in `test-results/`. They are kept
+  for 14 days and need a GitHub sign-in to download.
+* **The previews.** GitHub plays no video that a workflow could upload, but it shows an animated
+  image. The `previews` job turns each recording into an animated WebP with ffmpeg
+  (`.github/scripts/e2e-previews.mjs`: up to 1280 px wide, 10 frames a second, about 100 KB each; failed
+  and flaky specs first, at most 40). The `recordings` job publishes them and shows them in the
+  comment, one folded group per spec file. **A click on a preview opens it, at full size, in a
+  browser tab.** The videos themselves, with controls, are in the artifact.
+
+**Why WebP, and why a branch.** What a click does depends on how the file is served, not on the
+comment. GitHub serves release assets and artifacts as downloads, so a click on an image hosted there
+saves a file; it serves MP4 and WebM from a repository as `application/octet-stream` and has no
+player for them. `raw.githubusercontent.com` serves images as images. An animated WebP of a recording at 1280 px is
+less than half the size of its GIF at 800 px, in full colour, and every current browser plays it.
+
+**Where the images live.** On the branch `ci-recordings-pr-<number>`, one per pull request: a single
+commit, replaced by force on every run, with the images in a folder named after the tested commit
+(so that no cache shows an old one). The history does not grow. After it has updated the comment, a
+run deletes the branches of pull requests that are closed. The images are public, like the
+repository: anyone with a link sees them, while the artifact needs a sign-in. The recordings show the
+seeded development data only. If the repository becomes private the images break; the link in the
+comment still works.
+
+**Trust and failure.** `previews` has no write token and is the only job that decodes files the pull
+request produced. `recordings` has `contents: write` (the branch) and `pull-requests: write`, checks
+nothing out, runs no repository code, and checks the names, sizes and headers of the images before it
+publishes them. Neither is part of the **CI gate**: when something goes wrong the comment only has
+the link, the pull request never turns red for it. A run for a commit that is no longer the head of
+the pull request posts nothing, and a push that touches no browser spec leaves the previous comment
+standing (it names the commit it describes). Forks and Dependabot get a read-only token and no
+comment: the text is in the summary of the *Browser specs* job.
+
 ## Browser specs
 
 `e2e/` holds Playwright specs that run against the real stack with the development data:
@@ -81,16 +125,19 @@ Rules the specs follow:
 * **No assumption about list order.** PostgreSQL and SQLite order NULLs differently (a course that
   was never visited comes first on PostgreSQL), and CI runs on PostgreSQL: find a card by its title,
   not by its position.
-* **Evidence on failure.** CI keeps the HTML report, a trace and a video of every failed spec as the
-  `playwright-evidence` artifact for 14 days.
+* **Evidence on every run.** CI keeps the HTML report, a video of every spec and a trace of every
+  failed spec as the `playwright-evidence` artifact for 14 days (see *The recordings*). The videos
+  are as large as the viewport and each action is followed by a 250 ms pause, so that they can be
+  followed. Locally only a failed spec keeps a video; set `CI=1` to record everything as CI does.
 
 ## Reading a red pull request
 
 1. Open the **CI gate** job summary: it lists every job and its result.
 2. The failed job's own summary has the coverage table or the audit result; the test report comment
    has the failing test with its stack trace.
-3. For a browser spec download `playwright-evidence` and run
-   `npx playwright show-trace <trace.zip>` in `e2e/`.
+3. For a browser spec follow the link in the recordings comment (or download `playwright-evidence`
+   from the run): the report shows the video and the steps of the failed spec, and
+   `npx playwright show-trace <trace.zip>` in `e2e/` replays its trace.
 
 ## Pipeline rules
 

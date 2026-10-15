@@ -236,6 +236,9 @@ jobs:
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    outputs:
+      # the text of the recordings comment, written by .github/scripts/e2e-recordings.mjs
+      recordings: ${{ steps.recordings.outputs.comment }}
     services:
       postgres:
         image: postgres:16
@@ -258,6 +261,7 @@ jobs:
       DB_HOST: localhost
       DB_PORT: "5432"
       SEED_PASSWORD: ci-e2e-password
+      EVIDENCE_RETENTION_DAYS: "14"
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -333,7 +337,8 @@ jobs:
         working-directory: e2e
         run: npx playwright test
 
-      - name: Upload the evidence (report, traces, videos of failures)
+      - name: Upload the evidence (report, the video of every spec, traces of failures)
+        id: evidence
         if: success() || failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -342,7 +347,18 @@ jobs:
             e2e/playwright-report
             e2e/test-results
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: ${{ env.EVIDENCE_RETENTION_DAYS }}
+
+      # The text of the "Recordings on the pull request" comment and of this job's summary.
+      # Cosmetic: a mistake in it must never turn the gate red.
+      - name: Describe the recordings
+        id: recordings
+        if: (success() || failure()) && steps.evidence.outputs.artifact-id != ''
+        continue-on-error: true
+        env:
+          ARTIFACT_ID: ${{ steps.evidence.outputs.artifact-id }}
+          TESTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node .github/scripts/e2e-recordings.mjs
 
       - name: Upload the test report
         if: success() || failure()
@@ -392,6 +408,216 @@ jobs:
           overwrite-comment: true
           comment-tag: ci-test-report
           annotate: true
+
+  # -------------------------------------------------------- the recordings of the specs
+  # Two jobs, so that the one with a write token never decodes a file the pull request made:
+  # ffmpeg runs in "previews" (read-only), "recordings" only publishes its images and posts.
+  # Both: !cancelled(), not always(), so that a run replaced by a newer push does not post;
+  # forks and Dependabot get a read-only token and have the job summary of the e2e job instead.
+  previews:
+    name: Animated previews of the recordings
+    needs: e2e
+    if: >-
+      !cancelled() && github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.fork == false &&
+      github.actor != 'dependabot[bot]' &&
+      needs.e2e.outputs.recordings != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out the script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+
+      - name: Download the evidence of the specs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: playwright-evidence
+          path: e2e
+
+      - name: Download the test report
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ctrf-e2e
+          path: e2e/ctrf
+
+      # The previews are cosmetic: a problem here leaves a comment with the link only, never a red job.
+      - name: Install ffmpeg
+        continue-on-error: true
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends ffmpeg
+
+      - name: Make the previews
+        continue-on-error: true
+        run: node .github/scripts/e2e-previews.mjs
+
+      - name: Upload the previews
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: recording-previews
+          path: previews
+          if-no-files-found: ignore
+          retention-days: 7
+
+  recordings:
+    name: Recordings on the pull request
+    needs: [e2e, previews]
+    if: >-
+      !cancelled() && github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.fork == false &&
+      github.actor != 'dependabot[bot]' &&
+      needs.e2e.outputs.recordings != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # checks nothing out and runs no repository code: it publishes the images of the previews job
+    # and posts the text of the e2e job
+    permissions:
+      contents: write # pushes the images to the branch ci-recordings-pr-<number>
+      pull-requests: write # to create or update the recordings comment
+    steps:
+      - name: Download the previews
+        id: previews
+        if: needs.previews.result == 'success'
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: recording-previews
+          path: previews
+
+      - name: Publish the previews and post (or update) the recordings comment
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RECORDINGS: ${{ needs.e2e.outputs.recordings }}
+          TESTED_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+        with:
+          script: |
+            const fs = require('fs');
+            const os = require('os');
+            const path = require('path');
+            const { execFileSync } = require('child_process');
+
+            const marker = '<!-- ci-e2e-recordings -->';
+            const branchPrefix = 'ci-recordings-pr-';
+            const dir = 'previews';
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const sha = process.env.TESTED_SHA;
+            const branch = `${branchPrefix}${issue_number}`;
+
+            // a run for an older commit can finish after a newer push: leave the newer comment alone
+            const { data: pull } = await github.rest.pulls.get({ owner, repo, pull_number: issue_number });
+            if (pull.head.sha !== sha) {
+              core.notice(`The pull request moved on to ${pull.head.sha.slice(0, 7)}: nothing posted.`);
+              return;
+            }
+
+            // The images were made from the code of the pull request: only files that look like what
+            // the previews job writes are published.
+            function previewFiles() {
+              if (!fs.existsSync(path.join(dir, 'previews.md'))) return [];
+              const files = [];
+              let total = 0;
+              for (const name of fs.readdirSync(dir).sort()) {
+                if (!/^\d{2,3}-[a-z0-9-]{1,80}\.webp$/.test(name)) continue;
+                const bytes = fs.readFileSync(path.join(dir, name));
+                const webp = bytes.subarray(0, 4).toString('latin1') === 'RIFF' &&
+                  bytes.subarray(8, 12).toString('latin1') === 'WEBP';
+                if (bytes.length > 4 * 1024 * 1024 || !webp) {
+                  core.warning(`${name} is not published: not a WebP image of a sensible size`);
+                  continue;
+                }
+                total += bytes.length;
+                if (total > 40 * 1024 * 1024 || files.length >= 60) break;
+                files.push({ name, bytes });
+              }
+              return files;
+            }
+
+            // One commit with these files only, pushed over the branch of this pull request: the history
+            // does not grow and nothing of an older run is kept. raw.githubusercontent.com serves the
+            // files as images, so a click on a preview shows it in the browser. They sit in a folder
+            // named after the commit, so that no cache serves an older image under the same address.
+            function publish(files) {
+              const work = fs.mkdtempSync(path.join(os.tmpdir(), 'recordings-'));
+              const folder = path.join(work, sha.slice(0, 7));
+              fs.mkdirSync(folder);
+              for (const { name, bytes } of files) fs.writeFileSync(path.join(folder, name), bytes);
+              const auth = Buffer.from(`x-access-token:${process.env.GH_TOKEN}`).toString('base64');
+              core.setSecret(auth);
+              const git = (...args) => execFileSync('git', args, { cwd: work, stdio: 'pipe', encoding: 'utf8' });
+              git('init', '-q');
+              git('add', '-A');
+              git('-c', 'user.name=github-actions[bot]',
+                '-c', 'user.email=41898282+github-actions[bot]@users.noreply.github.com',
+                'commit', '-q', '-m', `Recordings of ${sha.slice(0, 7)} for pull request #${issue_number}`);
+              git('-c', `http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth}`,
+                'push', '-q', '--force', `https://github.com/${owner}/${repo}.git`, `HEAD:refs/heads/${branch}`);
+              fs.rmSync(work, { recursive: true, force: true });
+            }
+
+            // the branches of pull requests that are closed
+            async function prune() {
+              const refs = await github.paginate(github.rest.git.listMatchingRefs, {
+                owner, repo, ref: `heads/${branchPrefix}`, per_page: 100,
+              });
+              for (const { ref } of refs) {
+                const named = new RegExp(`^refs/heads/${branchPrefix}(\\d+)$`).exec(ref);
+                if (!named || Number(named[1]) === issue_number) continue;
+                const state = await github.rest.pulls.get({ owner, repo, pull_number: Number(named[1]) })
+                  .then((response) => response.data.state, () => 'closed');
+                if (state !== 'open') {
+                  await github.rest.git.deleteRef({ owner, repo, ref: ref.replace(/^refs\//, '') });
+                }
+              }
+            }
+
+            let published = false;
+            let previews = '';
+            try {
+              const files = previewFiles();
+              if (files.length > 0) {
+                const base = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${sha.slice(0, 7)}/`;
+                const markdown = fs.readFileSync(path.join(dir, 'previews.md'), 'utf8').replaceAll('{{BASE}}', base);
+                // GitHub stops a comment at 65536 characters
+                if (process.env.RECORDINGS.length + markdown.length < 60000) {
+                  publish(files);
+                  published = true;
+                  previews = markdown;
+                } else {
+                  core.warning('The previews are too long for one comment: it only links the recordings.');
+                }
+              }
+            } catch (error) {
+              core.warning(`The previews were not published, the comment only links the recordings: ${error.message}`);
+            }
+
+            let body = `${marker}\n${process.env.RECORDINGS}`;
+            if (previews) body += `\n\n${previews}`;
+
+            // the marker is the first line of the comment: spec names echoed into other comments
+            // (the test report lists them) cannot be mistaken for it
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const previous = comments.find(
+              (comment) => comment.user?.type === 'Bot' && comment.body?.startsWith(marker),
+            );
+            if (previous) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: previous.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+            // afterwards: the branches of closed pull requests are no use to anyone
+            if (published) {
+              try {
+                await prune();
+              } catch (error) {
+                core.warning(`Old recordings were not removed: ${error.message}`);
+              }
+            }
 
   # --------------------------------------------------------------- workflows and secrets
   workflows:
