@@ -2,6 +2,8 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
+import { createQueryClient } from '../../../shared/query/client';
+import { QueryProvider } from '../../../shared/query/QueryProvider';
 import { ConfirmProvider } from '../../../shared/ui/ConfirmDialog';
 import { ToastProvider } from '../../../shared/ui/Toast';
 import { enroll, toggleBookmark } from '../api';
@@ -28,19 +30,24 @@ const course = {
   progress: 0,
 };
 
-const renderCard = (props = {}) =>
+const renderCard = ({ client = createQueryClient(), courseOverrides = {} } = {}) =>
   render(
-    <ToastProvider>
-      <ConfirmProvider>
-        <MemoryRouter initialEntries={['/student/explore']}>
-          <Routes>
-            <Route path="/student/explore" element={<CourseCard course={course} {...props} />} />
-            <Route path="/student/checkout" element={<p>checkout page</p>} />
-            <Route path="/courses/:id/learn" element={<p>player page</p>} />
-          </Routes>
-        </MemoryRouter>
-      </ConfirmProvider>
-    </ToastProvider>
+    <QueryProvider client={client}>
+      <ToastProvider>
+        <ConfirmProvider>
+          <MemoryRouter initialEntries={['/student/explore']}>
+            <Routes>
+              <Route
+                path="/student/explore"
+                element={<CourseCard course={{ ...course, ...courseOverrides }} />}
+              />
+              <Route path="/student/checkout" element={<p>checkout page</p>} />
+              <Route path="/courses/:id/learn" element={<p>player page</p>} />
+            </Routes>
+          </MemoryRouter>
+        </ConfirmProvider>
+      </ToastProvider>
+    </QueryProvider>
   );
 
 beforeEach(() => jest.clearAllMocks());
@@ -54,14 +61,21 @@ test('thumbnails are loaded from the API host', () => {
   );
 });
 
-test('enrolling reports success to the parent', async () => {
+test('a course without a picture gets a local placeholder, not a third-party image', () => {
+  renderCard({ courseOverrides: { thumbnail: null } });
+
+  expect(screen.getByRole('img', { name: 'Intro to Python' }).tagName).not.toBe('IMG');
+});
+
+test('enrolling refreshes every list of courses', async () => {
   enroll.mockResolvedValue({ enrollment_id: 'e-1' });
-  const onEnrollSuccess = jest.fn();
-  renderCard({ onEnrollSuccess });
+  const client = createQueryClient();
+  client.setQueryData(['learning', 'mine', 'active'], []);
+  renderCard({ client });
 
   fireEvent.click(screen.getByText('Enroll Now'));
 
-  await waitFor(() => expect(onEnrollSuccess).toHaveBeenCalled());
+  await waitFor(() => expect(client.getQueryState(['learning', 'mine', 'active']).isInvalidated).toBe(true));
   expect(enroll).toHaveBeenCalledWith('c-1');
   expect(await screen.findByText('Successfully enrolled in course!')).toBeInTheDocument();
 });
@@ -93,7 +107,20 @@ test('the heart bookmarks through the API', async () => {
   toggleBookmark.mockResolvedValue({ message: 'Course bookmarked' });
   renderCard();
 
-  fireEvent.click(screen.getAllByRole('button')[0]);
+  fireEvent.click(screen.getByRole('button', { name: 'Bookmark this course' }));
 
   await waitFor(() => expect(toggleBookmark).toHaveBeenCalledWith('c-1'));
+  expect(screen.getByRole('button', { name: 'Remove bookmark' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('a bookmark the server refuses is undone and reported', async () => {
+  const error = new Error('boom');
+  error.response = { status: 500, data: { error: 'Could not save' } };
+  toggleBookmark.mockRejectedValue(error);
+  renderCard();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Bookmark this course' }));
+
+  expect(await screen.findByText('Could not save')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Bookmark this course' })).toHaveAttribute('aria-pressed', 'false');
 });

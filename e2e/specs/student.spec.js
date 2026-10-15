@@ -24,8 +24,22 @@ test.describe('the headline learner', () => {
       await expect(main).toContainText(title);
     }
     await expect(main).toContainText(/75%/);
-    // the finished course is not "running"
+    // "In Progress" is the default view: the finished course is not "running"
     await expect(main).not.toContainText('Introduction to Python');
+  });
+
+  test('my learning keeps the finished course under "Completed" and lets it be reopened', async ({ page, signIn }) => {
+    await signIn(DEMO, '/student/my-learning');
+    const main = page.locator('main');
+    await expect(main).toContainText('JavaScript from Scratch');
+
+    await main.getByLabel('Show').selectOption('completed');
+
+    await expect(main).toContainText('Introduction to Python');
+    await expect(main).not.toContainText('JavaScript from Scratch');
+    await main.getByRole('button', { name: 'Review Course' }).first().click();
+    await expect(page).toHaveURL(/\/courses\/.+\/learn/);
+    await expect(page.locator('body')).not.toContainText('Something went wrong');
   });
 
   test('the grades page grades the course whose work is handed in', async ({ page, signIn }) => {
