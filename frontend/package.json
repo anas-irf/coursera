@@ -27,7 +27,7 @@
     "test:ci": "react-scripts test --watchAll=false --ci --coverage --reporters=default --reporters=jest-ctrf-json-reporter",
     "eject": "react-scripts eject",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint --ext .js,.jsx,.ts,.tsx --max-warnings=0 src"
+    "lint": "eslint --ext .ts,.tsx --max-warnings=0 src"
   },
   "jest": {
     "moduleNameMapper": {
@@ -36,11 +36,11 @@
       "^react-router/dom$": "<rootDir>/node_modules/react-router/dist/development/dom-export.js"
     },
     "collectCoverageFrom": [
-      "src/**/*.{js,jsx,ts,tsx}",
-      "!src/**/*.test.{js,jsx,ts,tsx}",
+      "src/**/*.{ts,tsx}",
+      "!src/**/*.test.{ts,tsx}",
       "!src/**/*.d.ts",
-      "!src/index.{js,tsx}",
-      "!src/setupTests.{js,ts}"
+      "!src/index.tsx",
+      "!src/setupTests.ts"
     ],
     "coverageReporters": [
       "text-summary",

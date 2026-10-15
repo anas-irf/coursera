@@ -39,8 +39,8 @@ features.forEach((target) => {
         from: `./src/features/${other}`,
       };
       if (FEATURE_DEPENDENCIES[target].includes(other)) {
-        // the index of a feature is index.ts (index.js until the feature is converted)
-        zone.except = ['./index.js', './index.ts'];
+        // the index of a feature is its public surface
+        zone.except = ['./index.ts'];
         zone.message = `Import ${other} through features/${other}/index.ts`;
       } else {
         zone.message = `features/${target} must not depend on features/${other}`;
@@ -59,7 +59,7 @@ module.exports = {
   root: true,
   extends: ['react-app', 'react-app/jest'],
   settings: {
-    'import/resolver': { node: { extensions: ['.js', '.jsx', '.ts', '.tsx'] } },
+    'import/resolver': { node: { extensions: ['.ts', '.tsx'] } },
   },
   rules: {
     // errors are shown to the user or reported by the error boundary, not logged and forgotten
@@ -75,7 +75,7 @@ module.exports = {
       },
     },
     {
-      files: ['src/shared/**/*.{js,jsx,ts,tsx}'],
+      files: ['src/shared/**/*.{ts,tsx}'],
       rules: {
         'import/no-restricted-paths': [
           'error',
@@ -89,15 +89,15 @@ module.exports = {
       },
     },
     {
-      files: ['src/features/**/*.{js,jsx,ts,tsx}'],
+      files: ['src/features/**/*.{ts,tsx}'],
       rules: {
         'import/no-restricted-paths': ['error', { zones: [appShellZone, ...featureZones] }],
       },
     },
     {
       // screens: the zones above (a rule's options are replaced, not merged) plus the api rule
-      files: ['src/features/*/pages/**/*.{js,jsx,ts,tsx}', 'src/features/*/components/**/*.{js,jsx,ts,tsx}'],
-      excludedFiles: ['**/*.test.{js,jsx,ts,tsx}'],
+      files: ['src/features/*/pages/**/*.{ts,tsx}', 'src/features/*/components/**/*.{ts,tsx}'],
+      excludedFiles: ['**/*.test.{ts,tsx}'],
       rules: {
         'import/no-restricted-paths': [
           'error',
@@ -107,7 +107,7 @@ module.exports = {
               ...featureZones,
               {
                 target: './src/features',
-                from: './src/features/*/api.{js,ts}',
+                from: './src/features/*/api.ts',
                 message: 'Screens go through the hooks of their feature (hooks/), not through api.ts',
               },
             ],

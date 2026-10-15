@@ -26,8 +26,7 @@ SAMPLE_UUID = str(uuid.uuid4())
 
 
 def api_modules():
-    # ``api.js`` while a slice is still JavaScript, ``api.ts`` once it is converted
-    files = sorted(FRONTEND.glob('features/*/api.[jt]s')) + sorted(FRONTEND.glob('shared/auth/api.[jt]s'))
+    files = sorted(FRONTEND.glob('features/*/api.ts')) + [FRONTEND / 'shared/auth/api.ts']
     return [path for path in files if path.exists()]
 
 
@@ -100,9 +99,7 @@ def test_every_frontend_request_matches_a_route(module):
 
 
 def test_websocket_paths_used_by_the_frontend_exist():
-    hooks = sorted(FRONTEND.glob('features/messaging/hooks/useChat.[jt]s'))
-    assert len(hooks) == 1, hooks
-    source = hooks[0].read_text(encoding='utf-8')
+    source = (FRONTEND / 'features/messaging/hooks/useChat.ts').read_text(encoding='utf-8')
     paths = re.findall(r"""path:\s*(?:activeId\s*\?\s*)?[`'](/ws/[^`']+)[`']""", source)
     routes = [line.split(' | ')[0] for line in route_table.collect_routes() if ' | WS | ' in line]
 
