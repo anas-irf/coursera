@@ -36,14 +36,25 @@ ALLOWED_HOSTS = ['testserver', 'localhost']
 CORS_ALLOWED_ORIGINS = LOCAL_ORIGINS
 FRONTEND_URL = 'http://localhost:3000'
 
-# the seeding tools are tested too, but never installed in production
-INSTALLED_APPS = [*_BASE_APPS, 'apps.seeding']
+# the seeding tools are tested too, but never installed in production; so is the schema
+# generator that writes down the v1 contract (tests/test_openapi.py)
+INSTALLED_APPS = [*_BASE_APPS, 'apps.seeding', 'drf_spectacular']
 
 # thousands of calls come from one address: every throttle is practically off, a test
 # that is about throttling sets its own rate
 REST_FRAMEWORK = {
     **_BASE_REST_FRAMEWORK,
     'DEFAULT_THROTTLE_RATES': dict.fromkeys(_BASE_REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'], '100000/min'),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Coursera API',
+    'DESCRIPTION': 'Version 1 of the HTTP API of the learning platform.',
+    'VERSION': 'v1',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'SCHEMA_PATH_PREFIX': r'/api/v1',
+    'COMPONENT_SPLIT_REQUEST': True,
 }
 
 # uploads go to a throw-away folder, never into the real media directory
