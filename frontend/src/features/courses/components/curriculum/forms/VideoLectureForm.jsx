@@ -7,7 +7,6 @@ const VideoLectureForm = ({ formData, setFormData, isUploading, setIsUploading }
   const { error } = useToast();
   const { confirmWarning } = useConfirm();
   const [videoSource, setVideoSource] = useState('url');
-  const [uploadStartTime, setUploadStartTime] = useState(null);
 
   // Initialize video source based on existing data
   useEffect(() => {
@@ -61,6 +60,7 @@ const VideoLectureForm = ({ formData, setFormData, isUploading, setIsUploading }
         }
       }
 
+      // the server reads the length of the file when it is saved
       setFormData({ ...formData, video_file: file, video_url: '' });
     }
   };
@@ -80,7 +80,6 @@ const VideoLectureForm = ({ formData, setFormData, isUploading, setIsUploading }
     if (confirmed) {
       setIsUploading && setIsUploading(false);
       setFormData({ ...formData, video_file: null });
-      setUploadStartTime(null);
       // Reset the file input
       const fileInput = document.getElementById('video-upload');
       if (fileInput) {
@@ -169,11 +168,6 @@ const VideoLectureForm = ({ formData, setFormData, isUploading, setIsUploading }
               <div>
                 <p className="text-indigo-600 mb-2 font-medium">Uploading video...</p>
                 <p className="text-sm text-indigo-500">Please wait while your video is being uploaded</p>
-                {uploadStartTime && (
-                  <p className="text-xs text-gray-500 mt-2">
-                    Upload started {Math.floor((Date.now() - uploadStartTime) / 1000)} seconds ago
-                  </p>
-                )}
               </div>
             ) : (
               <div>

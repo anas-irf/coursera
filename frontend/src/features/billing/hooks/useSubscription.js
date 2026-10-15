@@ -1,29 +1,41 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { fetchSubscriptionStatus } from '../api';
+import { cancelSubscription, fetchSubscriptionStatus } from '../api';
+
+export const subscriptionKey = ['billing', 'subscription'];
 
 /**
- * Plus status of the logged in student.  ``plan`` is "coursera_plus" or "free"
- * (also when the status cannot be loaded) and ``null`` while loading.
+ * Plus status of the logged in student: the one definition of "is this student a member".
+ *
+ * ``isPlus`` is what the server says ``can_access_plus_courses`` is, which includes a cancelled
+ * membership until the end of the period that was paid for.  ``plan`` is "coursera_plus" or
+ * "free" and ``null`` while loading; ``willRenew`` is false once the member cancelled.
  */
 export function useSubscription() {
-  const [plan, setPlan] = useState(null);
-  const [status, setStatus] = useState(null);
+  const query = useQuery({ queryKey: subscriptionKey, queryFn: fetchSubscriptionStatus });
+  const status = query.data || null;
+  const isPlus = Boolean(status && status.can_access_plus_courses);
 
-  const refresh = useCallback(async () => {
-    try {
-      const data = await fetchSubscriptionStatus();
-      setStatus(data);
-      setPlan(data.can_access_plus_courses ? 'coursera_plus' : 'free');
-    } catch (error) {
-      setStatus(null);
-      setPlan('free');
-    }
-  }, []);
+  return {
+    status,
+    plan: query.isPending ? null : (isPlus ? 'coursera_plus' : 'free'),
+    loading: query.isPending,
+    error: query.error,
+    isPlus,
+    willRenew: Boolean(status && status.is_active && status.auto_renew),
+    accessUntil: status && status.end_date ? status.end_date : null,
+    refresh: () => query.refetch(),
+  };
+}
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  return { plan, status, loading: plan === null, isPlus: plan === 'coursera_plus', refresh };
+/** Stop the membership renewing; Plus keeps working until the end of the paid period. */
+export function useCancelMembership() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: cancelSubscription,
+    onSuccess: () => Promise.all([
+      client.invalidateQueries({ queryKey: ['billing'] }),
+      client.invalidateQueries({ queryKey: ['learning'] }),
+    ]),
+  });
 }

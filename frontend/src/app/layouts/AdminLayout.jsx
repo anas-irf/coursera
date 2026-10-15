@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+import { NavLink, Outlet } from 'react-router-dom';
 import { BookCheck, BookOpen, DollarSign, FileText, Home, LogOut, Menu, Settings, Users, X } from 'lucide-react';
 
 import { NotificationDropdown } from '../../features/notifications';
-import { pendingCourses } from '../../features/admin';
+import { usePendingCount } from '../../features/admin';
+import { fullName } from '../../shared/lib/names';
+import Avatar from '../../shared/ui/Avatar';
 import { useConfirm } from '../../shared/ui/ConfirmDialog';
 import { useAuth } from '../../shared/auth/AuthProvider';
 
@@ -28,23 +30,11 @@ const linkClass = ({ isActive }) =>
 const AdminLayout = () => {
   const { user, logout } = useAuth();
   const { confirmLogout } = useConfirm();
-  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [pending, setPending] = useState(0);
+  // the approval queue's own cache entry: approving or rejecting updates the badge too
+  const pending = usePendingCount();
 
-  // the badge follows the moderation queue: refreshed whenever the admin moves around
-  useEffect(() => {
-    let cancelled = false;
-    pendingCourses()
-      .then((rows) => !cancelled && setPending(rows.length))
-      .catch(() => !cancelled && setPending(0));
-    return () => {
-      cancelled = true;
-    };
-  }, [location.pathname]);
-
-  const name = user ? `${user.first_name} ${user.last_name}`.trim() || user.email : 'Admin';
-  const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=6366F1&color=fff`;
+  const name = fullName(user, 'Admin');
 
   const handleLogout = async () => {
     const confirmed = await confirmLogout('You will need to login again to access the admin panel.', 'Logout');
@@ -81,7 +71,7 @@ const AdminLayout = () => {
 
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t">
           <div className="flex items-center space-x-3 mb-4">
-            <img src={avatar} alt={name} className="w-10 h-10 rounded-full" />
+            <Avatar name={name} className="w-10 h-10 text-sm" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-gray-900 truncate">{name}</p>
               <p className="text-xs text-gray-500">Administrator</p>

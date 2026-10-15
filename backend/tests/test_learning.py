@@ -10,11 +10,11 @@ pytestmark = pytest.mark.django_db
 
 
 def learn_url(course):
-    return f'/api/learning/courses/{course.uuid}/learn/'
+    return f'/api/v1/learning/courses/{course.uuid}/learn/'
 
 
 def complete_url(course, lecture):
-    return f'/api/learning/courses/{course.uuid}/lectures/{lecture.uuid}/complete/'
+    return f'/api/v1/learning/courses/{course.uuid}/lectures/{lecture.uuid}/complete/'
 
 
 LECTURE_COMMON_KEYS = {'id', 'title', 'description', 'content_type', 'order', 'is_preview',
@@ -39,6 +39,20 @@ def enrolled(course_bundle, student):
     return course_bundle, f.enroll(student, course_bundle.course)
 
 
+def finish_everything(client, bundle):
+    """Complete every lecture the way a student does: a quiz is taken, work is handed in."""
+    for lecture in (bundle.video, bundle.reading):
+        assert client.post(complete_url(bundle.course, lecture)).status_code == 200
+    attempt = f'/api/v1/assessments/quizzes/{bundle.quiz.uuid}/attempt/'
+    started = client.post(attempt, {'action': 'start'}, format='json')
+    assert started.status_code == 200
+    assert client.post(attempt, {'action': 'submit', 'attempt_id': started.json()['attempt_id'],
+                                 'answers': {}}, format='json').status_code == 200
+    handed_in = client.post(f'/api/v1/assessments/assignments/{bundle.assignment.uuid}/submit/',
+                            {'submission_text': 'my work'}, format='multipart')
+    assert handed_in.status_code == 200
+
+
 # --------------------------------------------------------------------------- #
 # access rules
 # --------------------------------------------------------------------------- #
@@ -51,7 +65,7 @@ def test_learn_requires_an_enrolment(api, auth_client, course_bundle, student, i
     assert r.status_code == 403
     assert 'error' in r.json()
     assert auth_client(instructor).get(learn_url(course)).status_code == 403
-    assert auth_client(student).get(f'/api/learning/courses/{uuid.uuid4()}/learn/').status_code == 404
+    assert auth_client(student).get(f'/api/v1/learning/courses/{uuid.uuid4()}/learn/').status_code == 404
 
 
 def test_learn_is_404_for_unpublished_courses(auth_client, instructor, student):
@@ -151,20 +165,27 @@ def test_learn_payload_for_a_locally_hosted_video(auth_client, instructor, stude
     assert entry['video_url'] is None
 
 
-def test_progress_rows_are_created_lazily_for_lectures_added_after_enrolment(auth_client, student, enrolled):
-    """Opening the player creates missing LectureProgress rows."""
+def test_opening_the_player_writes_nothing_and_counts_lectures_added_later(auth_client, student, enrolled):
+    """A GET is read-only: a lecture without a progress row shows as not started, and the
+    row appears when the student does something with it."""
     bundle, enrollment = enrolled
     assert f.LectureProgress.objects.filter(enrollment=enrollment).count() == 4
 
     extra = f.make_reading(bundle.section, title='Added later')
-    assert f.LectureProgress.objects.filter(enrollment=enrollment).count() == 4
+    client = auth_client(student)
 
-    r = auth_client(student).get(learn_url(bundle.course))
+    r = client.get(learn_url(bundle.course))
 
     assert r.status_code == 200
-    assert f.LectureProgress.objects.filter(enrollment=enrollment).count() == 5
-    assert f.LectureProgress.objects.filter(enrollment=enrollment, lecture=extra).exists()
+    assert f.LectureProgress.objects.filter(enrollment=enrollment).count() == 4
     assert r.json()['progress']['total_lectures'] == 5
+    row = [lec for lec in r.json()['sections'][0]['lectures'] if lec['id'] == str(extra.uuid)][0]
+    assert row['is_completed'] is False
+    assert row['progress_seconds'] == 0 and row['watch_count'] == 0
+
+    assert client.post(complete_url(bundle.course, extra)).status_code == 200
+    assert f.LectureProgress.objects.filter(enrollment=enrollment, lecture=extra,
+                                            is_completed=True).exists()
 
 
 # --------------------------------------------------------------------------- #
@@ -232,12 +253,11 @@ def test_mark_complete_response_reports_the_new_progress(auth_client, student, e
 
 
 def test_completing_every_lecture_completes_the_enrollment(auth_client, student, enrolled):
-    """100 % -> status completed; afterwards the player and completion answer 403."""
+    """100 % -> status completed."""
     bundle, enrollment = enrolled
     client = auth_client(student)
 
-    for lecture in bundle.lectures:
-        assert client.post(complete_url(bundle.course, lecture)).status_code == 200
+    finish_everything(client, bundle)
 
     enrollment.refresh_from_db()
     assert enrollment.status == 'completed'
@@ -245,19 +265,37 @@ def test_completing_every_lecture_completes_the_enrollment(auth_client, student,
     assert enrollment.completed_date is not None
 
 
-@pytest.mark.pinned_bug
-def test_completed_enrollment_can_no_longer_open_the_player_current_behaviour(
-        auth_client, student, enrolled):
-    """Current behaviour (bug): the learning endpoints only accept *active*
-    enrolments, so a student who finished a course can neither reopen nor
-    re-complete it (403)."""
+def test_a_finished_course_stays_open(auth_client, student, enrolled):
+    """A student who completed a course can reopen it, revisit its lectures and retake
+    its quiz; none of that reopens the enrolment."""
     bundle, enrollment = enrolled
     client = auth_client(student)
-    for lecture in bundle.lectures:
-        assert client.post(complete_url(bundle.course, lecture)).status_code == 200
+    finish_everything(client, bundle)
 
-    assert client.get(learn_url(bundle.course)).status_code == 403
-    assert client.post(complete_url(bundle.course, bundle.video)).status_code == 403
+    r = client.get(learn_url(bundle.course))
+    assert r.status_code == 200
+    assert r.json()['enrollment']['status'] == 'completed'
+    assert r.json()['progress']['progress_percentage'] == 100
+    assert client.post(complete_url(bundle.course, bundle.video)).status_code == 200
+    assert client.post(f'/api/v1/assessments/quizzes/{bundle.quiz.uuid}/attempt/',
+                       {'action': 'start'}, format='json').status_code == 200
+    enrollment.refresh_from_db()
+    assert enrollment.status == 'completed'
+    assert enrollment.progress_percentage == 100
+
+
+def test_the_quiz_and_assignment_lectures_cannot_be_marked_as_done(auth_client, student, enrolled):
+    """They complete when they are attempted or handed in; ticking them off would skip the work."""
+    bundle, enrollment = enrolled
+    client = auth_client(student)
+
+    for lecture in (bundle.quiz_lecture, bundle.assignment_lecture):
+        r = client.post(complete_url(bundle.course, lecture))
+        assert r.status_code == 400
+        assert 'completed by taking it' in r.json()['error']
+
+    enrollment.refresh_from_db()
+    assert enrollment.progress_percentage == 0
 
 
 def test_mark_complete_requires_enrolment_and_a_lecture_of_the_published_course(
@@ -272,7 +310,7 @@ def test_mark_complete_requires_enrolment_and_a_lecture_of_the_published_course(
     f.enroll(student, course_bundle.course)
     # lecture of a different course / unknown lecture
     assert client.post(complete_url(course_bundle.course, other.video)).status_code == 404
-    assert client.post(f'/api/learning/courses/{course_bundle.course.uuid}/lectures/{uuid.uuid4()}/complete/'
+    assert client.post(f'/api/v1/learning/courses/{course_bundle.course.uuid}/lectures/{uuid.uuid4()}/complete/'
                        ).status_code == 404
     # instructors cannot complete lectures
     assert auth_client(instructor).post(
@@ -296,22 +334,3 @@ def test_a_lapsed_plus_subscription_does_not_block_completing_lectures(
     assert r.status_code == 200
     enrollment.refresh_from_db()
     assert enrollment.progress_percentage == 25
-
-
-@pytest.mark.pinned_bug
-def test_no_endpoint_records_watch_time_current_behaviour(auth_client, student, enrolled):
-    """Current behaviour: ``progress_seconds`` / ``last_watched_position`` /
-    ``watch_count`` are never written, even for completed lectures."""
-    bundle, enrollment = enrolled
-    client = auth_client(student)
-    for lecture in bundle.lectures[:2]:
-        assert client.post(complete_url(bundle.course, lecture)).status_code == 200
-
-    payload = client.get(learn_url(bundle.course)).json()
-
-    lectures = payload['sections'][0]['lectures']
-    assert [lec['is_completed'] for lec in lectures] == [True, True, False, False]
-    assert all(lec['progress_seconds'] == 0 for lec in lectures)
-    assert all(lec['last_watched_position'] == 0 for lec in lectures)
-    assert all(lec['watch_count'] == 0 for lec in lectures)
-    assert f.LectureProgress.objects.filter(enrollment=enrollment, progress_seconds__gt=0).count() == 0

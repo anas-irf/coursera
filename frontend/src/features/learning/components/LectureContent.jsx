@@ -1,6 +1,7 @@
 import React from 'react';
 import { Award, BookOpen, CheckCircle, FileText, PlayCircle } from 'lucide-react';
 
+import { safeHtml } from '../../../shared/lib/html';
 import { AssignmentPanel, QuizRunner } from '../../assessments';
 import VideoLecture from './VideoLecture';
 
@@ -20,7 +21,7 @@ export const LectureIcon = ({ type, size = 16 }) => {
 };
 
 /** The selected lecture: header with completion state and the content of its type. */
-const LectureContent = ({ lecture, onComplete, onReload, onQuizActiveChange }) => {
+const LectureContent = ({ courseId, lecture, onComplete, completing = false, onReload, onQuizActiveChange }) => {
   if (!lecture) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -51,7 +52,8 @@ const LectureContent = ({ lecture, onComplete, onReload, onQuizActiveChange }) =
             {canComplete && (
               <button
                 onClick={() => onComplete(lecture.id)}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                disabled={completing}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
               >
                 Mark Complete
               </button>
@@ -68,7 +70,7 @@ const LectureContent = ({ lecture, onComplete, onReload, onQuizActiveChange }) =
       </div>
 
       <div className="flex-1 overflow-auto">
-        {lecture.content_type === 'video' && <VideoLecture lecture={lecture} />}
+        {lecture.content_type === 'video' && <VideoLecture courseId={courseId} lecture={lecture} />}
 
         {lecture.content_type === 'reading' && (
           <div className="p-4 sm:p-6">
@@ -79,7 +81,7 @@ const LectureContent = ({ lecture, onComplete, onReload, onQuizActiveChange }) =
               <div
                 key={lecture.id}
                 className="text-gray-800 leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: lecture.content || '<p>Reading content not available</p>' }}
+                dangerouslySetInnerHTML={{ __html: safeHtml(lecture.content) || '<p>Reading content not available</p>' }}
               />
             </div>
           </div>

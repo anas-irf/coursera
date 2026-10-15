@@ -1,9 +1,11 @@
-# content/models.py
+"""What a lecture holds besides its title: the video with its subtitles, the reading."""
+
 from django.db import models
 from apps.core.models import BaseModel
 from apps.courses.models import Lecture
 
 class VideoContent(BaseModel):
+    """The video of a lecture: a file or a link, and its length in seconds."""
     lecture = models.OneToOneField(Lecture, on_delete=models.CASCADE,
                                   related_name='video_content')
 
@@ -13,16 +15,6 @@ class VideoContent(BaseModel):
 
     # Video metadata
     duration = models.IntegerField(default=0, help_text="Video duration in seconds")
-    resolution = models.CharField(max_length=20, blank=True)
-    file_size = models.BigIntegerField(default=0, help_text="File size in bytes")
-
-    # Encoding status
-    is_processed = models.BooleanField(default=False)
-    processing_progress = models.IntegerField(default=0)
-
-    # Streaming
-    hls_playlist = models.FileField(upload_to='videos/hls/', blank=True, null=True)
-    dash_manifest = models.FileField(upload_to='videos/dash/', blank=True, null=True)
 
     class Meta:
         db_table = 'video_content'
@@ -30,19 +22,8 @@ class VideoContent(BaseModel):
     def __str__(self):
         return f"Video for {self.lecture.title}"
 
-class VideoQuality(BaseModel):
-    video = models.ForeignKey(VideoContent, on_delete=models.CASCADE,
-                             related_name='qualities')
-    quality = models.CharField(max_length=10)  # e.g., '1080p', '720p', '480p'
-    file = models.FileField(upload_to='videos/qualities/')
-    bitrate = models.IntegerField()  # in kbps
-    file_size = models.BigIntegerField()  # in bytes
-    
-    class Meta:
-        db_table = 'video_qualities'
-        unique_together = ['video', 'quality']
-
 class Subtitle(BaseModel):
+    """A subtitle track of an uploaded video."""
     LANGUAGE_CHOICES = (
         ('en', 'English'),
         ('es', 'Spanish'),
@@ -65,6 +46,7 @@ class Subtitle(BaseModel):
 
 
 class Reading(BaseModel):
+    """The text (or the document) of a reading lecture."""
     lecture = models.OneToOneField('courses.Lecture', on_delete=models.CASCADE,
                                   related_name='reading')
 

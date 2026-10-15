@@ -1,0 +1,1909 @@
+components:
+  schemas:
+    ContentTypeEnum:
+      description: '* `video` - Video
+
+        * `reading` - Reading
+
+        * `quiz` - Quiz
+
+        * `assignment` - Assignment'
+      enum:
+      - video
+      - reading
+      - quiz
+      - assignment
+      type: string
+    CourseCreate:
+      description: 'Serializer for creating/updating courses.
+
+
+        The status workflow fields are read-only: a course only changes state
+
+        through the lifecycle service (submit, approve, reject, unpublish).  The
+
+        slug is optional: one is made from the title (and kept when the title changes,
+
+        so links to the course keep working); a client that sends one still decides.'
+      properties:
+        category:
+          nullable: true
+          type: integer
+        co_instructors:
+          items:
+            type: integer
+          type: array
+        course_type:
+          $ref: '#/components/schemas/CourseTypeEnum'
+        created_at:
+          format: date-time
+          readOnly: true
+          type: string
+        description:
+          type: string
+        duration_hours:
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          type: string
+        estimated_hours:
+          description: Estimated hours to complete
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,1})?$
+          type: string
+        id:
+          readOnly: true
+          type: integer
+        is_featured:
+          readOnly: true
+          type: boolean
+        language:
+          nullable: true
+          type: integer
+        last_updated:
+          format: date-time
+          readOnly: true
+          type: string
+        level:
+          $ref: '#/components/schemas/LevelEnum'
+        meta_description:
+          maxLength: 160
+          type: string
+        meta_keywords:
+          maxLength: 255
+          type: string
+        preview_video:
+          format: uri
+          nullable: true
+          type: string
+        rejected_by:
+          nullable: true
+          readOnly: true
+          type: integer
+        rejection_date:
+          format: date-time
+          nullable: true
+          readOnly: true
+          type: string
+        rejection_reason:
+          description: Admin's reason for rejection
+          nullable: true
+          readOnly: true
+          type: string
+        requirements: {}
+        slug:
+          maxLength: 200
+          pattern: ^[-a-zA-Z0-9_]+$
+          type: string
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusEnum'
+          readOnly: true
+        subcategory:
+          nullable: true
+          type: integer
+        subtitle:
+          maxLength: 200
+          type: string
+        tags:
+          items:
+            type: integer
+          type: array
+        thumbnail:
+          description: Course thumbnail image (JPEG, JPG, PNG, WebP - Max 5MB)
+          format: uri
+          type: string
+        title:
+          maxLength: 200
+          type: string
+        updated_at:
+          format: date-time
+          readOnly: true
+          type: string
+        what_you_learn: {}
+        who_is_for:
+          type: string
+      required:
+      - created_at
+      - description
+      - id
+      - is_featured
+      - last_updated
+      - rejected_by
+      - rejection_date
+      - rejection_reason
+      - status
+      - thumbnail
+      - title
+      - updated_at
+      type: object
+    CourseCreateRequest:
+      description: 'Serializer for creating/updating courses.
+
+
+        The status workflow fields are read-only: a course only changes state
+
+        through the lifecycle service (submit, approve, reject, unpublish).  The
+
+        slug is optional: one is made from the title (and kept when the title changes,
+
+        so links to the course keep working); a client that sends one still decides.'
+      properties:
+        category:
+          nullable: true
+          type: integer
+        co_instructors:
+          items:
+            type: integer
+          type: array
+        course_type:
+          $ref: '#/components/schemas/CourseTypeEnum'
+        description:
+          minLength: 1
+          type: string
+        duration_hours:
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          type: string
+        estimated_hours:
+          description: Estimated hours to complete
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,1})?$
+          type: string
+        language:
+          nullable: true
+          type: integer
+        level:
+          $ref: '#/components/schemas/LevelEnum'
+        meta_description:
+          maxLength: 160
+          type: string
+        meta_keywords:
+          maxLength: 255
+          type: string
+        preview_video:
+          format: binary
+          nullable: true
+          type: string
+        requirements: {}
+        slug:
+          maxLength: 200
+          minLength: 1
+          pattern: ^[-a-zA-Z0-9_]+$
+          type: string
+        subcategory:
+          nullable: true
+          type: integer
+        subtitle:
+          maxLength: 200
+          type: string
+        tags:
+          items:
+            type: integer
+          type: array
+        thumbnail:
+          description: Course thumbnail image (JPEG, JPG, PNG, WebP - Max 5MB)
+          format: binary
+          type: string
+        title:
+          maxLength: 200
+          minLength: 1
+          type: string
+        what_you_learn: {}
+        who_is_for:
+          type: string
+      required:
+      - description
+      - thumbnail
+      - title
+      type: object
+    CourseDetail:
+      description: Detailed serializer for course management
+      properties:
+        average_rating:
+          format: decimal
+          pattern: ^-?\d{0,1}(?:\.\d{0,2})?$
+          readOnly: true
+          type: string
+        category:
+          nullable: true
+          type: integer
+        category_name:
+          readOnly: true
+          type: string
+        co_instructors:
+          items:
+            type: integer
+          type: array
+        course_type:
+          $ref: '#/components/schemas/CourseTypeEnum'
+        created_at:
+          format: date-time
+          readOnly: true
+          type: string
+        description:
+          type: string
+        duration_hours:
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          type: string
+        estimated_hours:
+          description: Estimated hours to complete
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,1})?$
+          type: string
+        id:
+          format: uuid
+          readOnly: true
+          type: string
+        instructor:
+          type: integer
+        is_featured:
+          type: boolean
+        language:
+          nullable: true
+          type: integer
+        language_name:
+          readOnly: true
+          type: string
+        last_updated:
+          format: date-time
+          readOnly: true
+          type: string
+        level:
+          $ref: '#/components/schemas/LevelEnum'
+        meta_description:
+          maxLength: 160
+          type: string
+        meta_keywords:
+          maxLength: 255
+          type: string
+        preview_video:
+          format: uri
+          nullable: true
+          type: string
+        published_date:
+          format: date-time
+          nullable: true
+          readOnly: true
+          type: string
+        rejected_by:
+          nullable: true
+          type: integer
+        rejection_date:
+          format: date-time
+          nullable: true
+          type: string
+        rejection_reason:
+          description: Admin's reason for rejection
+          nullable: true
+          type: string
+        requirements: {}
+        sections:
+          items:
+            $ref: '#/components/schemas/Section'
+          readOnly: true
+          type: array
+        slug:
+          maxLength: 200
+          pattern: ^[-a-zA-Z0-9_]+$
+          type: string
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        subcategory:
+          nullable: true
+          type: integer
+        subtitle:
+          maxLength: 200
+          type: string
+        tags:
+          items:
+            type: integer
+          type: array
+        thumbnail:
+          description: Course thumbnail image (JPEG, JPG, PNG, WebP - Max 5MB)
+          format: uri
+          type: string
+        title:
+          maxLength: 200
+          type: string
+        total_enrolled:
+          readOnly: true
+          type: integer
+        total_reviews:
+          readOnly: true
+          type: integer
+        updated_at:
+          format: date-time
+          readOnly: true
+          type: string
+        uuid:
+          format: uuid
+          readOnly: true
+          type: string
+        what_you_learn: {}
+        who_is_for:
+          type: string
+      required:
+      - average_rating
+      - category_name
+      - created_at
+      - description
+      - id
+      - instructor
+      - language_name
+      - last_updated
+      - published_date
+      - sections
+      - slug
+      - thumbnail
+      - title
+      - total_enrolled
+      - total_reviews
+      - updated_at
+      - uuid
+      type: object
+    CourseList:
+      description: Simplified serializer for course listing
+      properties:
+        average_rating:
+          format: decimal
+          pattern: ^-?\d{0,1}(?:\.\d{0,2})?$
+          type: string
+        course_type:
+          $ref: '#/components/schemas/CourseTypeEnum'
+        created_at:
+          format: date-time
+          readOnly: true
+          type: string
+        id:
+          format: uuid
+          readOnly: true
+          type: string
+        is_featured:
+          type: boolean
+        slug:
+          maxLength: 200
+          pattern: ^[-a-zA-Z0-9_]+$
+          type: string
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        thumbnail:
+          description: Course thumbnail image (JPEG, JPG, PNG, WebP - Max 5MB)
+          format: uri
+          type: string
+        title:
+          maxLength: 200
+          type: string
+        total_enrolled:
+          type: integer
+      required:
+      - created_at
+      - id
+      - slug
+      - thumbnail
+      - title
+      type: object
+    CourseListRequest:
+      description: Simplified serializer for course listing
+      properties:
+        average_rating:
+          format: decimal
+          pattern: ^-?\d{0,1}(?:\.\d{0,2})?$
+          type: string
+        course_type:
+          $ref: '#/components/schemas/CourseTypeEnum'
+        is_featured:
+          type: boolean
+        slug:
+          maxLength: 200
+          minLength: 1
+          pattern: ^[-a-zA-Z0-9_]+$
+          type: string
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        thumbnail:
+          description: Course thumbnail image (JPEG, JPG, PNG, WebP - Max 5MB)
+          format: binary
+          type: string
+        title:
+          maxLength: 200
+          minLength: 1
+          type: string
+        total_enrolled:
+          type: integer
+      required:
+      - slug
+      - thumbnail
+      - title
+      type: object
+    CourseTypeEnum:
+      description: '* `free` - Free Course
+
+        * `coursera_plus` - Coursera Plus'
+      enum:
+      - free
+      - coursera_plus
+      type: string
+    Lecture:
+      description: 'Instructor''s view of a lecture.
+
+
+        The content specific keys (quiz settings, video info, ...) and the
+
+        enrichments of higher slices (completion rate) come from the registries in
+
+        ``courses.extensions``; every lecture exposes the same set of keys.'
+      properties:
+        article_content:
+          readOnly: true
+          type: string
+        assignment_settings:
+          readOnly: true
+          type: string
+        completion_rate:
+          readOnly: true
+          type: string
+        content_type:
+          $ref: '#/components/schemas/ContentTypeEnum'
+        description:
+          type: string
+        existing_subtitle_name:
+          readOnly: true
+          type: string
+        existing_video_name:
+          readOnly: true
+          type: string
+        id:
+          format: uuid
+          readOnly: true
+          type: string
+        is_downloadable:
+          type: boolean
+        is_preview:
+          type: boolean
+        order:
+          type: integer
+        questions:
+          readOnly: true
+          type: string
+        quiz_settings:
+          readOnly: true
+          type: string
+        reading_document:
+          readOnly: true
+          type: string
+        resources:
+          readOnly: true
+          type: string
+        subtitle_file:
+          readOnly: true
+          type: string
+        title:
+          maxLength: 200
+          type: string
+        video_content:
+          readOnly: true
+          type: string
+      required:
+      - article_content
+      - assignment_settings
+      - completion_rate
+      - content_type
+      - existing_subtitle_name
+      - existing_video_name
+      - id
+      - questions
+      - quiz_settings
+      - reading_document
+      - resources
+      - subtitle_file
+      - title
+      - video_content
+      type: object
+    LectureRequest:
+      description: 'Instructor''s view of a lecture.
+
+
+        The content specific keys (quiz settings, video info, ...) and the
+
+        enrichments of higher slices (completion rate) come from the registries in
+
+        ``courses.extensions``; every lecture exposes the same set of keys.'
+      properties:
+        content_type:
+          $ref: '#/components/schemas/ContentTypeEnum'
+        description:
+          type: string
+        is_downloadable:
+          type: boolean
+        is_preview:
+          type: boolean
+        order:
+          type: integer
+        title:
+          maxLength: 200
+          minLength: 1
+          type: string
+      required:
+      - content_type
+      - title
+      type: object
+    LevelEnum:
+      description: '* `beginner` - Beginner
+
+        * `intermediate` - Intermediate
+
+        * `advanced` - Advanced
+
+        * `all_levels` - All Levels'
+      enum:
+      - beginner
+      - intermediate
+      - advanced
+      - all_levels
+      type: string
+    PatchedCourseCreateRequest:
+      description: 'Serializer for creating/updating courses.
+
+
+        The status workflow fields are read-only: a course only changes state
+
+        through the lifecycle service (submit, approve, reject, unpublish).  The
+
+        slug is optional: one is made from the title (and kept when the title changes,
+
+        so links to the course keep working); a client that sends one still decides.'
+      properties:
+        category:
+          nullable: true
+          type: integer
+        co_instructors:
+          items:
+            type: integer
+          type: array
+        course_type:
+          $ref: '#/components/schemas/CourseTypeEnum'
+        description:
+          minLength: 1
+          type: string
+        duration_hours:
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          type: string
+        estimated_hours:
+          description: Estimated hours to complete
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,1})?$
+          type: string
+        language:
+          nullable: true
+          type: integer
+        level:
+          $ref: '#/components/schemas/LevelEnum'
+        meta_description:
+          maxLength: 160
+          type: string
+        meta_keywords:
+          maxLength: 255
+          type: string
+        preview_video:
+          format: binary
+          nullable: true
+          type: string
+        requirements: {}
+        slug:
+          maxLength: 200
+          minLength: 1
+          pattern: ^[-a-zA-Z0-9_]+$
+          type: string
+        subcategory:
+          nullable: true
+          type: integer
+        subtitle:
+          maxLength: 200
+          type: string
+        tags:
+          items:
+            type: integer
+          type: array
+        thumbnail:
+          description: Course thumbnail image (JPEG, JPG, PNG, WebP - Max 5MB)
+          format: binary
+          type: string
+        title:
+          maxLength: 200
+          minLength: 1
+          type: string
+        what_you_learn: {}
+        who_is_for:
+          type: string
+      type: object
+    Section:
+      description: A section with its lectures, as the instructor edits them.
+      properties:
+        description:
+          type: string
+        id:
+          format: uuid
+          readOnly: true
+          type: string
+        is_preview:
+          type: boolean
+        lectures:
+          items:
+            $ref: '#/components/schemas/Lecture'
+          readOnly: true
+          type: array
+        order:
+          type: integer
+        title:
+          maxLength: 200
+          type: string
+        total_duration:
+          readOnly: true
+          type: string
+      required:
+      - id
+      - lectures
+      - title
+      - total_duration
+      type: object
+    SectionRequest:
+      description: A section with its lectures, as the instructor edits them.
+      properties:
+        description:
+          type: string
+        is_preview:
+          type: boolean
+        order:
+          type: integer
+        title:
+          maxLength: 200
+          minLength: 1
+          type: string
+      required:
+      - title
+      type: object
+    StatusEnum:
+      description: '* `draft` - Draft
+
+        * `pending_review` - Pending Review
+
+        * `published` - Published
+
+        * `unpublished` - Unpublished
+
+        * `rejected` - Rejected'
+      enum:
+      - draft
+      - pending_review
+      - published
+      - unpublished
+      - rejected
+      type: string
+  securitySchemes:
+    bearerToken:
+      bearerFormat: JWT
+      description: An access token in the Authorization header (non-browser clients).
+      scheme: bearer
+      type: http
+    sessionCookie:
+      description: The HttpOnly access cookie set by login. A write that uses it must also send X-Requested-With
+        and an allowed Origin.
+      in: cookie
+      name: coursera_access
+      type: apiKey
+info:
+  description: Version 1 of the HTTP API of the learning platform.
+  title: Coursera API
+  version: v1
+openapi: 3.0.3
+paths:
+  /api/v1/assessments/assignments/{assignment_uuid}/submit/:
+    post:
+      description: Submit assignment with file upload
+      operationId: assessments_assignments_submit_create
+      parameters:
+      - in: path
+        name: assignment_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - assessments
+  /api/v1/assessments/instructor/assignments/:
+    get:
+      description: Get all assignments for the instructor's courses
+      operationId: assessments_instructor_assignments_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - assessments
+  /api/v1/assessments/instructor/assignments/{assignment_uuid}/submissions/:
+    get:
+      description: Get all submissions for a specific assignment
+      operationId: assessments_instructor_assignments_submissions_retrieve
+      parameters:
+      - in: path
+        name: assignment_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - assessments
+  /api/v1/assessments/instructor/courses/{course_uuid}/gradebook/:
+    get:
+      description: Get gradebook for all students in instructor's course
+      operationId: assessments_instructor_courses_gradebook_retrieve
+      parameters:
+      - in: path
+        name: course_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - assessments
+  /api/v1/assessments/instructor/submissions/{submission_uuid}/grade/:
+    post:
+      description: Grade an assignment submission
+      operationId: assessments_instructor_submissions_grade_create
+      parameters:
+      - in: path
+        name: submission_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - assessments
+  /api/v1/assessments/quizzes/{quiz_uuid}/attempt/:
+    post:
+      description: Start or submit a quiz attempt with auto-grading
+      operationId: assessments_quizzes_attempt_create
+      parameters:
+      - in: path
+        name: quiz_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - assessments
+  /api/v1/assessments/student/gradebook/:
+    get:
+      description: Get student's gradebook across all enrolled courses
+      operationId: assessments_student_gradebook_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - assessments
+  /api/v1/assessments/submissions/{submission_uuid}/download/:
+    get:
+      description: Download assignment submission file
+      operationId: assessments_submissions_download_retrieve
+      parameters:
+      - in: path
+        name: submission_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - assessments
+  /api/v1/auth/login/:
+    post:
+      description: 'Sign in: the session cookies are set, and the answer says who signed in.
+
+
+        The token pair is in the body only for callers that use bearer tokens
+
+        (``AUTH_LEGACY_TOKEN_TRANSPORT`` or ``X-Auth-Transport: bearer``): a browser does not need it.'
+      operationId: auth_login_create
+      responses:
+        '200':
+          description: No response body
+      security:
+      - {}
+      tags:
+      - auth
+  /api/v1/auth/logout/:
+    post:
+      description: Blacklist the refresh token and clear the session cookies (always, whatever the token
+        says).
+      operationId: auth_logout_create
+      responses:
+        '200':
+          description: No response body
+      security:
+      - {}
+      tags:
+      - auth
+  /api/v1/auth/profile/:
+    get:
+      operationId: auth_profile_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - auth
+  /api/v1/auth/signup/:
+    post:
+      operationId: auth_signup_create
+      responses:
+        '200':
+          description: No response body
+      security:
+      - {}
+      tags:
+      - auth
+  /api/v1/auth/token/refresh/:
+    post:
+      description: 'Rotate the session: a new access token (and refresh token), set as cookies again.
+
+
+        The refresh token comes from its cookie; a client that uses bearer tokens (or the front end of
+
+        the release before cookies, once, to migrate) sends it in the body.'
+      operationId: auth_token_refresh_create
+      responses:
+        '200':
+          description: No response body
+      security:
+      - {}
+      tags:
+      - auth
+  /api/v1/billing/checkout/:
+    get:
+      description: Get data needed for checkout page
+      operationId: billing_checkout_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - billing
+  /api/v1/billing/checkout/session/:
+    post:
+      description: Create a Stripe checkout session for subscription payment
+      operationId: billing_checkout_session_create
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - billing
+  /api/v1/billing/checkout/verify/:
+    post:
+      description: Verify Stripe session and create subscription if webhook failed
+      operationId: billing_checkout_verify_create
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - billing
+  /api/v1/billing/subscription/:
+    get:
+      description: Get current user's subscription status
+      operationId: billing_subscription_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - billing
+  /api/v1/billing/subscription/cancel/:
+    post:
+      description: 'Cancel Plus: it stops renewing, and stays usable until the paid period ends.'
+      operationId: billing_subscription_cancel_create
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - billing
+  /api/v1/certificates/:
+    get:
+      description: Get student's earned certificates
+      operationId: certificates_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - certificates
+  /api/v1/courses/admin/all/:
+    get:
+      description: Get all courses for admin dashboard (whatever their status)
+      operationId: courses_admin_all_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+  /api/v1/courses/admin/pending/:
+    get:
+      description: Get all courses pending admin review
+      operationId: courses_admin_pending_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+  /api/v1/courses/admin/{course_uuid}/approve/:
+    post:
+      description: Approve a course for publishing
+      operationId: courses_admin_approve_create
+      parameters:
+      - in: path
+        name: course_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+  /api/v1/courses/admin/{course_uuid}/reject/:
+    post:
+      description: Reject a course publishing request
+      operationId: courses_admin_reject_create
+      parameters:
+      - in: path
+        name: course_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+  /api/v1/courses/categories/:
+    get:
+      description: Categories a course can be filed under (what the create form offers).
+      operationId: courses_categories_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+  /api/v1/courses/instructor/courses/:
+    get:
+      description: List all instructor's courses (slices above courses add columns, e.g. revenue)
+      operationId: courses_instructor_courses_list
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/CourseList'
+                type: array
+          description: ''
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+    post:
+      description: Create a new course
+      operationId: courses_instructor_courses_create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CourseCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CourseCreateRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseCreate'
+          description: ''
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+  /api/v1/courses/instructor/courses/{course_uuid}/sections/:
+    get:
+      description: Create, update and delete the sections of an instructor's course.
+      operationId: courses_instructor_courses_sections_list
+      parameters:
+      - in: path
+        name: course_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/Section'
+                type: array
+          description: ''
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+    post:
+      description: Create, update and delete the sections of an instructor's course.
+      operationId: courses_instructor_courses_sections_create
+      parameters:
+      - in: path
+        name: course_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SectionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SectionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SectionRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Section'
+          description: ''
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+  /api/v1/courses/instructor/courses/{course_uuid}/sections/reorder/:
+    post:
+      description: 'Reorder the sections of a course: ``{"section_orders": [{"uuid", "order"}, ...]}``.'
+      operationId: courses_instructor_courses_sections_reorder_create
+      parameters:
+      - in: path
+        name: course_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+  /api/v1/courses/instructor/courses/{id}/:
+    get:
+      description: 'Instructor course CRUD. There is no plain DELETE (courses are removed with the
+
+        ``delete-course`` action, which requires a confirmation string) and no PUT: a course
+
+        is changed with PATCH, which is what the frontend sends.'
+      operationId: courses_instructor_courses_retrieve
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseDetail'
+          description: ''
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+    patch:
+      description: Change a course (not while it is published)
+      operationId: courses_instructor_courses_partial_update
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCourseCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCourseCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCourseCreateRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseCreate'
+          description: ''
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+  /api/v1/courses/instructor/courses/{id}/apply_for_publish/:
+    post:
+      description: Apply for course publishing - only if grade weights = 100%
+      operationId: courses_instructor_courses_apply_for_publish_create
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseListRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CourseListRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CourseListRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseList'
+          description: ''
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+  /api/v1/courses/instructor/courses/{id}/delete-course/:
+    post:
+      description: Delete a course with confirmation
+      operationId: courses_instructor_courses_delete_course_create
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseListRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CourseListRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CourseListRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseList'
+          description: ''
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+  /api/v1/courses/instructor/courses/{id}/unpublish/:
+    post:
+      description: Unpublish a course - instructor only
+      operationId: courses_instructor_courses_unpublish_create
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseListRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CourseListRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CourseListRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseList'
+          description: ''
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+  /api/v1/courses/instructor/lectures/{uuid}/:
+    delete:
+      description: Create, update and delete the lectures of a section.
+      operationId: courses_instructor_lectures_destroy
+      parameters:
+      - in: path
+        name: uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '204':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+    put:
+      description: Create, update and delete the lectures of a section.
+      operationId: courses_instructor_lectures_update
+      parameters:
+      - in: path
+        name: uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LectureRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LectureRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LectureRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lecture'
+          description: ''
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+  /api/v1/courses/instructor/sections/{section_uuid}/lectures/:
+    post:
+      description: Create, update and delete the lectures of a section.
+      operationId: courses_instructor_sections_lectures_create
+      parameters:
+      - in: path
+        name: section_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LectureRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LectureRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LectureRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lecture'
+          description: ''
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+  /api/v1/courses/instructor/sections/{section_uuid}/lectures/reorder/:
+    post:
+      description: 'Reorder the lectures of a section: ``{"lecture_orders": [{"uuid", "order"}, ...]}``.'
+      operationId: courses_instructor_sections_lectures_reorder_create
+      parameters:
+      - in: path
+        name: section_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+  /api/v1/courses/instructor/sections/{uuid}/:
+    delete:
+      description: Create, update and delete the sections of an instructor's course.
+      operationId: courses_instructor_sections_destroy
+      parameters:
+      - in: path
+        name: uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '204':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+    put:
+      description: Create, update and delete the sections of an instructor's course.
+      operationId: courses_instructor_sections_update
+      parameters:
+      - in: path
+        name: uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SectionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SectionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SectionRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Section'
+          description: ''
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+  /api/v1/courses/languages/:
+    get:
+      description: Languages a course can be taught in.
+      operationId: courses_languages_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - courses
+  /api/v1/insights/admin/users/:
+    get:
+      description: Get all users for admin dashboard
+      operationId: insights_admin_users_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - insights
+  /api/v1/insights/instructor/courses/{course_uuid}/analytics/:
+    get:
+      description: Get course-specific analytics
+      operationId: insights_instructor_courses_analytics_retrieve
+      parameters:
+      - in: path
+        name: course_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - insights
+  /api/v1/insights/instructor/dashboard/:
+    get:
+      description: Get dashboard overview stats for instructor
+      operationId: insights_instructor_dashboard_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - insights
+  /api/v1/insights/instructor/earnings/:
+    get:
+      description: Get instructor earnings based on Coursera model
+      operationId: insights_instructor_earnings_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - insights
+  /api/v1/insights/student/achievements/:
+    get:
+      description: Get student achievements and gamification data
+      operationId: insights_student_achievements_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - insights
+  /api/v1/insights/student/stats/:
+    get:
+      description: Get student learning statistics
+      operationId: insights_student_stats_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - insights
+  /api/v1/insights/student/weekly-progress/:
+    get:
+      description: Hours learned in each of the last months, from the learning log
+      operationId: insights_student_weekly_progress_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - insights
+  /api/v1/learning/courses/:
+    get:
+      description: Get all available courses for students to explore
+      operationId: learning_courses_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      - {}
+      tags:
+      - learning
+  /api/v1/learning/courses/{course_uuid}/bookmark/:
+    post:
+      description: Add/remove course bookmark
+      operationId: learning_courses_bookmark_create
+      parameters:
+      - in: path
+        name: course_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - learning
+  /api/v1/learning/courses/{course_uuid}/enroll/:
+    post:
+      description: Enroll student in a course
+      operationId: learning_courses_enroll_create
+      parameters:
+      - in: path
+        name: course_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - learning
+  /api/v1/learning/courses/{course_uuid}/learn/:
+    get:
+      description: Get course learning interface with sections, lectures, and progress
+      operationId: learning_courses_learn_retrieve
+      parameters:
+      - in: path
+        name: course_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - learning
+  /api/v1/learning/courses/{course_uuid}/lectures/{lecture_uuid}/complete/:
+    post:
+      description: Mark a lecture as completed for the student
+      operationId: learning_courses_lectures_complete_create
+      parameters:
+      - in: path
+        name: course_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - in: path
+        name: lecture_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - learning
+  /api/v1/learning/courses/{course_uuid}/lectures/{lecture_uuid}/progress/:
+    post:
+      description: 'Heartbeat of the video player: ``{position, finished?}`` in seconds.
+
+
+        Remembers where to resume and counts the time spent watching.'
+      operationId: learning_courses_lectures_progress_create
+      parameters:
+      - in: path
+        name: course_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - in: path
+        name: lecture_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - learning
+  /api/v1/learning/enrolled/:
+    get:
+      description: The student's courses with progress; ``?status=active`` (default), ``completed`` or
+        ``all``.
+      operationId: learning_enrolled_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - learning
+  /api/v1/learning/instructor/courses/{course_uuid}/students/:
+    get:
+      description: Get list of enrolled students
+      operationId: learning_instructor_courses_students_retrieve
+      parameters:
+      - in: path
+        name: course_uuid
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - learning
+  /api/v1/learning/instructor/students/:
+    get:
+      description: Get all students enrolled in instructor's courses
+      operationId: learning_instructor_students_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - learning
+  /api/v1/messaging/conversations/:
+    get:
+      description: Get all conversations for the authenticated user
+      operationId: messaging_conversations_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - messaging
+  /api/v1/messaging/conversations/{conversation_id}/:
+    get:
+      description: Get all messages for a specific conversation (and mark them read)
+      operationId: messaging_conversations_retrieve_2
+      parameters:
+      - in: path
+        name: conversation_id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - messaging
+  /api/v1/messaging/conversations/{conversation_id}/mark-read/:
+    post:
+      description: Mark all unread messages in a conversation as read for the current user
+      operationId: messaging_conversations_mark_read_create
+      parameters:
+      - in: path
+        name: conversation_id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - messaging
+  /api/v1/messaging/send/:
+    post:
+      description: Send a new message
+      operationId: messaging_send_create
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - messaging
+  /api/v1/messaging/users/:
+    get:
+      description: Get list of users available for messaging (any user can message any other user)
+      operationId: messaging_users_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - messaging
+  /api/v1/notifications/:
+    get:
+      description: Get notifications for the current user
+      operationId: notifications_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - notifications
+  /api/v1/notifications/count/:
+    get:
+      description: Get count of unread notifications for the current user
+      operationId: notifications_count_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - notifications
+  /api/v1/notifications/read-all/:
+    post:
+      description: Mark every unread notification of the user as read, or only the ``ids`` that were sent.
+      operationId: notifications_read_all_create
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - notifications
+  /api/v1/notifications/{notification_id}/read/:
+    post:
+      description: Mark a notification as read
+      operationId: notifications_read_create
+      parameters:
+      - in: path
+        name: notification_id
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - notifications

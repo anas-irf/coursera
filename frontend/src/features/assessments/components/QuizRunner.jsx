@@ -1,8 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Clock } from 'lucide-react';
 
-import { errorMessage } from '../../../shared/api/errors';
+import { errorCode, errorMessage } from '../../../shared/api/errors';
+import { formatClock } from '../../../shared/lib/time';
+import { useCountdown } from '../../../shared/lib/useCountdown';
 import { useToast } from '../../../shared/ui/Toast';
-import * as assessmentsApi from '../api';
+import { useStartQuiz, useSubmitQuiz } from '../hooks/useAttempts';
+
+const TIME_LIMIT_EXCEEDED = 'time_limit_exceeded';
+const WARNING_SECONDS = 60;
 
 /**
  * A quiz lecture: overview -> taking -> results.
@@ -10,14 +16,28 @@ import * as assessmentsApi from '../api';
  * ``onActiveChange(true)`` is called while an attempt is open so the player can
  * ask before the student leaves the quiz; ``onFinished`` after a submission so
  * the player reloads progress.
+ *
+ * A quiz with a time limit counts down to the ``expires_at`` the server sent and hands the
+ * answers in by itself when the time is up; the server refuses answers that come in later
+ * (``time_limit_exceeded``), which is then said plainly.
  */
 const QuizRunner = ({ lecture, onFinished, onActiveChange }) => {
   const toast = useToast();
+  const startQuiz = useStartQuiz();
+  const submitQuiz = useSubmitQuiz();
   const [mode, setMode] = useState(null); // null | 'taking' | 'results'
   const [quiz, setQuiz] = useState(null);
   const [answers, setAnswers] = useState({});
   const [results, setResults] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [timeUp, setTimeUp] = useState(false);
+  const answersRef = useRef({});
+  const autoSubmitted = useRef(false);
+  const remaining = useCountdown(mode === 'taking' && quiz ? quiz.expires_at : null);
+
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
 
   useEffect(() => {
     if (onActiveChange) onActiveChange(mode === 'taking');
@@ -29,9 +49,11 @@ const QuizRunner = ({ lecture, onFinished, onActiveChange }) => {
   const start = async () => {
     setBusy(true);
     try {
-      setQuiz(await assessmentsApi.startQuiz(lecture.quiz_id));
+      setQuiz(await startQuiz.mutateAsync(lecture.quiz_id));
       setAnswers({});
       setResults(null);
+      setTimeUp(false);
+      autoSubmitted.current = false;
       setMode('taking');
     } catch (err) {
       toast.error(errorMessage(err, 'Failed to start quiz. Please try again.'), 'Quiz Error');
@@ -40,27 +62,46 @@ const QuizRunner = ({ lecture, onFinished, onActiveChange }) => {
     }
   };
 
-  const submit = async () => {
-    if (!quiz) return;
-    setBusy(true);
-    try {
-      const data = await assessmentsApi.submitQuiz(quiz.quiz.id, quiz.attempt_id, answers);
-      setResults(data.results);
-      setMode('results');
-      if (onFinished) await onFinished();
-    } catch (err) {
-      toast.error(errorMessage(err, 'Failed to submit quiz. Please try again.'), 'Quiz Submission Failed');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const exit = () => {
+  const exit = useCallback(() => {
     setMode(null);
     setQuiz(null);
     setAnswers({});
     setResults(null);
-  };
+  }, []);
+
+  const submit = useCallback(async () => {
+    if (!quiz) return;
+    setBusy(true);
+    try {
+      const data = await submitQuiz.mutateAsync({
+        quizId: quiz.quiz.id,
+        attemptId: quiz.attempt_id,
+        answers: answersRef.current,
+      });
+      setResults(data.results);
+      setMode('results');
+      if (onFinished) await onFinished();
+    } catch (err) {
+      if (errorCode(err) === TIME_LIMIT_EXCEEDED) {
+        // the attempt was closed by the server; the overview shows it as used
+        setTimeUp(true);
+        exit();
+        if (onFinished) await onFinished();
+      } else {
+        toast.error(errorMessage(err, 'Failed to submit quiz. Please try again.'), 'Quiz Submission Failed');
+      }
+    } finally {
+      setBusy(false);
+    }
+  }, [quiz, onFinished, exit, toast, submitQuiz]);
+
+  // time is up: the answers given so far are handed in
+  useEffect(() => {
+    if (mode === 'taking' && remaining === 0 && !autoSubmitted.current) {
+      autoSubmitted.current = true;
+      submit();
+    }
+  }, [mode, remaining, submit]);
 
   const answer = (questionId, value) => setAnswers((prev) => ({ ...prev, [questionId]: value }));
 
@@ -68,6 +109,14 @@ const QuizRunner = ({ lecture, onFinished, onActiveChange }) => {
     <div className="p-4 sm:p-6">
       {mode === null && (
         <>
+          {timeUp && (
+            <div role="alert" className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-800">
+              <p className="font-medium">Time is up</p>
+              <p className="text-sm mt-1">
+                The time limit ran out before your answers were handed in, so this attempt was closed.
+              </p>
+            </div>
+          )}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <h3 className="font-medium text-blue-900 mb-2">Quiz Information</h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
@@ -119,6 +168,17 @@ const QuizRunner = ({ lecture, onFinished, onActiveChange }) => {
               <div className="text-right text-sm text-blue-700">
                 <div>Passing Score: {quiz.quiz.passing_score}%</div>
                 {quiz.quiz.time_limit && <div>Time Limit: {quiz.quiz.time_limit} minutes</div>}
+                {remaining !== null && (
+                  <div
+                    role="timer"
+                    className={`mt-2 inline-flex items-center font-semibold text-base ${
+                      remaining <= WARNING_SECONDS ? 'text-red-600' : 'text-blue-900'
+                    }`}
+                  >
+                    <Clock size={16} className="mr-1" />
+                    Time left: {formatClock(remaining)}
+                  </div>
+                )}
               </div>
             </div>
           </div>

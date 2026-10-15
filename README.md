@@ -10,7 +10,7 @@ frontend/   React 19 single page application      npm start
 docs/       ARCHITECTURE.md: slices, rules, how to extend
 ```
 
-Both sides are organised by the same product slices (identity, authoring, monetisation, learning, assessment, engagement, recognition, insight); see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Both sides are organised by the same product slices (identity, authoring, monetisation, learning, assessment, engagement, recognition, insight); see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the slices and their rules, [docs/CONVENTIONS.md](docs/CONVENTIONS.md) for how code is written, [backend/README.md](backend/README.md) and [frontend/README.md](frontend/README.md) for each side, and [docs/CI.md](docs/CI.md) for the pipeline.
 
 ## Quickstart
 
@@ -32,7 +32,7 @@ Frontend:
 
 ```bash
 cd frontend
-cp .env.example .env               # REACT_APP_API_URL=http://localhost:8000/api
+cp .env.example .env               # REACT_APP_API_URL=http://localhost:8000/api/v1
 npm install
 npm start                          # http://localhost:3000
 ```
@@ -85,15 +85,15 @@ All seeded accounts share one password and use `@example.com` addresses. The one
 
 ### Stripe
 
-Checkout needs test-mode keys in `backend/.env` (`STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`). Point the webhook at `/api/payments/stripe/webhook/` and set `FRONTEND_URL` to where the React app runs.
+Checkout needs a test-mode secret key and the webhook secret in `backend/.env` (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`; checkout redirects to Stripe, so no publishable key is needed). Point the webhook at `/api/payments/stripe/webhook/` and set `FRONTEND_URL` to where the React app runs.
 
 ## Checks
 
 ```bash
 cd backend
 python -m pytest --cov            # SQLite; TEST_DB_ENGINE=postgres for PostgreSQL; fails under 90 % coverage
-ruff check apps config tests      # rules in backend/ruff.toml
-lint-imports                      # slices depend downwards only
+ruff check apps config tests      # rules and docstrings: backend/ruff.toml
+lint-imports                      # slices depend downwards only, no HTTP in the domain
 python manage.py makemigrations --check --dry-run
 
 cd ../frontend
@@ -102,7 +102,8 @@ npm run test:ci                   # Jest with coverage
 npm run build                     # warnings fail it
 
 cd ../e2e
-npm test                          # browser specs against the seeded stack, see docs/CI.md
+npm test                          # browser specs against the seeded stack (start the API with
+                                  # THROTTLE_LOGIN=1000/min: they sign in dozens of times a minute), see docs/CI.md
 ```
 
 CI (`.github/workflows/ci.yml`) runs all of it in parallel on every pull request, adds dependency
@@ -111,15 +112,33 @@ how to run it locally: [docs/CI.md](docs/CI.md).
 
 ## Configuration
 
+Local development needs none of the backend variables: `config.settings.dev` supplies safe defaults.
+A deployment runs `config.settings.prod` (the default of `wsgi.py` and `asgi.py`), which **refuses to
+start** and names every missing variable marked *required* below.
+
 | Variable | Where | Meaning |
 |---|---|---|
+| `SECRET_KEY` | backend | signs sessions and JWTs; **required in production**, a development key is refused |
+| `ALLOWED_HOSTS` | backend | host names served; **required in production** |
+| `CORS_ALLOWED_ORIGINS` | backend | origins of the React app; **required in production** (localhost in development) |
+| `FRONTEND_URL` | backend | where Stripe sends customers back; **required in production** |
 | `DB_ENGINE` | backend | `sqlite` or `postgres` (default) |
-| `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` | backend | PostgreSQL connection (no default password) |
+| `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` | backend | PostgreSQL connection (no default password; `DB_PASSWORD` is required in production) |
+| `REDIS_URL` | backend | Channels layer; in-memory when empty (required in production unless `CHANNEL_LAYER=memory`) |
+| `BEHIND_TLS_PROXY` | backend | production only: trust the proxy's `X-Forwarded-Proto` |
+| `JWT_ACCESS_LIFETIME_MINUTES`, `JWT_REFRESH_LIFETIME_DAYS` | backend | token lifetimes (60 and 7) |
+| `AUTH_COOKIE_ACCESS`, `AUTH_COOKIE_REFRESH`, `AUTH_COOKIE_SECURE`, `AUTH_COOKIE_SAMESITE`, `AUTH_COOKIE_DOMAIN` | backend | the HttpOnly session cookies (`Secure` is always on in production; `Lax` needs the app and the API on one site) |
+| `AUTH_LEGACY_TOKEN_TRANSPORT` | backend | keep the token pair in login answers and accept the refresh token in a body (`True`: the release before cookies, scripts) |
+| `LOG_LEVEL` | backend | level of the application's loggers (`INFO`) |
+| `THROTTLE_LOGIN`, `THROTTLE_SIGNUP`, `THROTTLE_REFRESH`, `THROTTLE_MESSAGES`, `THROTTLE_UPLOADS`, `THROTTLE_PROGRESS`, `THROTTLE_ANON`, `THROTTLE_USER` | backend | request rates (`10/min` ... `1200/min`); counters are shared through `REDIS_URL` |
+| `NUM_PROXIES` | backend | reverse proxies in front of the API (0): the client address is the matching `X-Forwarded-For` hop |
+| `API_LEGACY_ALIASES`, `API_LEGACY_SUNSET` | backend | keep the unversioned `/api/<slice>/` paths (deprecated) and announce the day they go |
+| `QUIZ_SUBMIT_GRACE_SECONDS` | backend | how late a quiz answer may arrive after its time limit (30) |
+| `COURSE_PASSING_GRADE` | backend | weighted grade that earns a certificate (60) |
+| `INSTRUCTOR_REVENUE_SHARE_PERCENT` | backend | share of the month's Plus payments that goes to instructors (40) |
 | `SEED_PASSWORD` | backend | password of the users `seed_dev` creates (random when empty) |
-| `REDIS_URL` | backend | Channels layer; in-memory when empty |
-| `FRONTEND_URL` | backend | where Stripe sends customers back |
-| `STRIPE_*` | backend | Stripe test keys and webhook secret |
-| `REACT_APP_API_URL` | frontend | API base, default `http://localhost:8000/api` |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | backend | Stripe test secret key (no default) and webhook secret |
+| `REACT_APP_API_URL` | frontend | API base; **required for a production build** (`npm run build` stops without it), `http://localhost:8000/api/v1` in development |
 | `REACT_APP_WS_URL` | frontend | WebSocket base, derived from the API URL by default |
 
 `backend/.env.example` lists the rest.

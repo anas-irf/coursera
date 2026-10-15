@@ -1,26 +1,16 @@
-import React, { useEffect, useState } from 'react';
-import { Users, Search, MoreVertical, Shield, User, GraduationCap } from 'lucide-react';
+import React, { useState } from 'react';
+import { Users, Search, Shield, User, GraduationCap } from 'lucide-react';
 
+import { formatDate } from '../../../shared/lib/time';
+import Avatar from '../../../shared/ui/Avatar';
+import ErrorState from '../../../shared/ui/ErrorState';
 import { PageSpinner } from '../../../shared/ui/Spinner';
-import * as adminApi from '../api';
+import { useAdminUsers } from '../hooks/useAdmin';
 
 const UsersPage = () => {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const query = useAdminUsers();
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-
-  useEffect(() => {
-    let cancelled = false;
-    adminApi
-      .users()
-      .then((rows) => !cancelled && setUsers(rows))
-      .catch(() => !cancelled && setUsers([]))
-      .finally(() => !cancelled && setLoading(false));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const getUserTypeIcon = (userType) => {
     switch (userType) {
@@ -40,10 +30,15 @@ const UsersPage = () => {
     }
   };
 
-  if (loading) {
+  if (query.isPending) {
     return <PageSpinner />;
   }
 
+  if (query.isError) {
+    return <ErrorState title="We could not load the users" error={query.error} onRetry={() => query.refetch()} />;
+  }
+
+  const users = query.data;
   const filteredUsers = users.filter(user => {
     const matchesType = filter === 'all' || user.user_type === filter;
     const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -71,11 +66,13 @@ const UsersPage = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search users..."
+              aria-label="Search users"
               className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
           <select
+            aria-label="Role"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -109,9 +106,6 @@ const UsersPage = () => {
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Join Date
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -119,11 +113,7 @@ const UsersPage = () => {
                 <tr key={user.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <img
-                        className="h-10 w-10 rounded-full mr-4"
-                        src={user.avatar}
-                        alt={user.name}
-                      />
+                      <Avatar name={user.name} className="h-10 w-10 text-sm mr-4" />
                       <div>
                         <div className="text-sm font-medium text-gray-900">{user.name}</div>
                         <div className="text-sm text-gray-500 flex items-center">
@@ -174,19 +164,13 @@ const UsersPage = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <div>
-                      <p>{new Date(user.join_date).toLocaleDateString()}</p>
+                      <p>{formatDate(user.join_date)}</p>
                       {user.last_login && (
                         <p className="text-xs text-gray-400">
-                          Last login: {new Date(user.last_login).toLocaleDateString()}
+                          Last login: {formatDate(user.last_login)}
                         </p>
                       )}
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <button className="text-indigo-600 hover:text-indigo-900 mr-3">View</button>
-                    <button className="text-gray-600 hover:text-gray-900">
-                      <MoreVertical size={16} />
-                    </button>
                   </td>
                 </tr>
               ))}

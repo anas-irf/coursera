@@ -13,6 +13,8 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
+import ErrorState from '../../../shared/ui/ErrorState';
+import { PageSpinner } from '../../../shared/ui/Spinner';
 import useCurriculum from '../hooks/useCurriculum';
 import CurriculumHeader from './curriculum/CurriculumHeader';
 import EmptyState from './curriculum/EmptyState';
@@ -24,6 +26,8 @@ const CurriculumTab = ({ courseId }) => {
   const {
     sections,
     loading,
+    error,
+    refetch,
     createSection,
     updateSection,
     deleteSection,
@@ -31,8 +35,7 @@ const CurriculumTab = ({ courseId }) => {
     updateLecture,
     deleteLecture,
     reorderSections,
-    reorderLectures,
-    reorderQuizQuestions
+    reorderLectures
   } = useCurriculum(courseId);
 
   const sensors = useSensors(
@@ -47,6 +50,7 @@ const CurriculumTab = ({ courseId }) => {
   const [showAddLecture, setShowAddLecture] = useState(null);
   const [editingLecture, setEditingLecture] = useState(null);
 
+  // a change that fails rejects after it was reported: the dialog stays open with its content
   const handleCreateSection = async (data) => {
     await createSection({ ...data, order: sections.length + 1 });
     setShowAddSection(false);
@@ -89,7 +93,11 @@ const CurriculumTab = ({ courseId }) => {
   };
 
   if (loading) {
-    return <div className="text-center py-8 text-gray-500">Loading curriculum...</div>;
+    return <PageSpinner className="h-48" />;
+  }
+
+  if (error) {
+    return <ErrorState title="We could not load the curriculum" error={error} onRetry={() => refetch()} />;
   }
 
   return (
@@ -120,7 +128,6 @@ const CurriculumTab = ({ courseId }) => {
               onEditLecture={setEditingLecture}
               onDeleteLecture={deleteLecture}
               onReorderLectures={reorderLectures}
-              onReorderQuizQuestions={reorderQuizQuestions}
             />
           ))}
         </SortableContext>

@@ -1,17 +1,17 @@
 import React from 'react';
 import { Download, FileText } from 'lucide-react';
 
-import { errorMessage } from '../../../shared/api/errors';
-import { saveBlob, downloadFromUrl } from '../../../shared/lib/download';
+import { downloadFromUrl } from '../../../shared/lib/download';
 import { mediaUrl } from '../../../shared/lib/media';
 import { formatDateTime } from '../../../shared/lib/time';
 import { useToast } from '../../../shared/ui/Toast';
-import * as assessmentsApi from '../api';
+import { useSubmissionDownload } from '../hooks/useAttempts';
 import AssignmentSubmissionForm from './AssignmentSubmissionForm';
 
 /** An assignment lecture: instructions, materials, the student's submission or the form. */
 const AssignmentPanel = ({ lecture, onSubmitted }) => {
   const toast = useToast();
+  const downloadFile = useSubmissionDownload();
   const { submission } = lecture;
 
   const downloadMaterial = async () => {
@@ -22,15 +22,6 @@ const AssignmentPanel = ({ lecture, onSubmitted }) => {
         'Failed to download file. The file might not exist or there might be a server issue.',
         'Download Failed'
       );
-    }
-  };
-
-  const downloadSubmission = async () => {
-    try {
-      const blob = await assessmentsApi.downloadSubmission(submission.id);
-      saveBlob(blob, submission.original_filename);
-    } catch (err) {
-      toast.error(errorMessage(err, 'Failed to download file. Please try again.'), 'Download Failed');
     }
   };
 
@@ -119,7 +110,7 @@ const AssignmentPanel = ({ lecture, onSubmitted }) => {
                   <span className="text-sm text-gray-700">{submission.original_filename}</span>
                 </div>
                 <button
-                  onClick={downloadSubmission}
+                  onClick={() => downloadFile(submission)}
                   className="flex items-center px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
                 >
                   <Download className="h-3 w-3 mr-1" />

@@ -1,4 +1,5 @@
-# payments/models.py
+"""Plans, memberships and payments of Coursera Plus, and the instructors' earnings from them."""
+
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
@@ -97,12 +98,17 @@ class CourseraRevenuePool(BaseModel):
 
 
 class StudentPlusSubscription(BaseModel):
+    """A student's Coursera Plus membership and where it stands (``end_date`` is paid access)."""
     SUBSCRIPTION_STATUS_CHOICES = (
         ('active', 'Active'),
-        ('cancelled', 'Cancelled'),
+        ('cancelled', 'Cancelled'),    # will not renew; usable until end_date
         ('expired', 'Expired'),
         ('pending', 'Pending Payment'),
+        ('suspended', 'Suspended'),    # the payment failed repeatedly
     )
+
+    # statuses in which the student still has Plus (until ``end_date``)
+    ACCESS_STATUSES = ('active', 'cancelled')
 
     SUBSCRIPTION_TYPE_CHOICES = (
         ('monthly', 'Monthly'),
@@ -128,12 +134,16 @@ class StudentPlusSubscription(BaseModel):
     last_payment_date = models.DateTimeField(null=True, blank=True)
     next_billing_date = models.DateTimeField(null=True, blank=True)
 
+    # what cancelling at Stripe needs (filled from the webhook events)
+    stripe_customer_id = models.CharField(max_length=255, blank=True)
+    stripe_subscription_id = models.CharField(max_length=255, blank=True)
+
     class Meta:
         db_table = 'student_plus_subscriptions'
 
     def is_active(self):
-        """Check if subscription is currently active"""
-        if self.status != 'active':
+        """Plus works: the subscription runs, or was cancelled but its paid period has not ended."""
+        if self.status not in self.ACCESS_STATUSES:
             return False
         return not (self.end_date and self.end_date < timezone.now())
 
@@ -143,6 +153,7 @@ class StudentPlusSubscription(BaseModel):
 
 
 class StudentPlusPayment(BaseModel):
+    """One payment of a membership; a month's completed payments are the earnings pool."""
     PAYMENT_STATUS_CHOICES = (
         ('pending', 'Pending'),
         ('completed', 'Completed'),

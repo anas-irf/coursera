@@ -1,5 +1,4 @@
-# courses/api/moderation.py - admin review of submitted courses
-import logging
+"""HTTP adapters for the administrator's review of submitted courses."""
 
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -7,65 +6,28 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsAdmin
+from apps.core.api.pagination import paginate
+from apps.core.api.params import object_body
 
-from .. import extensions
-from ..models import Course
+from .. import selectors
 from ..services import lifecycle
-
-logger = logging.getLogger(__name__)
-
-
-def _course_summary(course):
-    """Fields shared by the pending and the all-courses admin lists."""
-    return {
-        'id': str(course.uuid),
-        'title': course.title,
-        'instructor': {
-            'id': str(course.instructor.uuid),
-            'name': f"{course.instructor.first_name} {course.instructor.last_name}".strip() or course.instructor.email,
-            'email': course.instructor.email
-        },
-        'category': course.category.name if course.category else 'Uncategorized',
-        'course_type': course.course_type,
-        'sections_count': course.sections.count(),
-        'lectures_count': sum(section.lectures.count() for section in course.sections.all()),
-        'total_weight': float(extensions.total_grade_weight(course)),
-        'description': course.description,
-        'thumbnail': course.thumbnail.url if course.thumbnail else None,
-        'duration_hours': float(course.duration_hours) if course.duration_hours else 0
-    }
+from . import serializers
 
 
 @api_view(['GET'])
 @permission_classes([IsAdmin])
 def admin_pending_courses(request):
     """Get all courses pending admin review"""
-    try:
-        pending_courses = Course.objects.filter(
-            status='pending_review'
-        ).select_related('instructor').order_by('-updated_at')
+    courses, headers = paginate(request, selectors.pending_review())
 
-        data = []
-        for course in pending_courses:
-            row = _course_summary(course)
-            row['submitted_date'] = course.updated_at.isoformat()
-            data.append(row)
-
-        return Response(data)
-
-    except Exception:
-        logger.exception('Failed to fetch pending courses')
-        return Response(
-            {'error': 'Failed to fetch pending courses'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    return Response([serializers.pending_course_row(course) for course in courses], headers=headers)
 
 
 @api_view(['POST'])
 @permission_classes([IsAdmin])
-def admin_approve_course(request, course_id):
+def admin_approve_course(request, course_uuid):
     """Approve a course for publishing"""
-    course = get_object_or_404(Course, uuid=course_id, status='pending_review')
+    course = get_object_or_404(selectors.pending_review(), uuid=course_uuid)
 
     lifecycle.approve(course, request.user)
 
@@ -78,12 +40,12 @@ def admin_approve_course(request, course_id):
 
 @api_view(['POST'])
 @permission_classes([IsAdmin])
-def admin_reject_course(request, course_id):
+def admin_reject_course(request, course_uuid):
     """Reject a course publishing request"""
-    course = get_object_or_404(Course, uuid=course_id, status='pending_review')
-    reason = request.data.get('reason', '')
+    course = get_object_or_404(selectors.pending_review(), uuid=course_uuid)
+    reason = object_body(request).get('reason') or ''
 
-    if not reason.strip():
+    if not isinstance(reason, str) or not reason.strip():
         return Response(
             {'error': 'Rejection reason is required'},
             status=status.HTTP_400_BAD_REQUEST
@@ -103,28 +65,7 @@ def admin_reject_course(request, course_id):
 @api_view(['GET'])
 @permission_classes([IsAdmin])
 def admin_all_courses(request):
-    """Get all courses for admin dashboard"""
-    try:
-        # Get all courses regardless of status
-        all_courses = Course.objects.select_related('instructor').order_by('-created_at')
+    """Get all courses for admin dashboard (whatever their status)"""
+    courses, headers = paginate(request, selectors.all_courses())
 
-        data = []
-        for course in all_courses:
-            row = _course_summary(course)
-            row.update({
-                'status': course.status,
-                'created_date': course.created_at.isoformat(),
-                'published_date': course.published_date.isoformat() if course.published_date else None,
-                'total_enrolled': course.total_enrolled,
-                'average_rating': float(course.average_rating) if course.average_rating else 0,
-            })
-            data.append(row)
-
-        return Response(data)
-
-    except Exception:
-        logger.exception('Failed to fetch all courses')
-        return Response(
-            {'error': 'Failed to fetch all courses'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    return Response([serializers.admin_course_row(course) for course in courses], headers=headers)

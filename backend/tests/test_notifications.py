@@ -1,6 +1,6 @@
 """Engagement slice: notification list / unread count / mark-as-read.
 
-The endpoints live under ``/api/notifications/`` today (they are part
+The endpoints live under ``/api/v1/notifications/`` today (they are part
 of the courses app)."""
 import pytest
 
@@ -8,12 +8,12 @@ import factories as f
 
 pytestmark = pytest.mark.django_db
 
-LIST = '/api/notifications/'
-COUNT = '/api/notifications/count/'
+LIST = '/api/v1/notifications/'
+COUNT = '/api/v1/notifications/count/'
 
 
 def read_url(notification):
-    return f'/api/notifications/{notification.id}/read/'
+    return f'/api/v1/notifications/{notification.id}/read/'
 
 
 def test_list_returns_only_own_notifications_newest_first(auth_client, student, other_student):
@@ -55,15 +55,15 @@ def test_list_limit_and_include_read_parameters(auth_client, student):
     assert len(client.get(LIST, {'include_read': 'true'}).json()) == 5
 
 
-@pytest.mark.pinned_bug
-def test_list_with_a_non_numeric_limit_is_a_500_current_behaviour(auth_client, student):
-    """A non-numeric limit is answered with a 500 payload."""
+@pytest.mark.parametrize('limit', ['many', '1.5', '-1'])
+def test_list_with_a_bad_limit_is_a_400(auth_client, student, limit):
+    """A limit that is not a whole number >= 0 is the caller's mistake, not a server fault."""
     f.make_notification(student)
 
-    r = auth_client(student).get(LIST, {'limit': 'many'})
+    r = auth_client(student).get(LIST, {'limit': limit})
 
-    assert r.status_code == 500
-    assert 'error' in r.json()
+    assert r.status_code == 400
+    assert 'limit' in r.json()['error']
 
 
 def test_unread_count(auth_client, student, other_student):
@@ -103,7 +103,7 @@ def test_mark_read_updates_only_the_owners_notification(auth_client, student, ot
     assert 'error' in r.json()
     theirs.refresh_from_db()
     assert theirs.is_read is False
-    assert client.post('/api/notifications/999999/read/').status_code == 404
+    assert client.post('/api/v1/notifications/999999/read/').status_code == 404
 
 
 def test_notification_endpoints_require_authentication_but_no_particular_role(
@@ -111,10 +111,41 @@ def test_notification_endpoints_require_authentication_but_no_particular_role(
     """Any authenticated role may use the notification endpoints."""
     for url in (LIST, COUNT):
         assert api.get(url).status_code == 401
-    assert api.post('/api/notifications/1/read/').status_code == 401
+    assert api.post('/api/v1/notifications/1/read/').status_code == 401
 
     for user in (instructor, admin):
         f.make_notification(user)
         client = auth_client(user)
         assert client.get(LIST).status_code == 200
         assert client.get(COUNT).json() == {'unread_count': 1}
+
+
+def test_mark_all_read_marks_every_unread_notification_of_the_caller_only(
+        auth_client, student, other_student):
+    for _ in range(3):
+        f.make_notification(student, is_read=False)
+    f.make_notification(other_student, is_read=False)
+
+    r = auth_client(student).post('/api/v1/notifications/read-all/', {}, format='json')
+
+    assert r.status_code == 200
+    assert r.json() == {'marked_read': 3}
+    assert auth_client(student).get(COUNT).json() == {'unread_count': 0}
+    assert auth_client(other_student).get(COUNT).json() == {'unread_count': 1}
+
+
+def test_mark_all_read_can_be_limited_to_some_notifications(auth_client, student):
+    first = f.make_notification(student, is_read=False)
+    f.make_notification(student, is_read=False)
+
+    r = auth_client(student).post('/api/v1/notifications/read-all/', {'ids': [first.id]}, format='json')
+
+    assert r.json() == {'marked_read': 1}
+    assert auth_client(student).get(COUNT).json() == {'unread_count': 1}
+
+
+def test_mark_all_read_rejects_ids_that_are_not_a_list_of_numbers(auth_client, student):
+    r = auth_client(student).post('/api/v1/notifications/read-all/', {'ids': 'all'}, format='json')
+
+    assert r.status_code == 400
+    assert 'ids' in r.json()['error']

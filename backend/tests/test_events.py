@@ -35,6 +35,36 @@ def test_course_submitted_notifies_every_admin(instructor, admin):
     assert _notes(instructor) == []
 
 
+def _superuser_of_another_type():
+    """A superuser whose ``user_type`` is not 'admin'; ``is_admin`` is still true for them."""
+    user = f.make_instructor()
+    f.User.objects.filter(pk=user.pk).update(is_superuser=True)
+    return user
+
+
+def test_admin_alerts_reach_type_admins_and_superusers_alike(instructor):
+    """One definition of "an admin" (``User.admins``): course submissions go to both kinds."""
+    type_admin = f.make_admin()
+    superuser = _superuser_of_another_type()
+    course = f.make_course(instructor, status='pending_review')
+
+    events.emit(events.course_submitted, course=course)
+
+    for user in (type_admin, superuser):
+        assert len(_notes(user, 'course_submission')) == 1
+
+
+def test_payment_alerts_reach_type_admins_and_superusers_alike(student):
+    type_admin = f.make_admin()
+    superuser = _superuser_of_another_type()
+    subscription = f.give_plus(student)
+
+    events.emit(events.subscription_activated, user=student, subscription=subscription, amount=49.99)
+
+    for user in (type_admin, superuser):
+        assert [n.title for n in _notes(user, 'system')] == ['💰 New Plus Subscription']
+
+
 def test_course_approved_notifies_instructor_and_the_approving_admin(instructor, admin):
     course = f.make_course(instructor, status='published', title='Approved one')
 

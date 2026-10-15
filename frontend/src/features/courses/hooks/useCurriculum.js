@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { errorMessage } from '../../../shared/api/errors';
 import { useConfirm } from '../../../shared/ui/ConfirmDialog';
 import { useToast } from '../../../shared/ui/Toast';
 import * as coursesApi from '../api';
+import { courseKeys } from './useCourses';
 
 const uploadProblem = (err, verb) => {
   if (err.code === 'ECONNABORTED' || (err.message || '').includes('timeout')) {
@@ -18,52 +19,54 @@ const uploadProblem = (err, verb) => {
   if (err.response && err.response.status === 500) {
     return ['Server error while processing your upload. Please try again later.', 'Server Error'];
   }
-  return [`Error ${verb} lecture: ${errorMessage(err, 'Unknown error')}`, verb === 'creating' ? 'Creation Failed' : 'Update Failed'];
+  return [
+    `Error ${verb} lecture: ${errorMessage(err, 'Unknown error')}`,
+    verb === 'creating' ? 'Creation Failed' : 'Update Failed',
+  ];
 };
 
-/** The sections and lectures of one course and everything an instructor does to them. */
+/**
+ * The sections and lectures of one course and everything an instructor does to them.
+ *
+ * Every change that fails is reported with the server's reason and then thrown again, so the
+ * dialog that asked for it stays open with what was typed; the list is refreshed after every
+ * change that worked.
+ */
 const useCurriculum = (courseId) => {
-  const [sections, setSections] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const client = useQueryClient();
   const toast = useToast();
   const { confirmDelete } = useConfirm();
+  const key = courseKeys.sections(courseId);
 
-  const fetchSections = useCallback(async () => {
-    if (!courseId) return;
+  const query = useQuery({
+    queryKey: key,
+    queryFn: () => coursesApi.listSections(courseId),
+    enabled: Boolean(courseId),
+  });
+  const sections = query.data || [];
+
+  const refresh = () => Promise.all([
+    client.invalidateQueries({ queryKey: key }),
+    client.invalidateQueries({ queryKey: courseKeys.detail(courseId) }),
+  ]);
+
+  // run a change: refresh afterwards, report and re-throw a failure
+  const change = async (call, failure, title) => {
     try {
-      setSections(await coursesApi.listSections(courseId));
+      const result = await call();
+      await refresh();
+      return result;
     } catch (err) {
-      // keep what is shown
-    } finally {
-      setLoading(false);
-    }
-  }, [courseId]);
-
-  useEffect(() => {
-    fetchSections();
-  }, [fetchSections]);
-
-  const createSection = async (data) => {
-    try {
-      const section = await coursesApi.createSection(courseId, data);
-      fetchSections();
-      return section;
-    } catch (err) {
-      toast.error('Error creating section. Please try again.', 'Creation Failed');
-      return undefined;
-    }
-  };
-
-  const updateSection = async (sectionId, data) => {
-    try {
-      const section = await coursesApi.updateSection(sectionId, data);
-      fetchSections();
-      return section;
-    } catch (err) {
-      toast.error('Error updating section. Please try again.', 'Update Failed');
-      return undefined;
+      toast.error(errorMessage(err, failure), title);
+      throw err;
     }
   };
+
+  const createSection = (data) =>
+    change(() => coursesApi.createSection(courseId, data), 'Error creating section. Please try again.', 'Creation Failed');
+
+  const updateSection = (sectionId, data) =>
+    change(() => coursesApi.updateSection(sectionId, data), 'Error updating section. Please try again.', 'Update Failed');
 
   const deleteSection = async (sectionId) => {
     const confirmed = await confirmDelete(
@@ -73,94 +76,79 @@ const useCurriculum = (courseId) => {
     if (!confirmed) return;
 
     try {
-      await coursesApi.deleteSection(sectionId);
-      fetchSections();
+      await change(() => coursesApi.deleteSection(sectionId), 'Error deleting section. Please try again.', 'Deletion Failed');
     } catch (err) {
-      toast.error('Error deleting section. Please try again.', 'Deletion Failed');
+      // reported above
     }
   };
 
-  // Failures are re-thrown so the lecture dialog can leave its "uploading" state.
-  const createLecture = async (sectionId, lecture) => {
+  // lecture failures read like upload problems (timeouts, size limits)
+  const lectureChange = async (call, verb) => {
     try {
-      const created = await coursesApi.createLecture(sectionId, lecture);
-      fetchSections();
-      return created;
+      const result = await call();
+      await refresh();
+      return result;
     } catch (err) {
-      const [message, title] = uploadProblem(err, 'creating');
+      const [message, title] = uploadProblem(err, verb);
       toast.error(message, title);
       throw err;
     }
   };
 
-  const updateLecture = async (lectureId, lecture) => {
-    try {
-      const updated = await coursesApi.updateLecture(lectureId, lecture);
-      fetchSections();
-      return updated;
-    } catch (err) {
-      const [message, title] = uploadProblem(err, 'updating');
-      toast.error(message, title);
-      throw err;
-    }
-  };
+  const createLecture = (sectionId, lecture) =>
+    lectureChange(() => coursesApi.createLecture(sectionId, lecture), 'creating');
+
+  const updateLecture = (lectureId, lecture) =>
+    lectureChange(() => coursesApi.updateLecture(lectureId, lecture), 'updating');
 
   const deleteLecture = async (lectureId) => {
     const confirmed = await confirmDelete('This action will permanently delete the lecture.', 'Delete Lecture');
     if (!confirmed) return;
 
     try {
-      await coursesApi.deleteLecture(lectureId);
-      fetchSections();
+      await change(() => coursesApi.deleteLecture(lectureId), 'Error deleting lecture. Please try again.', 'Deletion Failed');
     } catch (err) {
-      toast.error('Error deleting lecture. Please try again.', 'Deletion Failed');
+      // reported above
     }
   };
 
-  const reorderSections = async (newOrder) => {
+  // reordering shows the new order at once and is put back when the server refuses it
+  const reorder = async (apply, call, failure) => {
+    client.setQueryData(key, apply);
     try {
-      await coursesApi.reorderSections(
+      await call();
+    } catch (err) {
+      toast.error(errorMessage(err, failure), 'Reorder Failed');
+      await refresh();
+    }
+  };
+
+  const reorderSections = (newOrder) =>
+    reorder(
+      () => newOrder,
+      () => coursesApi.reorderSections(
         courseId,
         newOrder.map((section, index) => ({ uuid: section.id, order: index + 1 }))
-      );
-      setSections(newOrder);
-    } catch (err) {
-      toast.error('Error reordering sections. Changes have been reverted.', 'Reorder Failed');
-      fetchSections();
-    }
-  };
+      ),
+      'Error reordering sections. Changes have been reverted.'
+    );
 
-  const reorderLectures = async (sectionId, newOrder) => {
-    try {
-      await coursesApi.reorderLectures(
+  const reorderLectures = (sectionId, newOrder) =>
+    reorder(
+      (previous = []) =>
+        previous.map((section) => (section.id === sectionId ? { ...section, lectures: newOrder } : section)),
+      () => coursesApi.reorderLectures(
         sectionId,
         newOrder.map((lecture, index) => ({ uuid: lecture.id, order: index + 1 }))
-      );
-      setSections((prev) =>
-        prev.map((section) => (section.id === sectionId ? { ...section, lectures: newOrder } : section))
-      );
-    } catch (err) {
-      toast.error('Error reordering lectures. Changes have been reverted.', 'Reorder Failed');
-      fetchSections();
-    }
-  };
-
-  const reorderQuizQuestions = async (lectureId, newOrder) => {
-    try {
-      await coursesApi.reorderQuizQuestions(
-        lectureId,
-        newOrder.map((question, index) => ({ id: question.id, order: index + 1 }))
-      );
-      return true;
-    } catch (err) {
-      toast.error('Error reordering quiz questions. Please try again.', 'Reorder Failed');
-      return false;
-    }
-  };
+      ),
+      'Error reordering lectures. Changes have been reverted.'
+    );
 
   return {
     sections,
-    loading,
+    loading: query.isPending && Boolean(courseId),
+    error: query.error,
+    refetch: query.refetch,
     createSection,
     updateSection,
     deleteSection,
@@ -169,7 +157,6 @@ const useCurriculum = (courseId) => {
     deleteLecture,
     reorderSections,
     reorderLectures,
-    reorderQuizQuestions,
   };
 };
 

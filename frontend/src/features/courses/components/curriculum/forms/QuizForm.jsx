@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 
+import { newQuestion, removeQuestionAt, setOptionField, setQuestionField } from '../../../lib/quiz';
+
 const QuizForm = ({ formData, setFormData }) => {
   // Determine quiz type based on weight (0 = practice, > 0 = graded)
   const [quizType, setQuizType] = useState(
@@ -30,46 +32,24 @@ const QuizForm = ({ formData, setFormData }) => {
     }
   };
 
-  const createNewQuestion = () => ({
-    question_text: '',
-    question_type: 'multiple_choice',
-    points: 1,
-    explanation: '',
-    options: [
-      { option_text: '', is_correct: false, order: 0 },
-      { option_text: '', is_correct: false, order: 1 },
-      { option_text: '', is_correct: false, order: 2 },
-      { option_text: '', is_correct: false, order: 3 }
-    ]
-  });
-
+  // the questions are edited as copies: the dialog's "Cancel" must leave the course data alone
   const addQuestion = () => {
-    const newQuestions = [...(formData.questions || []), createNewQuestion()];
-    setFormData({ ...formData, questions: newQuestions });
+    setFormData({ ...formData, questions: [...(formData.questions || []), newQuestion()] });
   };
 
   const removeQuestion = (index) => {
-    const newQuestions = formData.questions.filter((_, i) => i !== index);
-    setFormData({ ...formData, questions: newQuestions });
+    setFormData({ ...formData, questions: removeQuestionAt(formData.questions, index) });
   };
 
   const updateQuestion = (questionIndex, field, value) => {
-    const newQuestions = [...formData.questions];
-    newQuestions[questionIndex][field] = value;
-    setFormData({ ...formData, questions: newQuestions });
+    setFormData({ ...formData, questions: setQuestionField(formData.questions, questionIndex, field, value) });
   };
 
   const updateOption = (questionIndex, optionIndex, field, value) => {
-    const newQuestions = [...formData.questions];
-    newQuestions[questionIndex].options[optionIndex][field] = value;
-
-    if (field === 'is_correct' && value) {
-      newQuestions[questionIndex].options.forEach((opt, i) => {
-        if (i !== optionIndex) opt.is_correct = false;
-      });
-    }
-
-    setFormData({ ...formData, questions: newQuestions });
+    setFormData({
+      ...formData,
+      questions: setOptionField(formData.questions, questionIndex, optionIndex, field, value),
+    });
   };
 
   return (

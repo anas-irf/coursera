@@ -20,8 +20,7 @@ def _name(user):
 @receiver(events.course_submitted, dispatch_uid='notifications.course_submitted')
 def course_submitted(sender, course, **kwargs):
     """Tell every admin that a course waits for review."""
-    User = get_user_model()
-    for admin in User.objects.filter(user_type='admin'):
+    for admin in get_user_model().admins():
         notify(
             admin, 'course_submission',
             'New course submitted for review',
@@ -104,9 +103,23 @@ def assignment_graded(sender, submission, grade, graded_by, **kwargs):
     )
 
 
+# --- certificates --------------------------------------------------------- #
+@receiver(events.certificate_issued, dispatch_uid='notifications.certificate_issued')
+def certificate_issued(sender, certificate, **kwargs):
+    course = certificate.course
+    notify(
+        certificate.student, 'certificate_earned',
+        f'Certificate earned: "{course.title}"',
+        f'Congratulations! You completed "{course.title}" and earned a certificate. '
+        'You can download and share it from your certificates page.',
+        related=certificate, action_url='/student/certificates',
+    )
+
+
 # --- billing -------------------------------------------------------------- #
-def _superusers():
-    return get_user_model().objects.filter(is_superuser=True)
+def _admins():
+    """Who hears about money: every admin (the name is kept, the audience is the one definition)."""
+    return get_user_model().admins()
 
 
 @receiver(events.subscription_activated, dispatch_uid='notifications.subscription_activated')
@@ -117,7 +130,7 @@ def subscription_activated(sender, user, subscription, **kwargs):
         '🎉 Welcome to Coursera Plus!',
         f'Your {plan} subscription has been activated. You now have access to all Plus courses!',
     )
-    for admin in _superusers():
+    for admin in _admins():
         notify(
             admin, 'system',
             '💰 New Plus Subscription',
@@ -146,7 +159,7 @@ def payment_failed(sender, user, subscription, attempt_count, amount_due, outcom
         title = '🚨 Subscription Suspended'
         message = (f'Your payment of ${amount_due} has failed {attempt_count} times. Your '
                    f'subscription has been suspended. Please update your payment method.')
-        for admin in _superusers():
+        for admin in _admins():
             notify(
                 admin, 'system',
                 '🚨 Subscription Suspended',

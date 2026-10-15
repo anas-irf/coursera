@@ -1,5 +1,6 @@
 """Read side of billing: who is subscribed, what the plans are."""
-from .models import StudentPlusSubscription, SubscriptionPlan
+from . import plans
+from .models import StudentPlusSubscription
 
 
 def get_subscription(user):
@@ -44,55 +45,24 @@ def subscription_status(user):
     }
 
 
-DEFAULT_PLANS = [
-    {
-        'id': 'monthly',
-        'name': 'Coursera Plus Monthly',
-        'description': 'Access to all Plus courses with monthly billing',
-        'price': 49.99,
-        'billing_cycle': 'monthly',
-        'billing_cycle_display': 'Monthly',
-        'features': {
-            'unlimited_courses': True,
-            'certificate_included': True,
-            'download_enabled': True
-        }
-    },
-    {
-        'id': 'yearly',
-        'name': 'Coursera Plus Annual',
-        'description': 'Access to all Plus courses with annual billing (Save 20%)',
-        'price': 399.99,
-        'billing_cycle': 'yearly',
-        'billing_cycle_display': 'Yearly',
-        'features': {
-            'unlimited_courses': True,
-            'certificate_included': True,
-            'download_enabled': True
-        }
-    }
-]
-
-
 def plans_data():
-    """Active subscription plans (the built-in defaults when none is configured)."""
-    plans = [
-        {
-            'id': str(plan.uuid),
-            'name': plan.name,
-            'description': plan.description,
-            'price': float(plan.price),
-            'billing_cycle': plan.billing_cycle,
-            'billing_cycle_display': plan.get_billing_cycle_display(),
-            'features': {
-                'unlimited_courses': plan.unlimited_courses,
-                'certificate_included': plan.certificate_included,
-                'download_enabled': plan.download_enabled
-            }
-        }
-        for plan in SubscriptionPlan.objects.filter(is_active=True)
-    ]
+    """The plans of the checkout page (see ``billing.plans`` for where they come from)."""
     return {
-        'plans': plans or DEFAULT_PLANS,
-        'currency': 'USD'
+        'plans': [
+            {
+                'id': offer.id,
+                'name': offer.name,
+                'description': offer.description,
+                'price': float(offer.price),
+                'billing_cycle': offer.cycle,
+                'billing_cycle_display': offer.cycle.capitalize(),
+                'features': {
+                    'unlimited_courses': offer.unlimited_courses,
+                    'certificate_included': offer.certificate_included,
+                    'download_enabled': offer.download_enabled,
+                },
+            }
+            for offer in plans.offers()
+        ],
+        'currency': 'USD',
     }

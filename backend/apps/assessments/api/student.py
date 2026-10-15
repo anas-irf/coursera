@@ -1,17 +1,18 @@
-# assessments/api/student.py - what a student does: attempt quizzes, hand in work, see grades
+"""What a student does with assessments: attempt quizzes, hand in work, see grades."""
+
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsStudent
-from apps.learning import services as learning
+from apps.core.api.throttling import UploadThrottle
+from apps.learning import selectors as learning
 
 from ..models import Assignment, Quiz
-from ..services import assignments, quizzes
-from ..services.grades import GradeCalculationService
+from ..services import assignments, grades, quizzes
 from . import serializers
 
 
@@ -22,7 +23,7 @@ def attempt_quiz(request, quiz_uuid):
     quiz = get_object_or_404(Quiz, uuid=quiz_uuid)
     student = request.user
 
-    enrollment = learning.active_enrollment(student, quiz.course)
+    enrollment = learning.enrollment_for_access(student, quiz.course)
     if enrollment is None:
         return Response(
             {'error': 'You must be enrolled in this course'},
@@ -51,6 +52,7 @@ def attempt_quiz(request, quiz_uuid):
 
 @api_view(['POST'])
 @permission_classes([IsStudent])
+@throttle_classes([UploadThrottle])
 def submit_assignment(request, assignment_uuid):
     """Submit assignment with file upload"""
     assignment = get_object_or_404(Assignment, uuid=assignment_uuid)
@@ -86,7 +88,7 @@ def download_submission_file(request, submission_uuid):
 @permission_classes([IsStudent])
 def student_gradebook(request):
     """Get student's gradebook across all enrolled courses"""
-    gradebook = GradeCalculationService.get_student_gradebook(request.user)
+    gradebook = grades.student_gradebook(request.user)
 
     return Response({
         'student': {

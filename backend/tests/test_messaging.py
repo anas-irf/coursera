@@ -17,15 +17,33 @@ from django.utils.module_loading import import_string
 
 import factories as f
 
-SEND = '/api/messaging/send/'
-CONVERSATIONS = '/api/messaging/conversations/'
-USERS = '/api/messaging/users/'
+SEND = '/api/v1/messaging/send/'
+CONVERSATIONS = '/api/v1/messaging/conversations/'
+USERS = '/api/v1/messaging/users/'
 
 
 def conv_id(a, b):
     """The app sorts the two ids *as strings* ("10" < "9"), see the pin below."""
     first, second = sorted([str(a.id), str(b.id)])
     return f'conv_{first}_{second}'
+
+
+@pytest.fixture(autouse=True)
+def _classroom(request, db):
+    """The people of these tests know each other: the instructor teaches a course the students take.
+
+    (Messaging is limited to people who share a course, admins and existing conversations; the
+    tests of that rule build their own surroundings and do not use this.)
+    """
+    names = request.fixturenames
+    if 'instructor' not in names:
+        return
+    students = [request.getfixturevalue(name) for name in ('student', 'other_student') if name in names]
+    if not students:
+        return
+    course = f.make_course(request.getfixturevalue('instructor'), status='published')
+    for learner in students:
+        f.enroll(learner, course)
 
 
 @pytest.fixture(autouse=True)
@@ -66,21 +84,28 @@ def test_send_message_creates_direct_message_with_conversation_id(auth_client, s
     assert r.json()['message']['conversation_id'] == dm.conversation_id
 
 
-@pytest.mark.pinned_bug
 @pytest.mark.django_db
-def test_conversation_id_orders_the_two_user_ids_as_strings(auth_client):
-    """Current behaviour: ``conv_<a>_<b>`` is built from the *string-sorted* ids,
-    so for the ids 9 and 10 it is ``conv_10_9`` (not ``conv_9_10``).  Both REST
-    and WebSocket paths use the same rule, which keeps them consistent."""
-    nine = f.make_student(id=9)
-    ten = f.make_instructor(id=10)
+def test_a_conversation_has_one_stable_id_per_pair_of_people(auth_client):
+    """The id is what the sockets and the history are addressed with, so it must be the same whoever
+    writes first, the same every time, and different for every pair (also when the ids are 9 and 10,
+    where "10" sorts before "9" as a string, and 1+23 against 12+3)."""
+    people = [f.make_student(id=i) for i in (1, 3, 9, 10, 12, 23)]
+    course = f.make_course(f.make_instructor(), status='published')
+    for person in people:
+        f.enroll(person, course)
 
-    r = auth_client(nine).post(SEND, {'recipient_id': ten.id, 'content': 'hi'}, format='json')
+    seen = {}
+    for index, a in enumerate(people):
+        for b in people[index + 1:]:
+            first = auth_client(a).post(SEND, {'recipient_id': b.id, 'content': 'hi'}, format='json')
+            reply = auth_client(b).post(SEND, {'recipient_id': a.id, 'content': 'hello'}, format='json')
+            again = auth_client(a).post(SEND, {'recipient_id': b.id, 'content': 'again'}, format='json')
+            ids = {first.json()['message']['conversation_id'], reply.json()['message']['conversation_id'],
+                   again.json()['message']['conversation_id']}
+            assert len(ids) == 1, (a.id, b.id)                    # symmetric and stable
+            seen[frozenset((a.id, b.id))] = ids.pop()
 
-    assert r.status_code == 201
-    assert r.json()['message']['conversation_id'] == 'conv_10_9'
-    r = auth_client(ten).post(SEND, {'recipient_id': nine.id, 'content': 'hello'}, format='json')
-    assert r.json()['message']['conversation_id'] == 'conv_10_9'
+    assert len(set(seen.values())) == len(seen)                  # unique per pair
 
 
 @pytest.mark.django_db
@@ -174,17 +199,69 @@ def test_mark_read_endpoint(auth_client, student, instructor, other_student):
 
 
 @pytest.mark.django_db
-def test_available_users_lists_every_other_user(auth_client, student, instructor, admin, other_student):
-    """Any user can list every other user (directory is open)."""
+def test_available_users_are_the_people_one_shares_a_course_with_and_the_admins(
+        auth_client, student, instructor, admin, other_student):
+    """Teachers, classmates and admins: not the whole user table."""
+    stranger = f.make_student()
+    another_course_teacher = f.make_instructor()
+    f.make_course(another_course_teacher, status='published')
+
     r = auth_client(student).get(USERS)
 
     assert r.status_code == 200
     rows = r.json()['users']
     emails = {row['email'] for row in rows}
-    # current behaviour: any authenticated user can message (and see) everybody
     assert emails == {instructor.email, admin.email, other_student.email}
+    assert stranger.email not in emails and another_course_teacher.email not in emails
     assert student.email not in emails
     assert set(rows[0]) == {'id', 'first_name', 'last_name', 'name', 'email', 'user_type', 'avatar'}
+
+
+@pytest.mark.django_db
+def test_an_instructor_sees_their_students_and_the_admins_only(
+        auth_client, student, instructor, admin, other_student):
+    stranger = f.make_student()
+    colleague = f.make_instructor()
+
+    emails = {row['email'] for row in auth_client(instructor).get(USERS).json()['users']}
+
+    assert emails == {student.email, other_student.email, admin.email}
+    assert stranger.email not in emails and colleague.email not in emails
+
+
+@pytest.mark.django_db
+def test_an_admin_may_write_to_every_active_user(auth_client, admin, student, instructor):
+    gone = f.make_student()
+    f.User.objects.filter(pk=gone.pk).update(is_active=False)
+
+    emails = {row['email'] for row in auth_client(admin).get(USERS).json()['users']}
+
+    assert {student.email, instructor.email} <= emails
+    assert gone.email not in emails
+
+
+@pytest.mark.django_db
+def test_a_stranger_cannot_be_written_to_but_can_answer_once_written_to(auth_client, student):
+    """The scope is enforced when sending, not only listed: and a reply is always possible."""
+    stranger = f.make_student()
+
+    refused = auth_client(student).post(SEND, {'recipient_id': stranger.id, 'content': 'hi'}, format='json')
+    assert refused.status_code == 403
+    assert refused.json() == {'error': 'You cannot message this user'}
+    assert f.DirectMessage.objects.count() == 0
+
+    f.make_message(stranger, student, 'hello, I am new here')   # they wrote first
+    answered = auth_client(student).post(SEND, {'recipient_id': stranger.id, 'content': 'welcome'},
+                                         format='json')
+    assert answered.status_code == 201
+
+
+@pytest.mark.django_db
+def test_nobody_writes_to_themselves_or_to_a_deactivated_account(auth_client, student, instructor):
+    client = auth_client(student)
+    assert client.post(SEND, {'recipient_id': student.id, 'content': 'me'}, format='json').status_code == 400
+    f.User.objects.filter(pk=instructor.pk).update(is_active=False)
+    assert client.post(SEND, {'recipient_id': instructor.id, 'content': 'x'}, format='json').status_code == 403
 
 
 @pytest.mark.django_db
@@ -350,11 +427,12 @@ def test_chat_message_frame_is_persisted_and_broadcast():
             assert (await sender_chat.connect())[0] is True
             assert (await recipient_user.connect())[0] is True
 
-            # frames without content / recipient are ignored silently
+            # a frame that cannot be stored is answered with an error frame (and nothing is stored)
             await sender_chat.send_json_to({'type': 'chat_message', 'message': '   ',
                                             'recipient_id': instructor.id})
+            assert (await sender_chat.receive_json_from(timeout=3))['type'] == 'error'
             await sender_chat.send_json_to({'type': 'chat_message', 'message': 'no recipient'})
-            await sender_chat.receive_nothing(timeout=0.3)
+            assert (await sender_chat.receive_json_from(timeout=3))['type'] == 'error'
 
             await sender_chat.send_json_to({'type': 'chat_message', 'message': 'hello over ws',
                                             'recipient_id': instructor.id})
@@ -418,3 +496,48 @@ def test_typing_frame_reaches_only_the_other_participant_and_bad_json_is_reporte
 
     assert seen == {'type': 'typing', 'user_id': student.id, 'is_typing': True}
     assert error == {'error': 'Invalid JSON'}
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_binary_frame_does_not_take_the_socket_down_and_a_refusal_is_reported():
+    student, instructor, stranger = f.make_student(), f.make_instructor(), f.make_student()
+    f.make_message(instructor, student, 'earlier')
+    cid = conv_id(student, instructor)
+    path = chat_path(cid, student)
+
+    async def scenario():
+        chat = ws(path)
+        try:
+            assert (await chat.connect())[0] is True
+
+            await chat.send_to(bytes_data=b'\x00\x01binary')
+            binary_answer = await chat.receive_json_from(timeout=3)
+
+            # the socket still works: a message to someone outside the student's world is refused out loud
+            await chat.send_json_to({'type': 'chat_message', 'message': 'psst', 'recipient_id': stranger.id})
+            refusal = await chat.receive_json_from(timeout=3)
+            return binary_answer, refusal
+        finally:
+            await chat.disconnect()
+
+    binary_answer, refusal = async_to_sync(scenario)()
+
+    assert binary_answer['type'] == 'error'
+    assert refusal == {'type': 'error', 'error': 'You cannot message this user'}
+    assert not f.DirectMessage.objects.filter(content='psst').exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_deactivated_account_has_no_socket():
+    student = f.make_student()
+    token = f.access_token_for(student)
+    f.User.objects.filter(pk=student.pk).update(is_active=False)
+
+    async def scenario():
+        application = import_string(settings.ASGI_APPLICATION)
+        communicator = WebsocketCommunicator(application, f'/ws/user/?token={token}')
+        connected, _ = await communicator.connect()
+        await communicator.disconnect()
+        return connected
+
+    assert async_to_sync(scenario)() is False

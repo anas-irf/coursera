@@ -1,7 +1,17 @@
-# Secret scanning (CI job "Secret scan"). The default rules plus one allowance.
+# Secret scanning (CI job "Secret scan"). The default rules plus two allowances.
 [extend]
 useDefault = true
 
 [[allowlists]]
 description = "Stripe publishable keys are public by design: the browser needs them"
 regexes = ['''pk_(test|live)_[A-Za-z0-9]{20,}''']
+
+# A throw-away password of a registration test, in the commit that introduced the test
+# (67376fb); the test uses the shared fixture password now.  gitleaks reads every commit of
+# a pull request, so a later edit does not remove it from that commit's patch.  This entry
+# can go once the branch has been squash-merged.
+[[allowlists]]
+description = "Made-up password of a registration test (not a credential)"
+condition = "AND"
+paths = ['''backend/tests/test_input_handling\.py$''']
+regexes = ['''Str0ng-Passw0rd-xyz''']

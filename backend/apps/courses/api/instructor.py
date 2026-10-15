@@ -1,85 +1,59 @@
-# courses/api/instructor.py - the instructor's own courses
+"""HTTP adapters for the instructor's own courses and the lists their form offers."""
+
 from django.shortcuts import get_object_or_404
-from django.utils.text import slugify
 from rest_framework import mixins, status, viewsets
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsInstructor
+from apps.core.api.pagination import paginate
+from apps.core.api.params import object_body
 
-from .. import extensions
-from ..models import Course
+from .. import selectors
 from ..services import courses as course_service
 from ..services import lifecycle
+from . import serializers
 from .serializers import CourseCreateSerializer, CourseDetailSerializer, CourseListSerializer
-
-
-def _published_course_response(course):
-    return Response(
-        {
-            'error': 'Cannot edit published courses. Please unpublish the course first.',
-            'status': course.status
-        },
-        status=status.HTTP_400_BAD_REQUEST
-    )
 
 
 class InstructorCourseViewSet(mixins.CreateModelMixin,
                               mixins.ListModelMixin,
                               mixins.RetrieveModelMixin,
-                              mixins.UpdateModelMixin,
                               viewsets.GenericViewSet):
-    """Instructor course CRUD. There is no plain DELETE: courses are removed with
-    the ``delete-course`` action, which requires a confirmation string."""
+    """Instructor course CRUD. There is no plain DELETE (courses are removed with the
+    ``delete-course`` action, which requires a confirmation string) and no PUT: a course
+    is changed with PATCH, which is what the frontend sends."""
     permission_classes = [IsInstructor]
     serializer_class = CourseListSerializer
 
     def get_serializer_class(self):
-        if self.action in ['create', 'update', 'partial_update']:
+        if self.action in ['create', 'partial_update']:
             return CourseCreateSerializer
         elif self.action == 'retrieve':
             return CourseDetailSerializer
         return CourseListSerializer
 
     def get_queryset(self):
-        return Course.objects.filter(instructor=self.request.user)
+        return selectors.instructor_courses(self.request.user)
 
     def get_object(self):
         # Use UUID from URL
-        queryset = self.get_queryset()
-        obj = get_object_or_404(queryset, uuid=self.kwargs.get('pk'))
+        obj = get_object_or_404(self.get_queryset(), uuid=self.kwargs.get('pk'))
         self.check_object_permissions(self.request, obj)
         return obj
 
     def list(self, request):
         """List all instructor's courses (slices above courses add columns, e.g. revenue)"""
-        try:
-            data = []
-            for course in self.get_queryset():
-                row = {
-                    'id': str(course.uuid),
-                    'title': course.title,
-                    'status': course.status,
-                    'course_type': course.course_type,
-                    'total_enrolled': course.total_enrolled or 0,
-                    'average_rating': float(course.average_rating or 0),
-                    'created_at': course.created_at.isoformat(),
-                    'thumbnail': course.thumbnail.url if course.thumbnail else None
-                }
-                data.append(extensions.enrich_course_row(course, row))
+        courses, headers = paginate(request, self.get_queryset().order_by('-created_at', 'id'))
 
-            return Response(data)
-        except Exception:
-            return Response([], status=200)  # Return empty list on error
+        return Response(
+            [serializers.instructor_course_row(course) for course in courses], headers=headers)
 
     def create(self, request):
         """Create a new course"""
         serializer = CourseCreateSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
-            # Generate slug from title if not provided
-            if 'slug' not in serializer.validated_data:
-                serializer.validated_data['slug'] = slugify(serializer.validated_data['title'])
-
             course = serializer.save(instructor=request.user)
             return Response({
                 'id': str(course.uuid),
@@ -113,22 +87,31 @@ class InstructorCourseViewSet(mixins.CreateModelMixin,
     def delete_course(self, request, pk=None):
         """Delete a course with confirmation"""
         title = course_service.delete_course(
-            self.get_object(), request.user, request.data.get('confirmation', ''))
+            self.get_object(), request.user, object_body(request).get('confirmation', ''))
 
         return Response({
             'message': f'Course "{title}" has been permanently deleted.'
         }, status=status.HTTP_200_OK)
 
-    def update(self, request, *args, **kwargs):
-        """Override update to prevent editing published courses"""
-        course = self.get_object()
-        if course.status == 'published':
-            return _published_course_response(course)
-        return super().update(request, *args, **kwargs)
-
     def partial_update(self, request, *args, **kwargs):
-        """Override partial_update to prevent editing published courses"""
+        """Change a course (not while it is published)"""
         course = self.get_object()
-        if course.status == 'published':
-            return _published_course_response(course)
-        return super().partial_update(request, *args, **kwargs)
+        course_service.ensure_editable(course)
+        serializer = self.get_serializer(course, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def categories(request):
+    """Categories a course can be filed under (what the create form offers)."""
+    return Response([serializers.category_row(category) for category in selectors.active_categories()])
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def languages(request):
+    """Languages a course can be taught in."""
+    return Response([serializers.language_row(language) for language in selectors.languages()])

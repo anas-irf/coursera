@@ -15,7 +15,7 @@ import factories as f
 
 pytestmark = pytest.mark.django_db
 
-COURSES = '/api/courses/instructor/courses/'
+COURSES = '/api/v1/courses/instructor/courses/'
 
 LECTURE_KEYS = {
     'id', 'title', 'description', 'content_type', 'order', 'is_preview',
@@ -43,7 +43,10 @@ def create_course(client, **overrides):
         'thumbnail': f.png_file(),
     }
     data.update(overrides)
-    data.setdefault('slug', f"slug-{uuid.uuid4().hex[:8]}")
+    if 'slug' not in overrides:
+        data['slug'] = f"slug-{uuid.uuid4().hex[:8]}"
+    elif overrides['slug'] is None:  # the client sends none: the server makes it
+        del data['slug']
     return client.post(COURSES, data, format='multipart')
 
 
@@ -54,12 +57,12 @@ def create_section(client, course_id, title='Section'):
 
 def create_lecture(client, section_id, **fields):
     fields.setdefault('description', 'lecture description')
-    return client.post(f'/api/courses/instructor/sections/{section_id}/lectures/',
+    return client.post(f'/api/v1/courses/instructor/sections/{section_id}/lectures/',
                        fields, format='multipart')
 
 
 def update_lecture(client, lecture_id, **fields):
-    return client.put(f'/api/courses/instructor/lectures/{lecture_id}/',
+    return client.put(f'/api/v1/courses/instructor/lectures/{lecture_id}/',
                       fields, format='multipart')
 
 
@@ -114,7 +117,7 @@ def test_instructor_creates_course_with_thumbnail(auth_client, instructor):
 
 
 def test_create_course_validation_errors(auth_client, instructor):
-    """Thumbnail and slug are required, only images are accepted."""
+    """The thumbnail is required and only images are accepted."""
     client = auth_client(instructor)
 
     # thumbnail is mandatory
@@ -127,12 +130,43 @@ def test_create_course_validation_errors(auth_client, instructor):
     assert r.status_code == 400
     assert 'thumbnail' in r.json()
 
-    # current behaviour: the slug is required by the serializer, so the view's
-    # "generate slug from title" fallback can never run
-    data = {'title': 'No slug', 'description': 'd', 'thumbnail': f.png_file()}
-    r = client.post(COURSES, data, format='multipart')
-    assert r.status_code == 400
-    assert 'slug' in r.json()
+
+
+def test_course_slug_is_made_from_the_title_when_none_is_sent(auth_client, instructor):
+    """The slug is optional: the server makes one, and two courses with the same title get
+    different ones (the client used to make it, and the second author got a 400 about a field
+    they never saw)."""
+    client = auth_client(instructor)
+    data = {'title': 'Intro to Python!', 'description': 'd', 'thumbnail': f.png_file()}
+
+    first = client.post(COURSES, data, format='multipart')
+    data['thumbnail'] = f.png_file()
+    second = client.post(COURSES, data, format='multipart')
+
+    assert first.status_code == 201 and second.status_code == 201
+    assert f.Course.objects.get(uuid=first.json()['id']).slug == 'intro-to-python'
+    assert f.Course.objects.get(uuid=second.json()['id']).slug == 'intro-to-python-2'
+
+
+def test_course_slug_survives_a_new_title(auth_client, instructor):
+    """Editing the title leaves the slug (and so the links to the course) alone."""
+    client = auth_client(instructor)
+    course_id = create_course(client, title='Original Title', slug=None).json()['id']
+
+    r = client.patch(f'{COURSES}{course_id}/', {'title': 'A Different Title'}, format='json')
+
+    assert r.status_code == 200
+    assert f.Course.objects.get(uuid=course_id).slug == 'original-title'
+
+
+def test_a_slug_that_is_sent_is_still_honoured_and_must_be_free(auth_client, instructor):
+    client = auth_client(instructor)
+    assert create_course(client, title='Mine', slug='my-own-slug').status_code == 201
+
+    taken = create_course(client, title='Other', slug='my-own-slug')
+
+    assert taken.status_code == 400
+    assert 'slug' in taken.json()
 
 
 def test_create_course_ignores_privileged_fields(auth_client, api, instructor):
@@ -150,7 +184,7 @@ def test_create_course_ignores_privileged_fields(auth_client, api, instructor):
     assert course.is_featured is False
     assert not course.rejection_reason
     # not in the public catalogue
-    listing = api.get('/api/learning/courses/').json()
+    listing = api.get('/api/v1/learning/courses/').json()
     assert str(course.uuid) not in [c['id'] for c in listing]
 
 
@@ -249,10 +283,10 @@ def test_instructor_endpoints_reject_students_admins_and_anonymous(api, auth_cli
         ('post', f'{COURSES}{course.uuid}/apply_for_publish/'),
         ('get', f'{COURSES}{course.uuid}/sections/'),
         ('post', f'{COURSES}{course.uuid}/sections/'),
-        ('post', f'/api/courses/instructor/sections/{section.uuid}/lectures/'),
-        ('put', f'/api/courses/instructor/lectures/{lecture.uuid}/'),
-        ('get', '/api/insights/instructor/dashboard/'),
-        ('get', '/api/assessments/instructor/assignments/'),
+        ('post', f'/api/v1/courses/instructor/sections/{section.uuid}/lectures/'),
+        ('put', f'/api/v1/courses/instructor/lectures/{lecture.uuid}/'),
+        ('get', '/api/v1/insights/instructor/dashboard/'),
+        ('get', '/api/v1/assessments/instructor/assignments/'),
         ('get', f'{COURSES}students/'),
     ]
     def call(client, method, url):
@@ -298,12 +332,8 @@ def test_update_and_fetch_single_section(auth_client, instructor):
     course = f.make_course(instructor)
     section = f.make_section(course, title='Old')
 
-    r = client.put(f'/api/courses/instructor/sections/{section.uuid}/',
+    r = client.put(f'/api/v1/courses/instructor/sections/{section.uuid}/',
                    {'title': 'New', 'description': 'changed'}, format='json')
-    assert r.status_code == 200
-    assert r.json()['title'] == 'New'
-
-    r = client.get(f'/api/courses/instructor/sections/{section.uuid}/')
     assert r.status_code == 200
     assert r.json()['title'] == 'New'
 
@@ -335,7 +365,7 @@ def test_delete_middle_section_resequences_and_next_create_works(auth_client, in
     course = f.make_course(instructor)
     a, b, c = (f.make_section(course, title=t) for t in 'ABC')
 
-    r = client.delete(f'/api/courses/instructor/sections/{b.uuid}/')
+    r = client.delete(f'/api/v1/courses/instructor/sections/{b.uuid}/')
 
     assert r.status_code == 204
     remaining = f.Section.objects.filter(course=course).order_by('order')
@@ -388,10 +418,8 @@ def test_create_reading_lecture_with_markdown_and_text_only(auth_client, instruc
     assert r.json()['reading_document']['file'] is None
 
 
-@pytest.mark.pinned_bug
-def test_reading_with_unsupported_file_is_400_but_lecture_row_is_left_behind(auth_client, instructor):
-    """Current behaviour (bug): the lecture is saved first and the file type is
-    validated afterwards, so the 400 response leaves an orphan lecture behind."""
+def test_reading_with_unsupported_file_is_a_400_and_leaves_no_lecture_behind(auth_client, instructor):
+    """The lecture and its content are one write: a refused file rolls the lecture back."""
     client = auth_client(instructor)
     section = f.make_section(f.make_course(instructor))
 
@@ -399,8 +427,12 @@ def test_reading_with_unsupported_file_is_400_but_lecture_row_is_left_behind(aut
                        reading_file=f.txt_file('notes.txt'))
 
     assert r.status_code == 400
-    lecture = f.Lecture.objects.get(section=section, title='Bad file')
-    assert not f.Reading.objects.filter(lecture=lecture).exists()
+    assert r.json() == {'error': 'Invalid file type. Only PDF and Markdown files are allowed.'}
+    assert not f.Lecture.objects.filter(section=section, title='Bad file').exists()
+    # and the numbering was not advanced by the lecture that did not happen
+    ok = create_lecture(client, section.uuid, title='Fine', content_type='reading',
+                        article_content='text')
+    assert ok.status_code == 201 and ok.json()['order'] == 1
 
 
 def test_create_video_lecture_with_url_and_with_file(auth_client, instructor):
@@ -425,6 +457,42 @@ def test_create_video_lecture_with_url_and_with_file(auth_client, instructor):
     assert video.video_url == ''
     assert video.subtitles.count() == 1
     assert r.json()['video_content']['video_file']
+
+
+def test_the_video_length_sent_by_the_upload_form_is_stored(auth_client, instructor):
+    """The browser reads the duration from the file; the server keeps it (in whole seconds)."""
+    client = auth_client(instructor)
+    section = f.make_section(f.make_course(instructor))
+
+    r = create_lecture(client, section.uuid, title='Timed', content_type='video',
+                       video_url='https://youtu.be/timed', duration='125.4')
+
+    assert r.status_code == 201
+    assert r.json()['video_content']['duration'] == 125
+    lecture = f.Lecture.objects.get(uuid=r.json()['id'])
+    assert f.VideoContent.objects.get(lecture=lecture).duration == 125
+
+    # an update without a duration keeps it, one with a duration replaces it
+    update_lecture(client, lecture.uuid, title='Timed', content_type='video',
+                   video_url='https://youtu.be/timed')
+    assert f.VideoContent.objects.get(lecture=lecture).duration == 125
+    update_lecture(client, lecture.uuid, title='Timed', content_type='video',
+                   video_url='https://youtu.be/timed', duration='300')
+    assert f.VideoContent.objects.get(lecture=lecture).duration == 300
+
+
+@pytest.mark.parametrize('duration', ['soon', '-5', '100000'])
+def test_a_video_length_that_makes_no_sense_is_a_400_and_saves_nothing(
+        auth_client, instructor, duration):
+    client = auth_client(instructor)
+    section = f.make_section(f.make_course(instructor))
+
+    r = create_lecture(client, section.uuid, title='Bad length', content_type='video',
+                       video_url='https://youtu.be/bad', duration=duration)
+
+    assert r.status_code == 400
+    assert 'duration' in r.json()['error']
+    assert not f.Lecture.objects.filter(section=section).exists()
 
 
 def test_video_lecture_without_url_or_file_has_no_video_content_row(auth_client, instructor):
@@ -465,15 +533,13 @@ def test_create_quiz_lecture_from_json_strings(auth_client, instructor):
     assert f.QuestionOption.objects.filter(question__quiz=quiz).count() == 4
 
 
-@pytest.mark.pinned_bug
-def test_quiz_questions_created_through_the_api_ignore_correct_answers(auth_client, instructor):
-    """Current behaviour (bug): ``correct_answers`` of fill-in-the-blank questions
-    is not stored by the authoring endpoint, so such questions can never be
-    answered correctly by a student."""
+def test_fill_in_the_blank_answers_are_stored_returned_and_graded(auth_client, instructor, student):
+    """``correct_answers`` of a fill-in-the-blank question used to be dropped, so no student
+    could ever answer it correctly."""
     client = auth_client(instructor)
     section = f.make_section(f.make_course(instructor))
     questions = [{'question_text': 'Fill: 2+2', 'question_type': 'fill_blank', 'points': 1,
-                  'correct_answers': ['4', 'four'], 'options': []}]
+                  'correct_answers': ['4', ' four '], 'options': []}]
 
     r = create_lecture(client, section.uuid, title='Quiz', content_type='quiz',
                        quiz_settings=json.dumps({'weight': 100}), questions=json.dumps(questions))
@@ -481,7 +547,17 @@ def test_quiz_questions_created_through_the_api_ignore_correct_answers(auth_clie
     assert r.status_code == 201
     question = f.Question.objects.get(quiz__lecture__uuid=r.json()['id'])
     assert question.question_type == 'fill_blank'
-    assert question.correct_answers == []
+    assert question.correct_answers == ['4', 'four']
+    assert r.json()['questions'][0]['correct_answers'] == ['4', 'four']
+
+    quiz = question.quiz
+    f.enroll(student, section.course)
+    learner = auth_client(student)
+    url = f'/api/v1/assessments/quizzes/{quiz.uuid}/attempt/'
+    attempt = learner.post(url, {'action': 'start'}, format='json').json()['attempt_id']
+    done = learner.post(url, {'action': 'submit', 'attempt_id': attempt,
+                              'answers': {str(question.uuid): {'text_answer': ' FOUR'}}}, format='json')
+    assert done.json()['results']['score'] == pytest.approx(100.0)
 
 
 def test_create_assignment_lecture_with_attachment(auth_client, instructor):
@@ -528,10 +604,6 @@ def test_lecture_serializer_key_set_is_identical_for_every_content_type(auth_cli
     for lec in lectures:
         assert set(lec) == LECTURE_KEYS
 
-    # the per-section lecture list uses the very same serializer
-    r = client.get(f'/api/courses/instructor/sections/{section.uuid}/lectures/')
-    assert r.status_code == 200
-    assert [lec['id'] for lec in r.json()] == [lec['id'] for lec in lectures]
     video, reading, quiz, assignment = lectures
     assert video['video_content'] is not None and video['quiz_settings'] is None
     assert reading['reading_document'] is not None and reading['video_content'] is None
@@ -587,10 +659,6 @@ def test_update_video_lecture_video_url(auth_client, instructor):
     lecture.refresh_from_db()
     assert lecture.title == 'Video renamed'
 
-    r = client.get(f'/api/courses/instructor/lectures/{lecture.uuid}/')
-    assert r.status_code == 200
-    assert r.json()['video_content']['video_url'] == 'https://youtu.be/second'
-
 
 def test_update_video_lecture_creates_video_content_when_missing(auth_client, instructor):
     """PUT with a video_url creates the VideoContent when it did not exist."""
@@ -620,18 +688,14 @@ def test_update_reading_lecture_replaces_content(auth_client, instructor):
     assert r.json()['article_content'] == 'new body'
 
 
-@pytest.mark.pinned_bug
-def test_updating_quiz_and_assignment_lectures_recreates_content_and_drops_student_data(auth_client, instructor, student):
-    """Current behaviour: editing a quiz / assignment lecture deletes the Quiz /
-    Assignment and creates a new one, which cascades away attempts and
-    submissions of students."""
+def test_updating_a_quiz_or_assignment_keeps_what_students_did(auth_client, instructor, student):
+    """An edit changes the quiz and the assignment in place: attempts and hand-ins are not cascaded away."""
     client = auth_client(instructor)
     bundle = f.build_course(instructor, status='draft')
     enrollment = f.enroll(student, bundle.course)
     f.QuizAttempt.objects.create(student=student, quiz=bundle.quiz, enrollment=enrollment,
                                  attempt_number=1, score=Decimal('50'))
     f.make_submission(bundle.assignment, student, enrollment=enrollment)
-    old_quiz_uuid, old_assignment_uuid = bundle.quiz.uuid, bundle.assignment.uuid
 
     r = update_lecture(client, bundle.quiz_lecture.uuid, title='Quiz 1', content_type='quiz',
                        **quiz_payload(weight=25))
@@ -640,29 +704,29 @@ def test_updating_quiz_and_assignment_lectures_recreates_content_and_drops_stude
                        content_type='assignment', **assignment_payload(weight=75))
     assert r.status_code == 200
 
-    new_quiz = f.Quiz.objects.get(lecture=bundle.quiz_lecture)
-    new_assignment = f.Assignment.objects.get(lecture=bundle.assignment_lecture)
-    assert new_quiz.uuid != old_quiz_uuid and new_quiz.weight == Decimal('25')
-    assert new_assignment.uuid != old_assignment_uuid and new_assignment.weight == Decimal('75')
-    assert f.QuizAttempt.objects.filter(student=student).count() == 0
-    assert f.AssignmentSubmission.objects.filter(student=student).count() == 0
+    quiz = f.Quiz.objects.get(lecture=bundle.quiz_lecture)
+    assignment = f.Assignment.objects.get(lecture=bundle.assignment_lecture)
+    assert quiz.uuid == bundle.quiz.uuid and quiz.weight == Decimal('25')
+    assert assignment.uuid == bundle.assignment.uuid and assignment.weight == Decimal('75')
+    assert f.QuizAttempt.objects.filter(student=student).count() == 1
+    assert f.AssignmentSubmission.objects.filter(student=student).count() == 1
 
 
-@pytest.mark.pinned_bug
-def test_updating_quiz_without_quiz_fields_resets_it_to_defaults(auth_client, instructor):
-    """Current behaviour: a PUT that only changes the title still re-creates the
-    quiz from the request, i.e. with default settings and no questions."""
+def test_updating_only_the_title_keeps_the_settings_and_the_questions_of_a_quiz(auth_client, instructor):
+    """A PUT that does not mention the quiz fields used to re-create the quiz with defaults."""
     client = auth_client(instructor)
     section = f.make_section(f.make_course(instructor))
-    quiz = f.make_quiz_lecture(section, weight=Decimal('30'), max_attempts=9)
+    quiz = f.make_quiz_lecture(section, weight=Decimal('30'), max_attempts=9,
+                               questions=[f.mc_question(), f.tf_question()])
 
     r = update_lecture(client, quiz.lecture.uuid, title='Only the title', content_type='quiz')
 
     assert r.status_code == 200
-    new_quiz = f.Quiz.objects.get(lecture=quiz.lecture)
-    assert new_quiz.uuid != quiz.quiz.uuid
-    assert new_quiz.max_attempts == 3 and new_quiz.weight == Decimal('0')
-    assert new_quiz.questions.count() == 0
+    same = f.Quiz.objects.get(lecture=quiz.lecture)
+    assert same.uuid == quiz.quiz.uuid
+    assert same.max_attempts == 9 and same.weight == Decimal('30')
+    assert same.questions.count() == 2
+    assert same.title == 'Only the title'      # the quiz follows its lecture's title
 
 
 def test_reorder_lectures(auth_client, instructor):
@@ -671,7 +735,7 @@ def test_reorder_lectures(auth_client, instructor):
     section = f.make_section(f.make_course(instructor))
     a, b, c = (f.make_lecture(section, title=t, content_type='reading') for t in 'ABC')
 
-    r = client.post(f'/api/courses/instructor/sections/{section.uuid}/lectures/reorder/', {
+    r = client.post(f'/api/v1/courses/instructor/sections/{section.uuid}/lectures/reorder/', {
         'lecture_orders': [{'uuid': str(b.uuid), 'order': 1},
                            {'uuid': str(c.uuid), 'order': 2},
                            {'uuid': str(a.uuid), 'order': 3}]}, format='json')
@@ -687,7 +751,7 @@ def test_delete_middle_lecture_resequences_and_next_create_works(auth_client, in
     section = f.make_section(f.make_course(instructor))
     a, b, c = (f.make_lecture(section, title=t, content_type='reading') for t in 'ABC')
 
-    r = client.delete(f'/api/courses/instructor/lectures/{b.uuid}/')
+    r = client.delete(f'/api/v1/courses/instructor/lectures/{b.uuid}/')
 
     assert r.status_code == 204
     assert [lec.title for lec in f.Lecture.objects.filter(section=section).order_by('order')] == ['A', 'C']
@@ -697,29 +761,6 @@ def test_delete_middle_lecture_resequences_and_next_create_works(auth_client, in
     assert r.status_code == 201
     assert orders(f.Lecture.objects.filter(section=section)) == [1, 2, 3]
     assert f.Lecture.objects.get(section=section, title='D').order == 3
-
-
-def test_reorder_quiz_questions_uses_the_internal_question_ids(auth_client, instructor, other_instructor, student):
-    """Quiz question reorder is keyed by lecture uuid and internal question ids."""
-    quiz = f.make_quiz_lecture(f.make_section(f.make_course(instructor)),
-                               questions=[f.mc_question('First'), f.tf_question('Second')])
-    first, second = quiz.quiz.questions.order_by('order')
-    url = f'/api/assessments/quizzes/{quiz.lecture.uuid}/reorder-questions/'
-    payload = {'question_orders': [{'id': first.id, 'order': 5}, {'id': second.id, 'order': 2},
-                                   {'id': 999999, 'order': 9}]}  # unknown ids are skipped
-
-    r = auth_client(instructor).post(url, payload, format='json')
-
-    assert r.status_code == 200
-    assert 'message' in r.json()
-    first.refresh_from_db()
-    second.refresh_from_db()
-    assert (first.order, second.order) == (5, 2)
-
-    assert auth_client(student).post(url, payload, format='json').status_code == 403
-    # another instructor's quiz does not exist for you
-    r = auth_client(other_instructor).post(url, payload, format='json')
-    assert r.status_code == 404
 
 
 # --------------------------------------------------------------------------- #
@@ -737,12 +778,12 @@ def test_published_course_cannot_be_restructured(auth_client, instructor):
     assert r.status_code == 400
     assert f.Section.objects.filter(course=course).count() == 1
 
-    r = client.put(f'/api/courses/instructor/sections/{section.uuid}/',
+    r = client.put(f'/api/v1/courses/instructor/sections/{section.uuid}/',
                    {'title': 'changed'}, format='json')
     assert r.status_code == 400
     assert 'error' in r.json()
 
-    r = client.delete(f'/api/courses/instructor/sections/{section.uuid}/')
+    r = client.delete(f'/api/v1/courses/instructor/sections/{section.uuid}/')
     assert r.status_code == 400
     assert f.Section.objects.filter(pk=section.pk).exists()
 
@@ -754,7 +795,7 @@ def test_published_course_cannot_be_restructured(auth_client, instructor):
     assert r.status_code == 400
     assert 'error' in r.json()
 
-    r = client.delete(f'/api/courses/instructor/lectures/{lecture.uuid}/')
+    r = client.delete(f'/api/v1/courses/instructor/lectures/{lecture.uuid}/')
     assert r.status_code == 400
     assert f.Lecture.objects.filter(pk=lecture.pk).exists()
 
@@ -763,19 +804,61 @@ def test_published_course_cannot_be_restructured(auth_client, instructor):
     assert 'error' in r.json()
 
 
-@pytest.mark.pinned_bug
-def test_reordering_is_not_guarded_on_published_courses_current_behaviour(auth_client, instructor):
-    """Current behaviour: only add/edit/delete are guarded; reorder endpoints are not."""
+def test_a_published_course_is_not_reordered_in_place(auth_client, instructor):
+    """Like add, edit and delete, reordering needs the course to be unpublished first."""
     client = auth_client(instructor)
     course = f.make_course(instructor, status='published')
     a, b = f.make_section(course, title='A'), f.make_section(course, title='B')
+    lecture_a, lecture_b = f.make_lecture(a, title='x'), f.make_lecture(a, title='y')
 
     r = client.post(f'{COURSES}{course.uuid}/sections/reorder/', {
         'section_orders': [{'uuid': str(b.uuid), 'order': 1}, {'uuid': str(a.uuid), 'order': 2}]},
         format='json')
 
+    assert r.status_code == 400
+    assert r.json() == {
+        'error': 'Cannot reorder sections of published courses. Please unpublish the course first.',
+        'course_status': 'published'}
+    assert (f.Section.objects.get(pk=a.pk).order, f.Section.objects.get(pk=b.pk).order) == (1, 2)
+
+    r = client.post(f'/api/v1/courses/instructor/sections/{a.uuid}/lectures/reorder/', {
+        'lecture_orders': [{'uuid': str(lecture_b.uuid), 'order': 1},
+                           {'uuid': str(lecture_a.uuid), 'order': 2}]}, format='json')
+    assert r.status_code == 400
+    assert r.json()['course_status'] == 'published'
+    assert f.Lecture.objects.get(pk=lecture_a.pk).order == 1
+
+    # the same course reorders once it is unpublished
+    f.Course.objects.filter(pk=course.pk).update(status='draft')
+    r = client.post(f'{COURSES}{course.uuid}/sections/reorder/', {
+        'section_orders': [{'uuid': str(b.uuid), 'order': 1}, {'uuid': str(a.uuid), 'order': 2}]},
+        format='json')
     assert r.status_code == 200
     assert f.Section.objects.get(pk=b.pk).order == 1
+
+
+def test_every_change_of_a_published_course_names_the_course_status(auth_client, instructor):
+    client = auth_client(instructor)
+    course = f.make_course(instructor, status='published')
+    section = f.make_section(course)
+    lecture = f.make_lecture(section, content_type='reading')
+    base = '/api/v1/courses/instructor'
+
+    attempts = [
+        client.post(f'{COURSES}{course.uuid}/sections/', {'title': 'S'}, format='json'),
+        client.put(f'{base}/sections/{section.uuid}/', {'title': 'S2'}, format='json'),
+        client.delete(f'{base}/sections/{section.uuid}/'),
+        create_lecture(client, section.uuid, title='L', content_type='reading', article_content='x'),
+        update_lecture(client, lecture.uuid, title='L2', content_type='reading'),
+        client.delete(f'{base}/lectures/{lecture.uuid}/'),
+    ]
+
+    for r in attempts:
+        assert r.status_code == 400
+        assert r.json()['course_status'] == 'published'
+        assert 'Please unpublish the course first' in r.json()['error']
+    assert f.Section.objects.filter(course=course).count() == 1
+    assert f.Lecture.objects.filter(section=section).count() == 1
 
 
 # --------------------------------------------------------------------------- #
@@ -917,3 +1000,233 @@ def test_delete_course_is_blocked_when_students_are_enrolled(auth_client, instru
     assert r.status_code == 400
     assert 'error' in r.json()
     assert f.Course.objects.filter(pk=course.pk).exists()
+
+
+# --------------------------------------------------------------------------- #
+# quizzes are edited in place
+# --------------------------------------------------------------------------- #
+def quiz_with_an_answered_question(instructor, student):
+    """A quiz of two questions that ``student`` has answered (attempt scored 50)."""
+    section = f.make_section(f.make_course(instructor))
+    built = f.make_quiz_lecture(section, questions=[f.mc_question(), f.tf_question()])
+    enrollment = f.enroll(student, section.course)
+    first, second = built.quiz.questions.order_by('order')
+    attempt = f.QuizAttempt.objects.create(student=student, quiz=built.quiz, enrollment=enrollment,
+                                           attempt_number=1, score=Decimal('50'),
+                                           end_time=timezone.now())
+    response = f.QuestionResponse.objects.create(attempt=attempt, question=first, is_correct=True,
+                                                 points_earned=1)
+    response.selected_options.add(first.options.get(is_correct=True))
+    return built, first, second, attempt, response
+
+
+def test_the_instructor_payload_gives_questions_and_options_their_ids(auth_client, instructor):
+    client = auth_client(instructor)
+    section = f.make_section(f.make_course(instructor))
+    r = create_lecture(client, section.uuid, title='Quiz', content_type='quiz', **quiz_payload())
+
+    questions = r.json()['questions']
+
+    stored = f.Question.objects.filter(quiz__lecture__uuid=r.json()['id']).order_by('order')
+    assert [q['id'] for q in questions] == [str(q.uuid) for q in stored]
+    for question, row in zip(stored, questions, strict=True):
+        assert [o['id'] for o in row['options']] == [str(o.uuid) for o in question.options.order_by('order')]
+
+
+def test_editing_by_id_keeps_the_answers_of_the_questions_that_stay(auth_client, instructor, student):
+    client = auth_client(instructor)
+    built, first, second, attempt, response = quiz_with_an_answered_question(instructor, student)
+    option_ids = {str(o.uuid): o for o in first.options.all()}
+    right = [uuid_ for uuid_, o in option_ids.items() if o.is_correct][0]
+    wrong = [uuid_ for uuid_, o in option_ids.items() if not o.is_correct][0]
+
+    questions = [
+        {'id': str(first.uuid), 'question_text': 'Capital of France (reworded)?',
+         'question_type': 'multiple_choice', 'points': 3,
+         'options': [{'id': right, 'option_text': 'Paris, France', 'is_correct': True},
+                     {'id': wrong, 'option_text': option_ids[wrong].option_text, 'is_correct': False},
+                     {'option_text': 'Rome', 'is_correct': False}]},
+        {'question_text': 'A brand new question', 'question_type': 'true_false', 'points': 1,
+         'options': [{'option_text': 'True', 'is_correct': True},
+                     {'option_text': 'False', 'is_correct': False}]},
+    ]   # the second question is not sent: it was removed
+
+    r = update_lecture(client, built.lecture.uuid, title=built.lecture.title, content_type='quiz',
+                       questions=json.dumps(questions))
+
+    assert r.status_code == 200
+    quiz = f.Quiz.objects.get(lecture=built.lecture)
+    assert quiz.uuid == built.quiz.uuid
+    stored = list(quiz.questions.order_by('order'))
+    assert [q.question_text for q in stored] == ['Capital of France (reworded)?', 'A brand new question']
+    assert stored[0].uuid == first.uuid and stored[0].points == 3
+    assert not f.Question.objects.filter(pk=second.pk).exists()
+    kept = list(stored[0].options.order_by('order'))
+    assert [o.option_text for o in kept][:2] == ['Paris, France', option_ids[wrong].option_text]
+    assert str(kept[0].uuid) == right and len(kept) == 3
+    # the answered question kept its response, the attempt kept its score
+    response.refresh_from_db()
+    assert response.is_correct is True and response.selected_options.count() == 1
+    assert f.reload(attempt).score == Decimal('50')
+
+
+def test_questions_sent_without_ids_are_matched_by_position(auth_client, instructor, student):
+    """A client that does not know ids (an older form, a script) must not wipe the answers."""
+    client = auth_client(instructor)
+    built, first, second, attempt, response = quiz_with_an_answered_question(instructor, student)
+    payload = json.loads(quiz_payload()['questions'])    # two questions, no ids
+
+    r = update_lecture(client, built.lecture.uuid, title=built.lecture.title, content_type='quiz',
+                       questions=json.dumps(payload))
+
+    assert r.status_code == 200
+    stored = list(f.Quiz.objects.get(lecture=built.lecture).questions.order_by('order'))
+    assert [q.uuid for q in stored] == [first.uuid, second.uuid]
+    assert stored[0].question_text == 'Capital of France?'
+    assert f.QuestionResponse.objects.filter(pk=response.pk).exists()
+
+
+def test_an_id_of_another_quiz_creates_a_new_question_and_never_adopts_the_row(
+        auth_client, instructor, other_instructor):
+    client = auth_client(instructor)
+    section = f.make_section(f.make_course(instructor))
+    mine = f.make_quiz_lecture(section, questions=[f.mc_question()])
+    foreign_section = f.make_section(f.make_course(other_instructor))
+    foreign = f.make_quiz_lecture(foreign_section, questions=[f.mc_question('Not yours')])
+    foreign_question = foreign.quiz.questions.get()
+
+    questions = [{'id': str(foreign_question.uuid), 'question_text': 'Mine now?',
+                  'question_type': 'multiple_choice', 'points': 1, 'options': []}]
+    r = update_lecture(client, mine.lecture.uuid, title=mine.lecture.title, content_type='quiz',
+                       questions=json.dumps(questions))
+
+    assert r.status_code == 200
+    assert f.Question.objects.get(pk=foreign_question.pk).quiz_id == foreign.quiz.pk
+    assert f.Question.objects.get(pk=foreign_question.pk).question_text == 'Not yours'
+    assert [q.question_text for q in f.Quiz.objects.get(lecture=mine.lecture).questions.all()] == ['Mine now?']
+
+
+@pytest.mark.parametrize('payload', [
+    {'quiz_settings': 'not json'},
+    {'quiz_settings': json.dumps(['a list'])},
+    {'quiz_settings': json.dumps({'weight': 150})},
+    {'quiz_settings': json.dumps({'max_attempts': 0})},
+    {'quiz_settings': json.dumps({'time_limit': -3})},
+    {'quiz_settings': json.dumps({'passing_score': 'high'})},
+    {'questions': json.dumps({'not': 'a list'})},
+    {'questions': json.dumps(['text'])},
+    {'questions': json.dumps([{'question_type': 'riddle'}])},
+    {'questions': json.dumps([{'question_text': 'q', 'options': [{'option_text': 'a', 'is_correct': 'maybe'}]}])},
+    {'questions': json.dumps([{'question_text': 'q', 'question_type': 'fill_blank', 'correct_answers': [4]}])},
+])
+def test_a_malformed_quiz_is_a_400_and_changes_nothing(auth_client, instructor, payload):
+    client = auth_client(instructor)
+    section = f.make_section(f.make_course(instructor))
+    built = f.make_quiz_lecture(section, weight=Decimal('30'), max_attempts=4)
+
+    r = update_lecture(client, built.lecture.uuid, title='Renamed', content_type='quiz', **payload)
+
+    assert r.status_code == 400
+    assert 'error' in r.json()
+    assert f.Quiz.objects.get(lecture=built.lecture).max_attempts == 4
+    assert f.reload(built.lecture).title != 'Renamed'    # the lecture rolled back with it
+    created = create_lecture(client, section.uuid, title='New', content_type='quiz', **payload)
+    assert created.status_code == 400
+    assert not f.Lecture.objects.filter(section=section, title='New').exists()
+
+
+# --------------------------------------------------------------------------- #
+# assignments are edited in place
+# --------------------------------------------------------------------------- #
+def test_an_assignment_update_keeps_its_attachment_unless_a_new_one_comes(auth_client, instructor):
+    client = auth_client(instructor)
+    section = f.make_section(f.make_course(instructor))
+    r = create_lecture(client, section.uuid, title='Essay', content_type='assignment',
+                       attachment=f.pdf_file('brief.pdf'), **assignment_payload())
+    lecture = f.Lecture.objects.get(uuid=r.json()['id'])
+    first = f.Assignment.objects.get(lecture=lecture).attachment.name
+
+    update_lecture(client, lecture.uuid, title='Essay', content_type='assignment',
+                   **assignment_payload(weight=40))
+    kept = f.Assignment.objects.get(lecture=lecture)
+    assert kept.attachment.name == first and kept.weight == Decimal('40')
+
+    update_lecture(client, lecture.uuid, title='Essay', content_type='assignment',
+                   attachment=f.pdf_file('second.pdf'), **assignment_payload(weight=40))
+    assert f.Assignment.objects.get(lecture=lecture).attachment.name != first
+
+
+def test_an_update_that_does_not_mention_the_due_date_keeps_it_and_null_clears_it(auth_client, instructor):
+    client = auth_client(instructor)
+    section = f.make_section(f.make_course(instructor))
+    r = create_lecture(client, section.uuid, title='Essay', content_type='assignment',
+                       **assignment_payload())
+    lecture = f.Lecture.objects.get(uuid=r.json()['id'])
+    due = f.Assignment.objects.get(lecture=lecture).due_date
+    assert due is not None
+
+    update_lecture(client, lecture.uuid, title='Essay', content_type='assignment',
+                   assignment_settings=json.dumps({'weight': 10}))
+    assert f.Assignment.objects.get(lecture=lecture).due_date == due
+
+    update_lecture(client, lecture.uuid, title='Essay', content_type='assignment',
+                   assignment_settings=json.dumps({'due_date': None}))
+    assert f.Assignment.objects.get(lecture=lecture).due_date is None
+
+
+@pytest.mark.parametrize('due_date', ['tomorrow', '31/01/2031', 20310101])
+def test_a_due_date_that_is_not_a_date_is_a_400_and_not_silently_dropped(
+        auth_client, instructor, due_date):
+    client = auth_client(instructor)
+    section = f.make_section(f.make_course(instructor))
+
+    r = create_lecture(client, section.uuid, title='Essay', content_type='assignment',
+                       **assignment_payload(due_date=due_date))
+
+    assert r.status_code == 400
+    assert 'due_date' in r.json()['error']
+    assert not f.Lecture.objects.filter(section=section).exists()
+
+
+def test_a_due_date_with_an_offset_is_accepted(auth_client, instructor):
+    client = auth_client(instructor)
+    section = f.make_section(f.make_course(instructor))
+
+    r = create_lecture(client, section.uuid, title='Essay', content_type='assignment',
+                       **assignment_payload(due_date='2031-05-17T09:30:00+02:00'))
+
+    assert r.status_code == 201
+    due = f.Assignment.objects.get(lecture__uuid=r.json()['id']).due_date
+    assert due.utcoffset().total_seconds() == 0 and due.hour == 7   # stored in UTC
+
+
+# --------------------------------------------------------------------------- #
+# what the create form offers
+# --------------------------------------------------------------------------- #
+def test_categories_and_languages_are_listed_for_the_create_form(api, auth_client, instructor):
+    kept = f.make_category(name='Data Science')
+    f.make_category(name='Archived topic')
+    f.Category.objects.filter(name='Archived topic').update(is_active=False)
+    english = f.make_language(code='en', name='English')
+
+    assert api.get('/api/v1/courses/categories/').status_code == 401
+    assert api.get('/api/v1/courses/languages/').status_code == 401
+
+    categories = auth_client(instructor).get('/api/v1/courses/categories/').json()
+    languages = auth_client(instructor).get('/api/v1/courses/languages/').json()
+
+    assert [row['name'] for row in categories] == ['Data Science']
+    assert set(categories[0]) == {'id', 'name', 'slug'}
+    assert categories[0]['id'] == kept.pk
+    assert languages == [{'id': english.pk, 'code': 'en', 'name': 'English'}]
+
+
+def test_the_category_and_language_of_the_form_are_kept_on_the_course(auth_client, instructor):
+    category = f.make_category(name='Design')
+    language = f.make_language(code='fr', name='French')
+
+    r = create_course(auth_client(instructor), category=category.pk, language=language.pk)
+
+    assert r.status_code == 201
+    course = f.Course.objects.get(uuid=r.json()['id'])
+    assert course.category_id == category.pk and course.language_id == language.pk

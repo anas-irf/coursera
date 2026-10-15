@@ -1,34 +1,27 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Search, Filter } from 'lucide-react';
 
+import { useDebouncedValue } from '../../../shared/lib/useDebouncedValue';
+import EmptyState from '../../../shared/ui/EmptyState';
+import ErrorState from '../../../shared/ui/ErrorState';
 import { PageSpinner } from '../../../shared/ui/Spinner';
 import CourseCard from '../components/CourseCard';
-import * as learningApi from '../api';
+import { useCatalog } from '../hooks/useLearning';
+
+const DEFAULT_FILTERS = {
+  category: 'all',
+  level: 'all',
+  type: 'all',
+  search: '',
+  sort: 'popular'
+};
 
 const ExplorePage = () => {
-  const [courses, setCourses] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({
-    category: 'all',
-    level: 'all',
-    type: 'all',
-    search: '',
-    sort: 'popular'
-  });
-
-  const fetchCourses = useCallback(async () => {
-    try {
-      setCourses(await learningApi.listCourses(filters));
-    } catch (error) {
-      setCourses([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [filters]);
-
-  useEffect(() => {
-    fetchCourses();
-  }, [fetchCourses]);
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  // the text is typed into the box at once, the request is sent when the typing pauses
+  const search = useDebouncedValue(filters.search, 300);
+  const catalog = useCatalog({ ...filters, search });
+  const { courses, total } = catalog;
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({
@@ -37,14 +30,7 @@ const ExplorePage = () => {
     }));
   };
 
-  const handleSearch = (searchTerm) => {
-    setFilters(prev => ({
-      ...prev,
-      search: searchTerm
-    }));
-  };
-
-  if (loading) {
+  if (catalog.isPending) {
     return <PageSpinner />;
   }
 
@@ -62,8 +48,9 @@ const ExplorePage = () => {
         <input
           type="text"
           placeholder="Search for courses, instructors, or topics..."
+          aria-label="Search courses"
           value={filters.search}
-          onChange={(e) => handleSearch(e.target.value)}
+          onChange={(e) => handleFilterChange('search', e.target.value)}
           className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
         />
       </div>
@@ -78,6 +65,7 @@ const ExplorePage = () => {
 
           {/* Category Filter */}
           <select
+            aria-label="Category"
             value={filters.category}
             onChange={(e) => handleFilterChange('category', e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -93,6 +81,7 @@ const ExplorePage = () => {
 
           {/* Level Filter */}
           <select
+            aria-label="Level"
             value={filters.level}
             onChange={(e) => handleFilterChange('level', e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -105,6 +94,7 @@ const ExplorePage = () => {
 
           {/* Course Type Filter */}
           <select
+            aria-label="Course type"
             value={filters.type}
             onChange={(e) => handleFilterChange('type', e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -116,6 +106,7 @@ const ExplorePage = () => {
 
           {/* Sort Filter */}
           <select
+            aria-label="Sort by"
             value={filters.sort}
             onChange={(e) => handleFilterChange('sort', e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -127,53 +118,62 @@ const ExplorePage = () => {
         </div>
       </div>
 
-      {/* Results Count */}
-      <div className="flex justify-between items-center">
-        <p className="text-gray-600">
-          {courses.length} course{courses.length !== 1 ? 's' : ''} found
-        </p>
-      </div>
-
-      {/* Course Grid */}
-      {courses.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {courses.map((course) => (
-            <CourseCard key={course.id} course={course} onEnrollSuccess={fetchCourses} />
-          ))}
-        </div>
+      {catalog.isError && courses.length === 0 ? (
+        <ErrorState
+          title="We could not load the courses"
+          error={catalog.error}
+          onRetry={() => catalog.refetch()}
+        />
       ) : (
-        <div className="text-center py-12">
-          <Search className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No courses found</h3>
-          <p className="text-gray-500">Try adjusting your search criteria or filters.</p>
-        </div>
-      )}
-
-      {/* Course Stats Summary */}
-      {courses.length > 0 && (
-        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg p-6 mt-8">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Course Statistics</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white rounded-lg p-4 text-center">
-              <div className="text-2xl font-bold text-indigo-600">
-                {courses.filter(c => c.course_type === 'free').length}
-              </div>
-              <div className="text-sm text-gray-600">Free Courses</div>
-            </div>
-            <div className="bg-white rounded-lg p-4 text-center">
-              <div className="text-2xl font-bold text-purple-600">
-                {courses.filter(c => c.course_type === 'coursera_plus').length}
-              </div>
-              <div className="text-sm text-gray-600">Plus Courses</div>
-            </div>
-            <div className="bg-white rounded-lg p-4 text-center">
-              <div className="text-2xl font-bold text-green-600">
-                {courses.filter(c => c.rating >= 4.5).length}
-              </div>
-              <div className="text-sm text-gray-600">Highly Rated (4.5+)</div>
-            </div>
+        <>
+          {/* Results Count */}
+          <div className="flex justify-between items-center">
+            <p className="text-gray-600">
+              {total} course{total !== 1 ? 's' : ''} found
+            </p>
           </div>
-        </div>
+
+          {/* Course Grid */}
+          {courses.length > 0 ? (
+            <div
+              className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 transition-opacity ${
+                catalog.isPlaceholderData ? 'opacity-60' : ''
+              }`}
+            >
+              {courses.map((course) => (
+                <CourseCard key={course.id} course={course} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState icon={Search} title="No courses found">
+              Try adjusting your search criteria or filters.
+            </EmptyState>
+          )}
+
+          {/* More */}
+          {catalog.hasNextPage && (
+            <div className="text-center">
+              <p className="text-sm text-gray-500 mb-3">
+                Showing {courses.length} of {total}
+              </p>
+              <button
+                onClick={() => catalog.fetchNextPage()}
+                disabled={catalog.isFetchingNextPage}
+                className="px-6 py-2 border border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors disabled:opacity-50"
+              >
+                {catalog.isFetchingNextPage ? 'Loading...' : 'Load more courses'}
+              </button>
+            </div>
+          )}
+          {catalog.isFetchNextPageError && (
+            <ErrorState
+              className="py-4"
+              title="We could not load more courses"
+              error={catalog.error}
+              onRetry={() => catalog.fetchNextPage()}
+            />
+          )}
+        </>
       )}
     </div>
   );

@@ -1,14 +1,20 @@
 """Read side of the learning slice: catalogue, my courses, player data, rosters."""
+from datetime import date, timedelta
+
 from django.db.models import Count, Exists, OuterRef, Q, Subquery, Sum
+from django.db.models.functions import Coalesce
+from django.utils import timezone
 
 from apps.content.models import VideoContent
 from apps.core.utils import sanitize_search_query
 from apps.courses.models import Course, Lecture, Section
 
-from .models import CourseBookmark, Enrollment, LectureProgress
+from .models import CourseBookmark, Enrollment, LearningStreak, LectureProgress
 
-CATALOG_LIMIT = 20
-PREVIEW_LIMIT = 12
+ACTIVE = ('active',)
+# a finished course stays open: the student may revisit it and retake what it contains
+ACCESS = ('active', 'completed')
+ENROLLED_VIEWS = {'active': ACTIVE, 'completed': ('completed',), 'all': ACCESS}
 
 
 def _with_card_data(courses):
@@ -27,9 +33,11 @@ def _with_card_data(courses):
     )
 
 
-def catalog(user, *, category='all', level='all', course_type='all', search='', sort='popular',
-            limit=CATALOG_LIMIT):
-    """Published courses for the explore page, flagged with the viewer's own state."""
+def catalog(user, *, category='all', level='all', course_type='all', search='', sort='popular'):
+    """Published courses for the explore page, flagged with the viewer's own state.
+
+    A queryset in a stable order, so a caller can take a page of it.
+    """
     courses = Course.objects.filter(status='published')
 
     if category != 'all':
@@ -48,12 +56,13 @@ def catalog(user, *, category='all', level='all', course_type='all', search='', 
             Q(instructor__last_name__icontains=search)
         )
 
-    if sort == 'popular':
-        courses = courses.order_by('-total_enrolled')
-    elif sort == 'rating':
-        courses = courses.order_by('-average_rating')
+    # the id breaks ties, so the same query always pages in the same order
+    if sort == 'rating':
+        courses = courses.order_by('-average_rating', 'id')
     elif sort == 'newest':
-        courses = courses.order_by('-created_at')
+        courses = courses.order_by('-created_at', 'id')
+    else:  # 'popular', which is also what an unknown value has always meant
+        courses = courses.order_by('-total_enrolled', 'id')
 
     courses = _with_card_data(courses)
 
@@ -65,30 +74,63 @@ def catalog(user, *, category='all', level='all', course_type='all', search='', 
             own_progress=Subquery(own_enrollment.values('progress_percentage')[:1]),
         )
 
-    return list(courses[:limit])
+    return courses
 
 
-def plus_preview_courses():
-    """The best rated Plus courses, shown to students without a subscription."""
-    courses = Course.objects.filter(
-        course_type='coursera_plus', status='published'
-    ).order_by('-average_rating', '-total_enrolled')
-    return list(_with_card_data(courses)[:PREVIEW_LIMIT])
+def enrollment_for(student, course, *, statuses=ACTIVE):
+    """The student's enrollment in ``course`` if its status is one of ``statuses``, else ``None``."""
+    return Enrollment.objects.filter(student=student, course=course, status__in=statuses).first()
 
 
-def published_counts():
-    """``(plus, free)`` numbers of published courses."""
-    published = Course.objects.filter(status='published')
-    return (published.filter(course_type='coursera_plus').count(),
-            published.filter(course_type='free').count())
+def enrollment_for_access(student, course):
+    """The enrollment that lets the student into the course: running or finished."""
+    return enrollment_for(student, course, statuses=ACCESS)
 
 
-def enrolled_courses(student):
-    """The student's running enrollments, most recently visited first."""
-    return Enrollment.objects.filter(
-        student=student,
-        status='active'
-    ).select_related('course', 'course__instructor').order_by('-last_accessed')
+def course_enrollments(course, *, statuses=ACTIVE):
+    """The learners of ``course`` whose enrollment is in one of ``statuses``."""
+    return Enrollment.objects.filter(course=course, status__in=statuses).select_related('student')
+
+
+def student_enrollments(student, *, statuses=ACTIVE):
+    """The enrollments of ``student`` in one of ``statuses``."""
+    return Enrollment.objects.filter(student=student, status__in=statuses)
+
+
+def enrolled_courses(student, *, view='active'):
+    """The student's courses (``view`` is a key of ``ENROLLED_VIEWS``), most recently visited first."""
+    course_lectures = Lecture.objects.filter(section__course=OuterRef('course')).order_by()
+    total = course_lectures.values('section__course').annotate(n=Count('pk')).values('n')
+    done = (
+        LectureProgress.objects.filter(enrollment=OuterRef('pk'), is_completed=True).order_by()
+        .values('enrollment').annotate(n=Count('pk')).values('n')
+    )
+    finished_ids = LectureProgress.objects.filter(
+        enrollment=OuterRef(OuterRef('pk')), is_completed=True).values('lecture_id')
+    upcoming = (
+        Lecture.objects.filter(section__course=OuterRef('course')).exclude(pk__in=finished_ids)
+        .order_by('section__order', 'order').values('title')[:1]
+    )
+
+    return student_enrollments(student, statuses=ENROLLED_VIEWS[view]).select_related(
+        'course', 'course__instructor'
+    ).annotate(
+        total_lessons=Coalesce(Subquery(total), 0),
+        completed_lessons=Coalesce(Subquery(done), 0),
+        next_lesson_title=Subquery(upcoming),
+    ).order_by('-last_accessed', '-id')
+
+
+def progress_by_lecture(enrollment, lectures):
+    """``{lecture pk: LectureProgress}``; a lecture without a row yet gets an unsaved default.
+
+    Reading never writes: rows appear when the student does something.
+    """
+    rows = {row.lecture_id: row for row in LectureProgress.objects.filter(enrollment=enrollment)}
+    return {
+        lecture.pk: rows.get(lecture.pk) or LectureProgress(enrollment=enrollment, lecture=lecture)
+        for lecture in lectures
+    }
 
 
 def lesson_counts(enrollment):
@@ -118,8 +160,8 @@ def player_outline(course):
 
 
 def course_roster(course):
-    """Enrollments of one course with their students, in database order."""
-    return Enrollment.objects.filter(course=course).select_related('student')
+    """Enrollments of one course with their students, oldest first."""
+    return Enrollment.objects.filter(course=course).select_related('student').order_by('id')
 
 
 def instructor_roster(instructor):
@@ -127,3 +169,79 @@ def instructor_roster(instructor):
     return Enrollment.objects.filter(
         course__instructor=instructor
     ).select_related('student', 'course').order_by('-enrolled_date')
+
+
+# --------------------------------------------------------------------------- #
+# the activity log: what was really learned, and when
+# --------------------------------------------------------------------------- #
+STREAK_LOOKBACK_DAYS = 400
+
+
+def video_seconds(lecture):
+    """Length of a video lecture in seconds (0 when it was never recorded)."""
+    return VideoContent.objects.filter(lecture=lecture).values_list('duration', flat=True).first() or 0
+
+
+def month_start(day, back=0):
+    """The first day of the month ``back`` months before ``day``'s month."""
+    index = day.year * 12 + day.month - 1 - back
+    return date(index // 12, index % 12 + 1, 1)
+
+
+def _log(since=None):
+    rows = LearningStreak.objects.all()
+    return rows if since is None else rows.filter(streak_date__gte=since)
+
+
+def total_seconds(student, *, since=None):
+    """Seconds the student spent learning, all time or since a day."""
+    return _log(since).filter(student=student).aggregate(total=Sum('seconds_learned'))['total'] or 0
+
+
+def streak_run(student, *, today=None):
+    """``(length, last day)`` of the run of consecutive days with activity that ends today.
+
+    A day that has not seen activity yet does not break the run: it then ends yesterday.
+    """
+    today = today or timezone.localdate()
+    days = set(
+        LearningStreak.objects
+        .filter(student=student, streak_date__gte=today - timedelta(days=STREAK_LOOKBACK_DAYS))
+        .values_list('streak_date', flat=True)
+    )
+    day = today if today in days else today - timedelta(days=1)
+    last, length = day, 0
+    while day in days:
+        length += 1
+        day -= timedelta(days=1)
+    return length, (last if length else None)
+
+
+def current_streak(student, *, today=None):
+    """Consecutive days with learning activity, counting back from today."""
+    return streak_run(student, today=today)[0]
+
+
+def seconds_by_month(student, months, *, today=None):
+    """``[(first day of the month, seconds), ...]`` of the last ``months`` calendar months, oldest first."""
+    today = today or timezone.localdate()
+    first = month_start(today, back=months - 1)
+    totals = {}
+    rows = LearningStreak.objects.filter(student=student, streak_date__gte=first)
+    for day, seconds in rows.values_list('streak_date', 'seconds_learned'):
+        key = day.replace(day=1)
+        totals[key] = totals.get(key, 0) + seconds
+    starts = [month_start(today, back=months - 1 - index) for index in range(months)]
+    return [(start, totals.get(start, 0)) for start in starts]
+
+
+def rank_by_seconds(student, *, since=None):
+    """Place of the student among everyone by time learned (1 = most; a tie shares the place)."""
+    mine = total_seconds(student, since=since)
+    ahead = (
+        _log(since).values('student')
+        .annotate(total=Sum('seconds_learned'))
+        .filter(total__gt=mine)
+        .count()
+    )
+    return ahead + 1

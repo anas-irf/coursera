@@ -1,24 +1,30 @@
 """Small helpers shared by several slices."""
-import re
+import nh3
 
-# fragments removed from free-text search input
-_SQL_FRAGMENTS = ['union', 'select', 'insert', 'update', 'delete', 'drop', '--', '/*', '*/', 'xp_']
+MAX_SEARCH_LENGTH = 100
 
 
 def sanitize_search_query(query):
-    """
-    Sanitize a free-text search query: limit its length and strip a few
-    characters / SQL-looking fragments.  (The ORM parameterizes every query, so
-    this is only input hygiene.)
+    """Trim a free-text search query and cap its length.
+
+    Nothing else is removed.  The ORM parameterises every query, and deleting
+    characters or words (``select``, ``drop``, ``&``) only mangles real searches
+    such as "Updated Python" or "R&D".
     """
     if not query:
-        return ""
+        return ''
+    return str(query).strip()[:MAX_SEARCH_LENGTH].strip()
 
-    # Remove dangerous characters and limit length
-    query = re.sub(r'[<>"\';\\&]', '', str(query)[:100])
 
-    # Remove SQL injection looking fragments (matched literally, case-insensitive)
-    for fragment in _SQL_FRAGMENTS:
-        query = re.sub(re.escape(fragment), '', query, flags=re.IGNORECASE)
+def sanitize_html(value):
+    """HTML that is safe to show to other people: formatting stays, anything that runs is removed.
 
-    return query.strip()
+    Reading lectures hold HTML written by an instructor and rendered in every learner's
+    browser, so it is cleaned when it is stored (and again when it is shown).  The allow-list is
+    the library's default: text structure, links (http, https, mailto), images and tables;
+    scripts, styles, forms, frames, event handlers and ``javascript:`` URLs are dropped.  Cleaning
+    clean HTML changes nothing, so running it again is harmless.
+    """
+    if not value:
+        return ''
+    return nh3.clean(str(value))

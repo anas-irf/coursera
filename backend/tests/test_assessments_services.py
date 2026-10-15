@@ -2,11 +2,10 @@
 from decimal import Decimal
 
 import pytest
-from django.http import Http404
 
 import factories as f
 from apps.assessments.services import assignments, quizzes
-from apps.core.api.errors import PermissionDenied, ServiceError
+from apps.core.api.errors import NotFound, PermissionDenied, ServiceError
 
 pytestmark = pytest.mark.django_db
 
@@ -200,7 +199,7 @@ def test_only_owner_and_course_instructor_can_read_a_submission(
     for user in (student, instructor):
         assert assignments.readable_submission(user, submission.uuid) == submission
     for user in (other_student, other_instructor, admin):
-        with pytest.raises(Http404):
+        with pytest.raises(NotFound):
             assignments.readable_submission(user, submission.uuid)
 
 
@@ -208,5 +207,5 @@ def test_a_submission_without_a_file_has_nothing_to_download(student, assignment
     bundle, enrollment = assignment_setup
     submission = f.make_submission(bundle.assignment, student, enrollment=enrollment)
 
-    with pytest.raises(Http404, match='No file attached'):
+    with pytest.raises(NotFound, match='No file attached'):
         assignments.read_submission_file(submission)

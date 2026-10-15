@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { AlertCircle, BookCheck, BookOpen, CheckCircle, Clock, GraduationCap, Users } from 'lucide-react';
 
+import { courseStatus } from '../../../shared/lib/courseStatus';
+import ErrorState from '../../../shared/ui/ErrorState';
 import { PageSpinner } from '../../../shared/ui/Spinner';
-import * as adminApi from '../api';
+import { useAdminCourses, useAdminUsers } from '../hooks/useAdmin';
 
 const COURSE_STATUS_COLORS = {
   published: '#10B981',
@@ -14,14 +16,6 @@ const COURSE_STATUS_COLORS = {
   unpublished: '#3B82F6',
 };
 
-const COURSE_STATUS_LABELS = {
-  published: 'Published',
-  draft: 'Draft',
-  pending_review: 'Pending review',
-  rejected: 'Rejected',
-  unpublished: 'Unpublished',
-};
-
 const ROLE_COLORS = { student: '#4F46E5', instructor: '#10B981', admin: '#8B5CF6' };
 
 const count = (rows, key) =>
@@ -29,27 +23,13 @@ const count = (rows, key) =>
 
 /** What the administrator has to know right now, computed from the real lists. */
 const OverviewPage = () => {
-  const [users, setUsers] = useState([]);
-  const [courses, setCourses] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([adminApi.users(), adminApi.allCourses()])
-      .then(([userRows, courseRows]) => {
-        if (cancelled) return;
-        setUsers(userRows);
-        setCourses(courseRows);
-      })
-      .catch(() => !cancelled && setFailed(true))
-      .finally(() => !cancelled && setLoading(false));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const usersQuery = useAdminUsers();
+  const coursesQuery = useAdminCourses();
+  const users = usersQuery.data;
+  const courses = coursesQuery.data;
 
   const summary = useMemo(() => {
+    if (!users || !courses) return null;
     const byRole = count(users, 'user_type');
     const byStatus = count(courses, 'status');
     return {
@@ -62,22 +42,27 @@ const OverviewPage = () => {
       enrollments: users.reduce((total, user) => total + (user.courses_enrolled || 0), 0),
       roles: Object.entries(byRole).map(([role, value]) => ({ name: role, value, color: ROLE_COLORS[role] || '#9CA3AF' })),
       statuses: Object.entries(byStatus).map(([status, value]) => ({
-        name: COURSE_STATUS_LABELS[status] || status,
+        name: courseStatus(status).label,
         value,
         color: COURSE_STATUS_COLORS[status] || '#9CA3AF',
       })),
     };
   }, [users, courses]);
 
-  if (loading) {
+  if (usersQuery.isPending || coursesQuery.isPending) {
     return <PageSpinner />;
   }
 
-  if (failed) {
+  if (usersQuery.isError || coursesQuery.isError) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-600">The overview could not be loaded. Please try again later.</p>
-      </div>
+      <ErrorState
+        title="The overview could not be loaded"
+        error={usersQuery.error || coursesQuery.error}
+        onRetry={() => {
+          usersQuery.refetch();
+          coursesQuery.refetch();
+        }}
+      />
     );
   }
 

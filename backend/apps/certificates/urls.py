@@ -1,4 +1,5 @@
-# certificates/urls.py - mounted at /api/certificates/
+"""Routes of the certificates slice, mounted at ``/api/v1/certificates/``."""
+
 from django.urls import path
 
 from .api import views

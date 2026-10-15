@@ -1,8 +1,11 @@
 import React from 'react';
 import { act, render } from '@testing-library/react';
 
+import { fetchProfile } from '../../../shared/auth/api';
 import { session } from '../../../shared/lib/session';
 import { useReconnectingSocket } from './useReconnectingSocket';
+
+jest.mock('../../../shared/auth/api', () => ({ fetchProfile: jest.fn() }));
 
 class FakeSocket {
   static instances = [];
@@ -49,18 +52,21 @@ beforeEach(() => {
   frames.length = 0;
   global.WebSocket = FakeSocket;
   window.localStorage.clear();
-  session.start({ tokens: { access: 'token-1', refresh: 'refresh-1' }, user: { id: 1 } });
+  fetchProfile.mockReset();
+  fetchProfile.mockResolvedValue({ user: { id: 1 } });
+  session.reset();
+  session.start({ user: { id: 1 } });
 });
 
 afterEach(() => {
   jest.useRealTimers();
 });
 
-test('connects with the access token and hands frames to the handler', () => {
+test('connects without a token (the cookie goes with the handshake) and hands frames to the handler', () => {
   render(<Probe path="/ws/user/" />);
 
   expect(FakeSocket.instances).toHaveLength(1);
-  expect(FakeSocket.instances[0].url).toBe('ws://localhost:8000/ws/user/?token=token-1');
+  expect(FakeSocket.instances[0].url).toBe('ws://localhost:8000/ws/user/');
 
   act(() => FakeSocket.instances[0].open());
   expect(api.status).toBe('open');
@@ -78,16 +84,14 @@ test('send only works while the socket is open', () => {
   expect(FakeSocket.instances[0].sent).toEqual([JSON.stringify({ type: 'typing', is_typing: true })]);
 });
 
-test('reconnects with a growing delay and the latest token', () => {
+test('reconnects with a growing delay', () => {
   render(<Probe path="/ws/user/" />);
 
   act(() => FakeSocket.instances[0].close(1006));
   expect(FakeSocket.instances).toHaveLength(1);
 
-  session.setTokens({ access: 'token-2' });
   act(() => jest.advanceTimersByTime(1000));
   expect(FakeSocket.instances).toHaveLength(2);
-  expect(FakeSocket.instances[1].url).toContain('token=token-2');
 
   act(() => FakeSocket.instances[1].close(1006));
   act(() => jest.advanceTimersByTime(1500));
@@ -111,4 +115,40 @@ test('stays disconnected without a path', () => {
   render(<Probe path={null} />);
 
   expect(FakeSocket.instances).toHaveLength(0);
+});
+
+test('stays disconnected while nobody is signed in', () => {
+  session.setAnonymous();
+
+  render(<Probe path="/ws/user/" />);
+
+  expect(FakeSocket.instances).toHaveLength(0);
+});
+
+test('after repeated failures the session is checked before the next attempt', async () => {
+  render(<Probe path="/ws/user/" />);
+
+  // two quick failures reconnect at once ...
+  act(() => FakeSocket.instances[0].close(1006));
+  await act(async () => jest.advanceTimersByTime(1000));
+  act(() => FakeSocket.instances[1].close(1006));
+  await act(async () => jest.advanceTimersByTime(2000));
+  expect(fetchProfile).not.toHaveBeenCalled();
+  expect(FakeSocket.instances).toHaveLength(3);
+
+  // ... the third one asks the server whether the session is still good
+  act(() => FakeSocket.instances[2].close(1006));
+  await act(async () => jest.advanceTimersByTime(4000));
+  expect(fetchProfile).toHaveBeenCalledTimes(1);
+  expect(FakeSocket.instances).toHaveLength(4);
+});
+
+test('a session that ended while the socket was down is not reconnected', async () => {
+  render(<Probe path="/ws/user/" />);
+
+  act(() => FakeSocket.instances[0].close(1006));
+  session.setAnonymous();
+  await act(async () => jest.advanceTimersByTime(1000));
+
+  expect(FakeSocket.instances).toHaveLength(1);
 });

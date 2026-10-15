@@ -1,37 +1,69 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Crown, Check, Zap, ChevronRight, Shield } from 'lucide-react';
 
 import { errorMessage } from '../../../shared/api/errors';
+import { formatDate } from '../../../shared/lib/time';
+import ErrorState from '../../../shared/ui/ErrorState';
+import { PageSpinner } from '../../../shared/ui/Spinner';
 import { useToast } from '../../../shared/ui/Toast';
-import * as billingApi from '../api';
+import CancelMembershipButton from '../components/CancelMembershipButton';
+import { useCheckoutData, useCreateCheckoutSession } from '../hooks/useCheckout';
+import { useSubscription } from '../hooks/useSubscription';
+
+// what a Coursera Plus membership gives, as far as the platform delivers it
+const BENEFITS = [
+  'Unlimited access to every Coursera Plus course',
+  'A shareable certificate when you complete and pass a course',
+  'Your progress, grades and achievements across all your courses',
+  'Cancel anytime: Plus stays active until the end of the period you paid for',
+];
+
+/** A selectable plan: a card that behaves as a radio button. */
+const PlanCard = ({ plan, selected, tone, onSelect, children }) => {
+  const tones = {
+    blue: {
+      on: 'border-blue-500 bg-blue-50 shadow-lg ring-4 ring-blue-200',
+      off: 'border-gray-200 hover:border-blue-300 hover:shadow-md',
+    },
+    green: {
+      on: 'border-green-500 bg-green-50 shadow-lg ring-4 ring-green-200',
+      off: 'border-gray-200 hover:border-green-300 hover:shadow-md',
+    },
+  };
+
+  return (
+    <div
+      role="radio"
+      aria-checked={selected}
+      tabIndex={0}
+      onClick={() => onSelect(plan)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onSelect(plan);
+        }
+      }}
+      className={`relative rounded-2xl border-2 p-8 cursor-pointer transition-all duration-300 transform hover:scale-105 ${
+        selected ? tones[tone].on : tones[tone].off
+      }`}
+    >
+      {children}
+    </div>
+  );
+};
 
 const CheckoutPage = () => {
   const toast = useToast();
-  const [loading, setLoading] = useState(true);
-  const [checkoutData, setCheckoutData] = useState(null);
+  const membership = useSubscription();
+  const checkout = useCheckoutData();
+  const createSession = useCreateCheckoutSession();
   const [selectedPlan, setSelectedPlan] = useState('yearly'); // Default to yearly for savings
-  const [processing, setProcessing] = useState(false);
 
-  const fetchCheckoutData = useCallback(async () => {
-    setLoading(true);
-    try {
-      setCheckoutData(await billingApi.fetchCheckoutData());
-    } catch (err) {
-      setCheckoutData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchCheckoutData();
-  }, [fetchCheckoutData]);
+  const processing = createSession.isPending;
 
   const handleProceedToCheckout = async () => {
-    setProcessing(true);
-
     try {
-      const session = await billingApi.createCheckoutSession(selectedPlan);
+      const session = await createSession.mutateAsync(selectedPlan);
       if (!session.checkout_url) {
         throw new Error('No checkout URL received from server');
       }
@@ -42,31 +74,24 @@ const CheckoutPage = () => {
         errorMessage(err, 'Failed to create checkout session. Please try again.'),
         'Checkout Failed'
       );
-      setProcessing(false);
     }
   };
 
-  if (loading) {
+  if (checkout.isPending) {
+    return <PageSpinner className="min-h-96" color="border-blue-600" />;
+  }
+
+  if (checkout.isError) {
     return (
-      <div className="flex items-center justify-center min-h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
+      <ErrorState
+        title="Unable to load checkout data"
+        error={checkout.error}
+        onRetry={() => checkout.refetch()}
+      />
     );
   }
 
-  if (!checkoutData) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-gray-600 mb-4">Unable to load checkout data. Please try again.</p>
-        <button
-          onClick={fetchCheckoutData}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
+  const checkoutData = checkout.data;
 
   // Check if user already has subscription
   if (checkoutData.subscription?.has_subscription && checkoutData.subscription?.is_active) {
@@ -81,7 +106,15 @@ const CheckoutPage = () => {
           <p className="text-sm text-gray-700">
             <strong>Current Plan:</strong> {checkoutData.subscription.type === 'yearly' ? 'Annual' : 'Monthly'}
           </p>
+          {membership.accessUntil && (
+            <p className="text-sm text-gray-700 mt-2">
+              {membership.willRenew
+                ? `Renews on ${formatDate(membership.accessUntil)}`
+                : `Your membership will not renew. You keep Plus until ${formatDate(membership.accessUntil)}.`}
+            </p>
+          )}
         </div>
+        <CancelMembershipButton className="mt-6 text-sm text-red-600 hover:text-red-800 underline" />
       </div>
     );
   }
@@ -99,7 +132,7 @@ const CheckoutPage = () => {
           Upgrade to Coursera Plus
         </h1>
         <p className="text-xl text-gray-600 mb-2">
-          Unlock unlimited access to thousands of courses
+          Unlock every Plus course with one membership
         </p>
         <p className="text-gray-500">
           Choose the plan that works best for you
@@ -107,17 +140,10 @@ const CheckoutPage = () => {
       </div>
 
       {/* Plan Selection */}
-      <div className="grid md:grid-cols-2 gap-8 mb-12">
+      <div role="radiogroup" aria-label="Plan" className="grid md:grid-cols-2 gap-8 mb-12">
         {/* Monthly Plan */}
         {monthlyPlan && (
-          <div
-            className={`relative rounded-2xl border-2 p-8 cursor-pointer transition-all duration-300 transform hover:scale-105 ${
-              selectedPlan === 'monthly'
-                ? 'border-blue-500 bg-blue-50 shadow-lg ring-4 ring-blue-200'
-                : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
-            }`}
-            onClick={() => setSelectedPlan('monthly')}
-          >
+          <PlanCard plan="monthly" selected={selectedPlan === 'monthly'} tone="blue" onSelect={setSelectedPlan}>
             <div className="text-center">
               <h3 className="text-2xl font-bold text-gray-900 mb-2">Monthly Plan</h3>
               <div className="mb-4">
@@ -143,19 +169,12 @@ const CheckoutPage = () => {
                 </div>
               </div>
             )}
-          </div>
+          </PlanCard>
         )}
 
         {/* Yearly Plan */}
         {yearlyPlan && (
-          <div
-            className={`relative rounded-2xl border-2 p-8 cursor-pointer transition-all duration-300 transform hover:scale-105 ${
-              selectedPlan === 'yearly'
-                ? 'border-green-500 bg-green-50 shadow-lg ring-4 ring-green-200'
-                : 'border-gray-200 hover:border-green-300 hover:shadow-md'
-            }`}
-            onClick={() => setSelectedPlan('yearly')}
-          >
+          <PlanCard plan="yearly" selected={selectedPlan === 'yearly'} tone="green" onSelect={setSelectedPlan}>
             <div className="absolute top-4 right-4">
               <div className="bg-green-100 text-green-800 text-sm font-bold px-3 py-2 rounded-full">
                 Save {checkoutData.savings?.yearly_savings_percentage}%
@@ -177,7 +196,7 @@ const CheckoutPage = () => {
               <div className="space-y-3">
                 <div className="flex items-center justify-center">
                   <Check className="h-5 w-5 text-green-500 mr-3" />
-                  <span className="text-gray-700">2 months free compared to monthly</span>
+                  <span className="text-gray-700">One payment for the whole year</span>
                 </div>
                 <div className="flex items-center justify-center">
                   <Check className="h-5 w-5 text-green-500 mr-3" />
@@ -192,7 +211,7 @@ const CheckoutPage = () => {
                 </div>
               </div>
             )}
-          </div>
+          </PlanCard>
         )}
       </div>
 
@@ -203,15 +222,8 @@ const CheckoutPage = () => {
           What's Included in Both Plans
         </h3>
         <div className="grid md:grid-cols-2 gap-6">
-          {[
-            'Unlimited access to 7,000+ courses',
-            'Shareable certificates upon completion',
-            'Download courses for offline learning',
-            'Ad-free learning experience',
-            'Priority customer support',
-            'Access to guided projects and specializations'
-          ].map((benefit, index) => (
-            <div key={index} className="flex items-center">
+          {BENEFITS.map((benefit) => (
+            <div key={benefit} className="flex items-center">
               <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-4">
                 <Check className="h-4 w-4 text-green-600" />
               </div>

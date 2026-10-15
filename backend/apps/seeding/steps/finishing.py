@@ -5,20 +5,25 @@
 * a course is taken offline once its learners have enrolled;
 * showcase courses get the popularity the catalogue shows;
 * subscriptions move to their final state;
-* the streak field of each student follows the activity that exists.
+* the learning log of each student is topped up to the hours their story tells, and the
+  streak and hours of their profile follow it.
 """
 from datetime import timedelta
 
+from django.db.models import F
+from django.utils import timezone
+
 from apps.assessments.models import Assignment as AssignmentModel
 from apps.assessments.models import AssignmentSubmission
-from apps.accounts.models import StudentProfile
 from apps.courses.models import Course
 from apps.courses.services import lifecycle
-from apps.insights.student import learning_streak
+from apps.learning import selectors as learning_selectors
+from apps.learning import services as learning
+from apps.learning.models import LearningStreak
 
 from ..clock import backdate
 from ..data.courses import COURSES, EXTENSIONS
-from ..data.people import EMAILS
+from ..data.people import PEOPLE
 from ..data.spec import Assignment
 from . import subscriptions
 
@@ -31,7 +36,7 @@ def run(ctx):
     _take_offline(ctx)
     _popularity(ctx)
     subscriptions.settle(ctx)
-    _streaks(ctx)
+    _learning_log(ctx)
 
 
 def _deadlines(ctx):
@@ -75,8 +80,26 @@ def _popularity(ctx):
             backdate(course, total_enrolled=popularity)
 
 
-def _streaks(ctx):
-    for profile in StudentProfile.objects.filter(user__email__in=EMAILS).select_related('user'):
-        streak = learning_streak(profile.user)
-        if profile.learning_streak != streak:
-            StudentProfile.objects.filter(pk=profile.pk).update(learning_streak=streak)
+def _learning_log(ctx):
+    """Close the learning log.
+
+    A student's story says how many hours they have learned; the enrolments account for part
+    of it and the rest is learning that no seeded course explains.  That rest is written as one
+    evening every third day, so the monthly chart and the rank have a history to show.
+    """
+    for person in PEOPLE:
+        if person.role != 'student':
+            continue
+        student = ctx.users[person.email]
+
+        missing = int(person.hours * 3600) - learning_selectors.total_seconds(student)
+        if missing > 0:
+            days = list(range(1, max(1, min(person.joined, 60)) + 1, 3))
+            share, rest = divmod(missing, len(days))
+            for position, offset in enumerate(days):
+                entry, _ = LearningStreak.objects.get_or_create(
+                    student=student, streak_date=timezone.localdate(ctx.ago(days=offset)))
+                LearningStreak.objects.filter(pk=entry.pk).update(
+                    seconds_learned=F('seconds_learned') + share + (rest if position == 0 else 0))
+
+        learning.sync_profile_totals(student)

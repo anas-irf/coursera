@@ -1,50 +1,47 @@
 // The one HTTP client of the app.
 //
-// * adds the access token to every request,
-// * on a 401 refreshes the token pair once (concurrent requests share the same
-//   refresh call) and replays the request,
-// * stores the *rotated* refresh token (the server blacklists the old one),
-// * when the session cannot be refreshed it clears the session; the auth
-//   provider reacts to that and sends the user to the login page.
+// * the session is a pair of HttpOnly cookies the browser sends on its own
+//   (``withCredentials``); there is no token to attach.  Every request also says
+//   ``X-Requested-With``, which the server requires of cookie-authenticated requests that
+//   change data,
+// * on a 401 it refreshes the session once (concurrent requests, also from other tabs, share
+//   the same refresh) and replays the request,
+// * when the session cannot be refreshed it asks for the profile once, because another tab
+//   may have refreshed in the meantime (the cookies are shared), and only then ends the
+//   session; the auth provider reacts and sends the user to the login page.
 import axios from 'axios';
 
 import { API_URL } from '../config';
 import { session } from '../lib/session';
 
-export const api = axios.create({ baseURL: API_URL });
+const HEADERS = { 'X-Requested-With': 'XMLHttpRequest' };
 
-api.interceptors.request.use((config) => {
-  const token = session.getAccessToken();
-  if (token && !config.headers.Authorization) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+export const api = axios.create({ baseURL: API_URL, withCredentials: true, headers: HEADERS });
 
 let refreshing = null;
 
-/** Exchange the refresh token for a new pair; resolves with the new access token. */
-export function refreshAccessToken() {
+const callRefresh = () =>
+  axios.post(`${API_URL}/auth/token/refresh/`, null, { withCredentials: true, headers: HEADERS });
+
+// one refresh at a time across tabs: a second tab would send the cookie the first one just rotated
+const inOneTabAtATime = (task) =>
+  typeof navigator !== 'undefined' && navigator.locks && navigator.locks.request
+    ? navigator.locks.request('coursera-session-refresh', task)
+    : task();
+
+/** Ask the server for a new session; the cookies are set by its answer. */
+export function refreshSession() {
   if (!refreshing) {
-    const refresh = session.getRefreshToken();
-    if (!refresh) {
-      return Promise.reject(new Error('No refresh token'));
-    }
-    refreshing = axios
-      .post(`${API_URL}/auth/token/refresh/`, { refresh })
-      .then(({ data }) => {
-        session.setTokens({ access: data.access, refresh: data.refresh });
-        return data.access;
-      })
-      .finally(() => {
-        refreshing = null;
-      });
+    refreshing = inOneTabAtATime(callRefresh).finally(() => {
+      refreshing = null;
+    });
   }
   return refreshing;
 }
 
-// a 401 from these means "wrong credentials", not "expired session"
-const isCredentialCall = (config) => /\/auth\/(login|signup|token\/refresh)\//.test(config.url || '');
+// a 401 from these means "wrong credentials" or "no session", not "expired session"
+const isCredentialCall = (config) =>
+  /\/auth\/(login|signup|logout|token\/refresh)\//.test(config.url || '');
 
 api.interceptors.response.use(
   (response) => response,
@@ -56,20 +53,19 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    if (!session.getRefreshToken()) {
-      session.clear();
-      return Promise.reject(error);
-    }
-
     config._retry = true;
     try {
-      const access = await refreshAccessToken();
-      config.headers.Authorization = `Bearer ${access}`;
-      return api(config);
+      await refreshSession();
     } catch (refreshError) {
-      session.clear();
-      return Promise.reject(error);
+      try {
+        // refreshed by another tab? then the profile answers
+        await api.get('/auth/profile/', { _retry: true });
+      } catch (probeError) {
+        session.setAnonymous();
+        return Promise.reject(error);
+      }
     }
+    return api(config);
   }
 );
 

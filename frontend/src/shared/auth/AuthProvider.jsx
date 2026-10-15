@@ -1,21 +1,30 @@
-import React, { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from 'react';
+import React, {
+  createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore,
+} from 'react';
 
 import * as accountsApi from './api';
+import { restoreSession } from './restore';
 import { session } from '../lib/session';
 
 const AuthContext = createContext(null);
 
 /**
- * Who is logged in.  The state lives in the session store (localStorage), so a
- * token refresh that fails, a logout in another tab or an expired session all
- * show up here without any component polling storage.
+ * Who is signed in.  The state lives in the session store, so a refresh that fails, a logout in
+ * another tab or an expired session all show up here without any component polling.
+ *
+ * The tokens are HttpOnly cookies: on start (and whenever the status goes back to "unknown",
+ * e.g. after another tab signed in) the provider asks the server who the cookies belong to.
  */
 export function AuthProvider({ children }) {
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
 
+  useEffect(() => {
+    if (snapshot.status === 'unknown') restoreSession();
+  }, [snapshot.status]);
+
   const login = useCallback(async (email, password) => {
     const data = await accountsApi.login(email, password);
-    session.start({ tokens: data.tokens, user: data.user, profile: data.profile });
+    session.start({ user: data.user, profile: data.profile });
     return data;
   }, []);
 
@@ -23,17 +32,20 @@ export function AuthProvider({ children }) {
   const signup = useCallback((payload) => accountsApi.signup(payload), []);
 
   const logout = useCallback(async () => {
-    const refresh = session.getRefreshToken();
     try {
-      if (refresh) await accountsApi.logout(refresh);
+      await accountsApi.logout(session.legacyRefreshToken());
     } catch (error) {
-      // the session is cleared whether or not the server could blacklist the token
+      // the session ends here whether or not the server could blacklist the token
     }
-    session.clear();
+    session.dropLegacy();
+    session.setAnonymous();
   }, []);
+
+  const retry = useCallback(() => session.setUnknown(), []);
 
   const value = useMemo(
     () => ({
+      status: snapshot.status,
       user: snapshot.user,
       profile: snapshot.profile,
       userType: snapshot.user ? snapshot.user.user_type : null,
@@ -41,8 +53,9 @@ export function AuthProvider({ children }) {
       login,
       signup,
       logout,
+      retry,
     }),
-    [snapshot, login, signup, logout]
+    [snapshot, login, signup, logout, retry]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

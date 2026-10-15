@@ -4,16 +4,26 @@ from apps.courses import extensions
 from .. import selectors
 
 TRUNCATE_CATALOG = 200
-TRUNCATE_PREVIEW = 150
 
 
 def _instructor_name(course):
     return f"{course.instructor.first_name} {course.instructor.last_name}"
 
 
-def _hours(course):
-    """Video length as the whole hours the cards display."""
-    return f"{int((course.video_seconds or 0) / 3600)} hours"
+def format_duration(seconds):
+    """A video length the way the cards show it: "20 min", "1 hour", "5.5 hours".
+
+    ``"-"`` when no length was ever recorded: better than claiming "0 hours".
+    """
+    seconds = seconds or 0
+    if seconds <= 0:
+        return '-'
+    minutes = round(seconds / 60)
+    if minutes < 60:
+        return f'{max(1, minutes)} min'
+    hours = round(seconds / 3600, 1)
+    shown = int(hours) if hours == int(hours) else hours
+    return f"{shown} {'hour' if hours == 1 else 'hours'}"
 
 
 def _short(text, limit):
@@ -48,7 +58,8 @@ def catalog_card(course, *, student_view, has_plus):
         'thumbnail': course.thumbnail.url if course.thumbnail else None,
         'rating': float(course.average_rating),
         'students': course.total_enrolled,
-        'duration': _hours(course),
+        'duration': format_duration(course.video_seconds),
+        'duration_seconds': int(course.video_seconds or 0),
         'level': course.level,
         'category': course.category.name if course.category else 'General',
         'course_type': course.course_type,
@@ -62,22 +73,6 @@ def catalog_card(course, *, student_view, has_plus):
     }
 
 
-def preview_card(course):
-    """One Plus course in the upgrade teaser."""
-    return {
-        'id': str(course.uuid),
-        'title': course.title,
-        'instructor': _instructor_name(course),
-        'thumbnail': course.thumbnail.url if course.thumbnail else None,
-        'rating': float(course.average_rating),
-        'students': course.total_enrolled,
-        'duration': _hours(course),
-        'level': course.level,
-        'category': course.category.name if course.category else 'General',
-        'description': _short(course.description, TRUNCATE_PREVIEW),
-    }
-
-
 def _estimated_completion(remaining_lessons, minutes_per_lesson=30):
     hours = remaining_lessons * minutes_per_lesson / 60
     if hours < 24:
@@ -88,10 +83,16 @@ def _estimated_completion(remaining_lessons, minutes_per_lesson=30):
 
 
 def enrolled_course_row(enrollment):
-    """One row of "my courses"."""
+    """One row of "my courses" (the counters are annotated by ``selectors.enrolled_courses``)."""
     course = enrollment.course
-    total_lessons, completed_lessons = selectors.lesson_counts(enrollment)
-    upcoming = selectors.next_lecture(enrollment)
+    total_lessons = getattr(enrollment, 'total_lessons', None)
+    if total_lessons is None:
+        total_lessons, completed_lessons = selectors.lesson_counts(enrollment)
+        upcoming = selectors.next_lecture(enrollment)
+        next_title = upcoming.title if upcoming else None
+    else:
+        completed_lessons = enrollment.completed_lessons
+        next_title = enrollment.next_lesson_title
 
     return {
         'id': str(enrollment.uuid),
@@ -100,8 +101,9 @@ def enrolled_course_row(enrollment):
         'instructor': _instructor_name(course),
         'thumbnail': course.thumbnail.url if course.thumbnail else None,
         'progress': float(enrollment.progress_percentage),
+        'status': enrollment.status,
         'last_accessed': enrollment.last_accessed.isoformat() if enrollment.last_accessed else None,
-        'next_lesson': upcoming.title if upcoming else 'All lessons completed',
+        'next_lesson': next_title or 'All lessons completed',
         'total_lessons': total_lessons,
         'completed_lessons': completed_lessons,
         'estimated_completion': _estimated_completion(total_lessons - completed_lessons),

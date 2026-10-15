@@ -1,15 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { MessageSquare, Paperclip, Plus, Search, Send, Smile, X } from 'lucide-react';
+import { MessageSquare, Plus, Search, Send } from 'lucide-react';
 
+import Avatar from '../../../shared/ui/Avatar';
+import ErrorState from '../../../shared/ui/ErrorState';
+import Modal from '../../../shared/ui/Modal';
 import { PageSpinner } from '../../../shared/ui/Spinner';
-import * as messagingApi from '../api';
+import { useToast } from '../../../shared/ui/Toast';
 import { useChat } from '../hooks/useChat';
-
-const initialsOf = (user) => {
-  const first = (user.first_name || '')[0] || '';
-  const last = (user.last_name || '')[0] || '';
-  return (first + last).toUpperCase() || (user.email || '?')[0].toUpperCase();
-};
+import { useMessageableUsers } from '../hooks/useDirectory';
 
 const clock = (value) =>
   value ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
@@ -20,10 +18,11 @@ const clock = (value) =>
  */
 const MessagesPage = () => {
   const chat = useChat();
+  const toast = useToast();
   const [draft, setDraft] = useState('');
   const [showNewChat, setShowNewChat] = useState(false);
   const [search, setSearch] = useState('');
-  const [directory, setDirectory] = useState([]);
+  const directory = useMessageableUsers({ enabled: showNewChat });
   const endRef = useRef(null);
 
   useEffect(() => {
@@ -32,39 +31,49 @@ const MessagesPage = () => {
     }
   }, [chat.messages, chat.typing]);
 
-  useEffect(() => {
-    let cancelled = false;
-    messagingApi
-      .users()
-      .then((rows) => !cancelled && setDirectory(rows))
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const matches = useMemo(() => {
     const text = search.toLowerCase();
-    return directory.filter(
+    return (directory.data || []).filter(
       (user) =>
         (user.name || '').toLowerCase().includes(text) || (user.email || '').toLowerCase().includes(text)
     );
-  }, [directory, search]);
+  }, [directory.data, search]);
 
   const submit = async () => {
     if (!draft.trim() || chat.sending) return;
-    if (await chat.send(draft)) setDraft('');
+    if (await chat.send(draft)) {
+      setDraft('');
+    } else {
+      toast.error('Your message could not be sent. Please try again.', 'Message Not Sent');
+    }
   };
 
   const startWith = async (userId) => {
     if (await chat.start(userId)) {
       setShowNewChat(false);
       setSearch('');
+    } else {
+      toast.error('The conversation could not be started. Please try again.', 'Conversation Not Started');
     }
+  };
+
+  const closeNewChat = () => {
+    setShowNewChat(false);
+    setSearch('');
   };
 
   if (chat.loading) {
     return <PageSpinner />;
+  }
+
+  if (chat.loadError) {
+    return (
+      <ErrorState
+        title="Your conversations could not be loaded"
+        error={chat.loadError}
+        onRetry={() => chat.retry()}
+      />
+    );
   }
 
   return (
@@ -85,17 +94,16 @@ const MessagesPage = () => {
         <div className="flex-1 overflow-y-auto">
           {chat.conversations.length > 0 ? (
             chat.conversations.map((conversation) => (
-              <div
+              <button
                 key={conversation.id}
                 onClick={() => chat.open(conversation.id)}
-                className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
+                aria-current={chat.activeId === conversation.id ? 'true' : undefined}
+                className={`block w-full text-left p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors ${
                   chat.activeId === conversation.id ? 'bg-indigo-50 border-indigo-200' : ''
                 }`}
               >
                 <div className="flex items-start space-x-3">
-                  <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-indigo-600 font-medium">{initialsOf(conversation.other_user)}</span>
-                  </div>
+                  <Avatar name={conversation.other_user.name} className="w-12 h-12 text-sm flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-medium text-gray-900 truncate">
@@ -112,7 +120,7 @@ const MessagesPage = () => {
                     </div>
                   )}
                 </div>
-              </div>
+              </button>
             ))
           ) : (
             <div className="p-8 text-center text-gray-500">
@@ -134,9 +142,7 @@ const MessagesPage = () => {
         {chat.active ? (
           <>
             <div className="p-4 border-b border-gray-200 bg-white flex items-center space-x-3">
-              <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                <span className="text-indigo-600 font-medium text-sm">{initialsOf(chat.active.other_user)}</span>
-              </div>
+              <Avatar name={chat.active.other_user.name} className="w-10 h-10 text-sm" />
               <div>
                 <h3 className="font-medium text-gray-900">{chat.active.other_user.name}</h3>
                 <p className="text-sm text-gray-500">{chat.active.other_user.email}</p>
@@ -144,6 +150,14 @@ const MessagesPage = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+              {chat.messagesError && (
+                <ErrorState
+                  className="py-6"
+                  title="This conversation could not be loaded"
+                  error={chat.messagesError}
+                  onRetry={() => chat.open(chat.activeId)}
+                />
+              )}
               {chat.messages.map((message) => (
                 <div key={message.id} className={`flex ${message.is_own_message ? 'justify-end' : 'justify-start'}`}>
                   <div
@@ -172,9 +186,6 @@ const MessagesPage = () => {
 
             <div className="p-4 border-t border-gray-200 bg-white">
               <div className="flex items-end space-x-2">
-                <button className="p-2 text-gray-500 hover:text-gray-700" aria-label="Attach file">
-                  <Paperclip size={20} />
-                </button>
                 <textarea
                   value={draft}
                   onChange={(e) => {
@@ -188,13 +199,11 @@ const MessagesPage = () => {
                     }
                   }}
                   placeholder="Type a message..."
+                  aria-label="Message"
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   rows="1"
                   disabled={chat.sending}
                 />
-                <button className="p-2 text-gray-500 hover:text-gray-700" aria-label="Emoji">
-                  <Smile size={20} />
-                </button>
                 <button
                   onClick={submit}
                   disabled={!draft.trim() || chat.sending}
@@ -219,20 +228,15 @@ const MessagesPage = () => {
 
       {/* new conversation */}
       {showNewChat && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Start New Conversation</h3>
-              <button onClick={() => setShowNewChat(false)} className="text-gray-400 hover:text-gray-600">
-                <X size={20} />
-              </button>
-            </div>
-
+        <Modal title="Start New Conversation" onClose={closeNewChat} size="sm">
+          <div className="p-6">
             <div className="relative mb-4">
               <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search users..."
+                aria-label="Search users"
+                data-autofocus
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -240,25 +244,35 @@ const MessagesPage = () => {
             </div>
 
             <div className="max-h-60 overflow-y-auto">
-              {matches.map((user) => (
-                <div
-                  key={user.id}
-                  onClick={() => startWith(user.id)}
-                  className="flex items-center space-x-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer"
-                >
-                  <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
-                    <span className="text-indigo-600 font-medium text-sm">{initialsOf(user)}</span>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900">{user.name}</p>
-                    <p className="text-sm text-gray-500">{user.email}</p>
-                  </div>
-                </div>
-              ))}
-              {matches.length === 0 && <p className="text-center text-sm text-gray-500 py-6">No users found</p>}
+              {directory.isPending && <PageSpinner className="h-24" />}
+              {directory.isError && (
+                <ErrorState
+                  className="py-6"
+                  title="The list of people could not be loaded"
+                  error={directory.error}
+                  onRetry={() => directory.refetch()}
+                />
+              )}
+              {directory.isSuccess &&
+                matches.map((user) => (
+                  <button
+                    key={user.id}
+                    onClick={() => startWith(user.id)}
+                    className="flex w-full items-center space-x-3 p-3 hover:bg-gray-50 rounded-lg text-left"
+                  >
+                    <Avatar name={user.name} className="w-8 h-8 text-xs" />
+                    <div>
+                      <p className="font-medium text-gray-900">{user.name}</p>
+                      <p className="text-sm text-gray-500">{user.email}</p>
+                    </div>
+                  </button>
+                ))}
+              {directory.isSuccess && matches.length === 0 && (
+                <p className="text-center text-sm text-gray-500 py-6">No users found</p>
+              )}
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

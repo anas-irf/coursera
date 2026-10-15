@@ -3,30 +3,28 @@ import { useNavigate } from 'react-router-dom';
 import { Heart, Star, Clock, BookOpen, Crown } from 'lucide-react';
 
 import { errorMessage } from '../../../shared/api/errors';
-import { mediaUrl } from '../../../shared/lib/media';
+import CourseThumbnail from '../../../shared/ui/CourseThumbnail';
 import { useConfirm } from '../../../shared/ui/ConfirmDialog';
 import { useToast } from '../../../shared/ui/Toast';
-import * as learningApi from '../api';
+import { useEnroll, useToggleBookmark } from '../hooks/useLearning';
 
-const CourseCard = ({ course, onEnrollSuccess }) => {
+const CourseCard = ({ course }) => {
   const navigate = useNavigate();
   const [liked, setLiked] = useState(Boolean(course.is_bookmarked));
-  const [enrolling, setEnrolling] = useState(false);
+  const enroll = useEnroll();
+  const bookmark = useToggleBookmark();
   const toast = useToast();
   const { confirm } = useConfirm();
 
+  const enrolling = enroll.isPending;
   const goToCheckout = () => navigate('/student/checkout');
 
   const handleEnroll = async () => {
     if (!course.can_enroll || enrolling) return;
 
-    setEnrolling(true);
     try {
-      await learningApi.enroll(course.id);
+      await enroll.mutateAsync(course.id);
       toast.success('Successfully enrolled in course!', 'Enrollment Complete');
-      if (onEnrollSuccess) {
-        onEnrollSuccess();
-      }
     } catch (err) {
       if (err.response && err.response.status === 402) {
         const upgrade = await confirm({
@@ -40,29 +38,24 @@ const CourseCard = ({ course, onEnrollSuccess }) => {
       } else {
         toast.error(errorMessage(err, 'Failed to enroll. Please try again.'), 'Enrollment Failed');
       }
-    } finally {
-      setEnrolling(false);
     }
   };
 
-  const toggleBookmark = async () => {
+  const toggleBookmark = () => {
     const next = !liked;
-    setLiked(next);
-    try {
-      await learningApi.toggleBookmark(course.id);
-    } catch (err) {
-      setLiked(!next);
-    }
+    setLiked(next); // optimistic; undone if the server refuses
+    bookmark.mutate(course.id, {
+      onError: (err) => {
+        setLiked(!next);
+        toast.error(errorMessage(err, 'The bookmark could not be saved.'), 'Bookmark failed');
+      },
+    });
   };
 
   return (
     <div className="bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 overflow-hidden">
       <div className="relative">
-        <img
-          src={mediaUrl(course.thumbnail)}
-          alt={course.title}
-          className="w-full h-48 object-cover"
-        />
+        <CourseThumbnail course={course} className="w-full h-48 object-cover" />
         <div className="absolute top-4 left-4 flex flex-col gap-2">
           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
             course.course_type === "free"
@@ -79,6 +72,8 @@ const CourseCard = ({ course, onEnrollSuccess }) => {
         </div>
         <button
           onClick={toggleBookmark}
+          aria-label={liked ? 'Remove bookmark' : 'Bookmark this course'}
+          aria-pressed={liked}
           className="absolute top-4 right-4 bg-white/90 backdrop-blur p-2 rounded-full hover:bg-white transition-colors"
         >
           <Heart
@@ -107,7 +102,7 @@ const CourseCard = ({ course, onEnrollSuccess }) => {
             <span className="text-sm font-medium ml-1">{course.rating}</span>
           </div>
           <span className="text-sm text-gray-500">
-            ({course.students.toLocaleString()} students)
+            ({(course.students || 0).toLocaleString()} students)
           </span>
         </div>
 

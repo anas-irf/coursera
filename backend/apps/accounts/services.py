@@ -1,7 +1,25 @@
-"""Identity use-cases: token issuing, login bookkeeping, e-mail verification."""
-import secrets
-
+"""Identity use-cases: registration, token issuing and login bookkeeping."""
+from django.db import transaction
 from rest_framework_simplejwt.tokens import RefreshToken
+
+from .models import InstructorProfile, StudentProfile, User
+
+
+def register(*, email, password, user_type='student', first_name='', last_name='', phone_number=''):
+    """Create the account together with its role profile; both exist or neither does."""
+    with transaction.atomic():
+        user = User.objects.create_user(
+            email=email,
+            username=email,  # the e-mail address is the username
+            password=password,
+            user_type=user_type,
+            first_name=first_name,
+            last_name=last_name,
+            phone_number=phone_number,
+        )
+        profile = InstructorProfile if user_type == 'instructor' else StudentProfile
+        profile.objects.create(user=user)
+    return user
 
 
 def issue_tokens(user):
@@ -15,40 +33,8 @@ def issue_tokens(user):
     }
 
 
-def client_ip(request):
-    """Best-effort client address (first X-Forwarded-For hop, else REMOTE_ADDR)."""
-    forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
-    if forwarded:
-        return forwarded.split(',')[0]
-    return request.META.get('REMOTE_ADDR')
-
-
-def record_login(user, request):
+def record_login(user, ip_address):
     """Remember where the user logged in from."""
-    user.last_login_ip = client_ip(request)
+    user.last_login_ip = ip_address
     user.save(update_fields=['last_login_ip', 'last_login'])
 
-
-def start_email_verification(user):
-    """Attach a new verification token to the user and return it.
-
-    Sending the e-mail itself is not implemented yet.
-    """
-    user.email_verification_token = secrets.token_urlsafe(32)
-    user.save(update_fields=['email_verification_token'])
-    return user.email_verification_token
-
-
-def verify_email(token):
-    """Mark the user owning ``token`` as verified; return the user or ``None``."""
-    from django.contrib.auth import get_user_model
-
-    User = get_user_model()
-    try:
-        user = User.objects.get(email_verification_token=token)
-    except User.DoesNotExist:
-        return None
-    user.email_verified = True
-    user.email_verification_token = None
-    user.save(update_fields=['email_verified', 'email_verification_token'])
-    return user

@@ -4,7 +4,8 @@ achievements, certificates and the instructor roster / per-course analytics.
 Each endpoint is pinned by its documented top-level keys (and a few values)
 rather than by its entire payload.
 """
-from datetime import timedelta
+import calendar
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
@@ -14,18 +15,18 @@ import factories as f
 
 pytestmark = pytest.mark.django_db
 
-DASHBOARD = '/api/insights/instructor/dashboard/'
-EARNINGS = '/api/insights/instructor/earnings/'
-STUDENT_STATS = '/api/insights/student/stats/'
-WEEKLY = '/api/insights/student/weekly-progress/'
-ACHIEVEMENTS = '/api/insights/student/achievements/'
-CERTIFICATES = '/api/certificates/'
-ROSTER = '/api/learning/instructor/students/'
+DASHBOARD = '/api/v1/insights/instructor/dashboard/'
+EARNINGS = '/api/v1/insights/instructor/earnings/'
+STUDENT_STATS = '/api/v1/insights/student/stats/'
+WEEKLY = '/api/v1/insights/student/weekly-progress/'
+ACHIEVEMENTS = '/api/v1/insights/student/achievements/'
+CERTIFICATES = '/api/v1/certificates/'
+ROSTER = '/api/v1/learning/instructor/students/'
 
 
 def course_url(course, action):
     prefix = {'students': 'learning', 'analytics': 'insights'}[action]
-    return f'/api/{prefix}/instructor/courses/{course.uuid}/{action}/'
+    return f'/api/v1/{prefix}/instructor/courses/{course.uuid}/{action}/'
 
 
 # --------------------------------------------------------------------------- #
@@ -121,15 +122,17 @@ def test_instructor_earnings_payload(api, auth_client, instructor, student):
     assert earning['status'] == 'Paid'
     assert earning['amount'] == pytest.approx(25.0)
 
-    # "transactions" are simulated from enrolments
+    # "transactions" are the earning rows themselves (a share of the pool, not one student's payment)
     (transaction,) = body['recent_transactions']
     assert set(transaction) == {'date', 'course', 'student_email', 'amount', 'status'}
-    assert transaction['student_email'] == student.email
+    assert transaction['student_email'] is None
+    assert transaction['amount'] == pytest.approx(25.0)
+    assert transaction['status'] == 'Paid'
 
     assert api.get(EARNINGS).status_code == 401
     r = auth_client(student).get(EARNINGS)
     assert r.status_code == 403
-    assert r.json() == {'error': 'Not an instructor'}
+    assert 'detail' in r.json()  # the permission class answers, like on every other route
 
 
 def test_instructor_earnings_for_an_instructor_without_earnings(auth_client, instructor):
@@ -152,7 +155,7 @@ def test_student_stats_payload(api, auth_client, instructor, student):
     f.enroll(student, first.course)
     f.enroll(student, second.course)
     client = auth_client(student)
-    assert client.post(f'/api/learning/courses/{first.course.uuid}/lectures/{first.video.uuid}/complete/'
+    assert client.post(f'/api/v1/learning/courses/{first.course.uuid}/lectures/{first.video.uuid}/complete/'
                        ).status_code == 200
 
     r = client.get(STUDENT_STATS)
@@ -189,19 +192,55 @@ def test_student_stats_counts_completed_courses_and_issued_certificates(auth_cli
     assert body['certificates_earned'] == 1
 
 
-def test_student_weekly_progress_is_a_four_month_placeholder(auth_client, student, instructor):
-    """Weekly progress is a four-month mock series."""
-    r = auth_client(student).get(WEEKLY)
+def months_back(day, back):
+    """The first day of the month ``back`` months before ``day``'s."""
+    index = day.year * 12 + day.month - 1 - back
+    return date(index // 12, index % 12 + 1, 1)
+
+
+def test_student_weekly_progress_charts_the_hours_logged_per_month(auth_client, student, instructor):
+    """Four calendar months, oldest first; the hours are what the learning log holds."""
+    today = timezone.localdate()
+    client = auth_client(student)
+
+    empty = client.get(WEEKLY).json()['monthly_progress']
+    assert [row['hours'] for row in empty] == [0, 0, 0, 0]
+
+    f.log_learning(student, days_ago=0, seconds=2 * 3600)
+    f.log_learning(student, days_ago=(today - (months_back(today, 0) - timedelta(days=1))).days,
+                   seconds=int(3.5 * 3600))
+    f.log_learning(student, days_ago=(today - months_back(today, 4)).days, seconds=9 * 3600)
+
+    r = client.get(WEEKLY)
 
     assert r.status_code == 200
-    body = r.json()
-    assert set(body) == {'monthly_progress'}
-    assert len(body['monthly_progress']) == 4
-    for row in body['monthly_progress']:
-        assert set(row) == {'month', 'hours'}
-        assert isinstance(row['hours'], (int, float))
+    rows = r.json()['monthly_progress']
+    assert [set(row) for row in rows] == [{'month', 'hours'}] * 4
+    assert [row['month'] for row in rows] == [
+        calendar.month_abbr[months_back(today, back).month] for back in (3, 2, 1, 0)]
+    assert [row['hours'] for row in rows] == [0, 0, 3.5, 2.0]   # the fifth month back is outside
 
     assert auth_client(instructor).get(WEEKLY).status_code == 403
+
+
+def test_student_streak_counts_consecutive_days_and_a_day_that_has_not_begun_does_not_break_it(
+        auth_client, student):
+    client = auth_client(student)
+    assert client.get(STUDENT_STATS).json()['learning_streak'] == 0
+
+    for days_ago in (1, 2, 3, 5):        # the fifth day back is separated by a gap
+        f.log_learning(student, days_ago=days_ago)
+    assert client.get(STUDENT_STATS).json()['learning_streak'] == 3
+
+    f.log_learning(student, days_ago=0)
+    assert client.get(STUDENT_STATS).json()['learning_streak'] == 4
+
+
+def test_student_hours_are_the_sum_of_the_log(auth_client, student):
+    f.log_learning(student, days_ago=0, seconds=5400)
+    f.log_learning(student, days_ago=40, seconds=1800)
+
+    assert auth_client(student).get(STUDENT_STATS).json()['total_learning_hours'] == 2.0
 
 
 # --------------------------------------------------------------------------- #
@@ -224,11 +263,57 @@ def test_student_achievements_payload(auth_client, instructor, student):
         assert {'id', 'title', 'description', 'icon', 'earned', 'progress'} <= set(item)
     assert [a['earned'] for a in empty['achievements']].count(True) == 0
 
-    client.post(f'/api/learning/courses/{bundle.course.uuid}/lectures/{bundle.video.uuid}/complete/')
+    client.post(f'/api/v1/learning/courses/{bundle.course.uuid}/lectures/{bundle.video.uuid}/complete/')
     after = client.get(ACHIEVEMENTS).json()
     assert after['total_points'] == 5  # 5 points per completed lesson
     first_steps = [a for a in after['achievements'] if a['title'] == 'First Steps'][0]
     assert first_steps['earned'] is True
+
+
+def test_ranks_follow_the_time_learned(auth_client, student, other_student):
+    third = f.make_student()
+    f.log_learning(student, seconds=10 * 3600)
+    f.log_learning(other_student, seconds=5 * 3600)
+    f.log_learning(other_student, days_ago=70, seconds=20 * 3600)   # long ago: counts overall only
+
+    bodies = [auth_client(user).get(ACHIEVEMENTS).json() for user in (student, other_student, third)]
+
+    assert [body['global_rank'] for body in bodies] == [2, 1, 3]
+    # nobody ranks in a month they did not learn in
+    assert [body['monthly_rank'] for body in bodies] == [1, 2, None]
+
+
+def test_a_badge_is_earned_exactly_when_its_progress_is_complete_and_then_has_a_real_date(
+        auth_client, instructor, student):
+    course = f.make_course(instructor, status='published')
+    section = f.make_section(course)
+    lectures = [f.make_reading(section) for _ in range(10)]
+    f.enroll(student, course)
+    client = auth_client(student)
+    for lecture in lectures[:9]:
+        client.post(f'/api/v1/learning/courses/{course.uuid}/lectures/{lecture.uuid}/complete/')
+    for day in range(7):
+        f.log_learning(student, days_ago=day)
+
+    def badges():
+        return {a['title']: a for a in client.get(ACHIEVEMENTS).json()['achievements']}
+
+    before = badges()
+    assert before['Dedicated Learner']['earned'] is False
+    assert before['Dedicated Learner']['progress'] == 90
+    assert before['Dedicated Learner']['date'] is None
+    assert before['Quiz Master']['earned'] is False and before['Quiz Master']['date'] is None
+
+    client.post(f'/api/v1/learning/courses/{course.uuid}/lectures/{lectures[9].uuid}/complete/')
+
+    after = badges()
+    today = timezone.localdate().isoformat()
+    assert after['Dedicated Learner']['earned'] is True
+    assert after['Dedicated Learner']['date'] == today
+    assert after['First Steps']['date'] == today
+    assert after['Week Warrior']['earned'] is True and after['Week Warrior']['date'] == today
+    for item in after.values():
+        assert item['earned'] == (item['progress'] >= 100)
 
 
 def test_student_certificates_listing(api, auth_client, instructor, student, other_student):
@@ -258,17 +343,16 @@ def test_student_certificates_listing(api, auth_client, instructor, student, oth
     assert auth_client(instructor).get(CERTIFICATES).status_code == 403
 
 
-@pytest.mark.pinned_bug
-def test_certificate_model_cannot_generate_its_own_number_current_behaviour(instructor, student):
-    """Current behaviour (bug): ``Certificate.save()`` builds the number from
-    ``course.id[:8]`` - slicing an integer - so a certificate can only be stored
-    with explicit ``certificate_number`` / ``verification_code`` values."""
+def test_a_certificate_builds_its_own_number_and_code(instructor, student):
+    """``Certificate.save()`` used to slice an integer and could only store explicit values."""
     course = f.make_course(instructor, status='published')
     enrollment = f.enroll(student, course, status='completed')
 
-    with pytest.raises(TypeError):
-        f.Certificate.objects.create(enrollment=enrollment, student=student, course=course,
-                                     completion_date=timezone.now())
+    certificate = f.Certificate.objects.create(
+        enrollment=enrollment, student=student, course=course, completion_date=timezone.now())
+
+    assert certificate.certificate_number.startswith('CERT-')
+    assert len(certificate.verification_code) == 20
 
 
 # --------------------------------------------------------------------------- #

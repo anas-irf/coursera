@@ -1,12 +1,15 @@
-# accounts/api/serializers.py
+"""Serializers of the accounts API: signup, login and the user with its profile."""
+
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from .. import services
 from ..models import StudentProfile, InstructorProfile
 
 User = get_user_model()
 
 class SignupSerializer(serializers.ModelSerializer):
+    """Registration: validates the password and creates the user with the profile of its role."""
     password = serializers.CharField(write_only=True, validators=[validate_password])
     confirm_password = serializers.CharField(write_only=True)
     user_type = serializers.ChoiceField(choices=['student', 'instructor'], default='student')
@@ -23,32 +26,22 @@ class SignupSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('confirm_password')
-        user_type = validated_data.pop('user_type', 'student')
-        
-        # Create user
-        user = User.objects.create_user(
+        return services.register(
             email=validated_data['email'],
-            username=validated_data['email'],  # Using email as username
             password=validated_data['password'],
-            user_type=user_type,
+            user_type=validated_data.get('user_type', 'student'),
             first_name=validated_data.get('first_name', ''),
             last_name=validated_data.get('last_name', ''),
             phone_number=validated_data.get('phone_number', ''),
         )
-        
-        # Create profile based on user type
-        if user_type == 'student':
-            StudentProfile.objects.create(user=user)
-        elif user_type == 'instructor':
-            InstructorProfile.objects.create(user=user)
-            
-        return user
 
 class LoginSerializer(serializers.Serializer):
+    """The e-mail address and password of a login."""
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
 
 class UserSerializer(serializers.ModelSerializer):
+    """The user as the API shows them: names, role and verification."""
     full_name = serializers.SerializerMethodField()
     
     class Meta:
@@ -61,6 +54,7 @@ class UserSerializer(serializers.ModelSerializer):
         return f"{obj.first_name} {obj.last_name}".strip()
 
 class StudentProfileSerializer(serializers.ModelSerializer):
+    """A student's profile with its user."""
     user = UserSerializer(read_only=True)
     
     class Meta:
@@ -68,6 +62,7 @@ class StudentProfileSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class InstructorProfileSerializer(serializers.ModelSerializer):
+    """An instructor's profile with its user."""
     user = UserSerializer(read_only=True)
     
     class Meta:

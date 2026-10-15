@@ -1,4 +1,5 @@
-# messaging/routing.py
+"""The WebSocket routes of the messaging slice."""
+
 from django.urls import path
 
 from . import consumers

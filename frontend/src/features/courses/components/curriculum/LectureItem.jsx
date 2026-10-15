@@ -3,7 +3,7 @@ import { Edit3, Trash2, GripVertical, Play, FileText, HelpCircle, ClipboardList 
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-const LectureItem = ({ lecture, lectureIndex, onEdit, onDelete, onReorderQuizQuestions }) => {
+const LectureItem = ({ lecture, onEdit, onDelete }) => {
   const {
     attributes,
     listeners,
@@ -26,7 +26,7 @@ const LectureItem = ({ lecture, lectureIndex, onEdit, onDelete, onReorderQuizQue
   const getLectureIcon = (contentType) => {
     switch (contentType) {
       case 'video': return <Play size={16} className="text-blue-600" />;
-      case 'article': return <FileText size={16} className="text-green-600" />;
+      case 'reading': return <FileText size={16} className="text-green-600" />;
       case 'quiz': return <HelpCircle size={16} className="text-yellow-600" />;
       case 'assignment': return <ClipboardList size={16} className="text-red-600" />;
       default: return <FileText size={16} className="text-gray-600" />;
@@ -36,10 +36,9 @@ const LectureItem = ({ lecture, lectureIndex, onEdit, onDelete, onReorderQuizQue
   const getLectureTypeLabel = (contentType) => {
     const labels = {
       'video': 'Video Lecture',
-      'article': 'Reading',
+      'reading': 'Reading',
       'quiz': 'Quiz',
-      'assignment': 'Assignment',
-      'resource': 'Resource'
+      'assignment': 'Assignment'
     };
     return labels[contentType] || 'Content';
   };

@@ -1,4 +1,5 @@
-# core/models.py
+"""The base model of every table and the catalogue vocabulary (categories, tags, languages)."""
+
 from django.db import models
 import uuid
 
@@ -15,6 +16,7 @@ class BaseModel(models.Model):
         abstract = True
 
 class Category(BaseModel):
+    """A category (optionally inside another) a course is filed under."""
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=100, unique=True)
     description = models.TextField(blank=True)
@@ -32,6 +34,7 @@ class Category(BaseModel):
         return self.name
 
 class Tag(BaseModel):
+    """A free-form label for courses."""
     name = models.CharField(max_length=50, unique=True)
     slug = models.SlugField(max_length=50, unique=True)
     
@@ -42,6 +45,7 @@ class Tag(BaseModel):
         return self.name
 
 class Language(BaseModel):
+    """A language a course can be taught in."""
     code = models.CharField(max_length=10, unique=True)  # e.g., 'en', 'es', 'fr'
     name = models.CharField(max_length=50)
     

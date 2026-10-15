@@ -1,8 +1,11 @@
-# messaging/api/views.py
+"""HTTP adapters of direct messages: conversations, sending and who can be written to."""
+
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+
+from apps.core.api.throttling import MessageThrottle
 
 from .. import payloads, selectors, services
 
@@ -44,6 +47,7 @@ def get_conversation_messages(request, conversation_id):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([MessageThrottle])
 def send_message(request):
     """Send a new message"""
     message = services.send_message(

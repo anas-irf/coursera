@@ -3,7 +3,10 @@ import re
 from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[1]
-READ = re.compile(r"""(?:get_env_variable|config|_config)\(\s*['"]([A-Z][A-Z0-9_]+)['"]""")
+# every way the settings read a variable: the typed helpers of settings/env.py, the
+# collecting ``_need`` of prod.py and decouple's own ``config``
+READ = re.compile(
+    r"""(?:env_str|env_bool|env_int|env_list|_need|config|_config)\(\s*['"]([A-Z][A-Z0-9_]+)['"]""")
 DOCUMENTED = re.compile(r'^#?\s*([A-Z][A-Z0-9_]+)=', re.MULTILINE)
 
 

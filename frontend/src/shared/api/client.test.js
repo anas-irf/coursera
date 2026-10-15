@@ -1,9 +1,11 @@
 import axios from 'axios';
 
+import { API_URL } from '../config';
 import { session } from '../lib/session';
 import { api } from './client';
 
-const API = 'http://localhost:8000/api';
+// whatever the build is configured with (a developer's .env must not matter)
+const API = API_URL;
 
 // A scripted server: ``routes`` maps "METHOD path" to a function (config) => [status, data].
 function installServer(routes) {
@@ -12,7 +14,12 @@ function installServer(routes) {
     const path = config.url.replace(API, '');
     const key = `${config.method.toUpperCase()} ${path}`;
     const handler = routes[key];
-    calls.push({ key, authorization: config.headers.Authorization, data: config.data });
+    calls.push({
+      key,
+      headers: config.headers,
+      withCredentials: config.withCredentials,
+      data: config.data,
+    });
     const [status, data] = handler ? handler(config) : [404, {}];
     const response = { data, status, statusText: '', headers: {}, config, request: {} };
     if (status >= 200 && status < 300) return Promise.resolve(response);
@@ -23,49 +30,59 @@ function installServer(routes) {
   return calls;
 }
 
+const user = { id: 1, user_type: 'student' };
+
 beforeEach(() => {
   window.localStorage.clear();
-  session.clear();
-  session.start({
-    tokens: { access: 'old-access', refresh: 'old-refresh' },
-    user: { id: 1, user_type: 'student' },
-  });
+  session.reset();
+  session.start({ user });
 });
 
-test('sends the access token', async () => {
+test('sends the session cookie and says it is our front end, with no token of its own', async () => {
   const calls = installServer({ 'GET /courses/all/': () => [200, []] });
 
   await api.get('/courses/all/');
 
-  expect(calls[0].authorization).toBe('Bearer old-access');
+  expect(calls[0].withCredentials).toBe(true);
+  expect(calls[0].headers['X-Requested-With']).toBe('XMLHttpRequest');
+  expect(calls[0].headers.Authorization).toBeUndefined();
 });
 
-test('refreshes an expired token once, replays the request and keeps the rotated refresh token', async () => {
+test('refreshes an expired session once and replays the request', async () => {
   let attempts = 0;
+  let refreshed = false;
   const calls = installServer({
-    'GET /courses/enrolled/': (config) => {
+    'GET /courses/enrolled/': () => {
       attempts += 1;
-      return config.headers.Authorization === 'Bearer new-access' ? [200, ['ok']] : [401, {}];
+      return refreshed ? [200, ['ok']] : [401, {}];
     },
-    'POST /auth/token/refresh/': () => [200, { access: 'new-access', refresh: 'new-refresh' }],
+    'POST /auth/token/refresh/': () => {
+      refreshed = true;
+      return [204, null];
+    },
   });
 
   const response = await api.get('/courses/enrolled/');
 
   expect(response.data).toEqual(['ok']);
   expect(attempts).toBe(2);
-  expect(JSON.parse(calls.find((c) => c.key === 'POST /auth/token/refresh/').data))
-    .toEqual({ refresh: 'old-refresh' });
-  expect(session.getAccessToken()).toBe('new-access');
-  expect(session.getRefreshToken()).toBe('new-refresh');
+  const refresh = calls.find((c) => c.key === 'POST /auth/token/refresh/');
+  expect(refresh.withCredentials).toBe(true);
+  expect(refresh.data).toBeFalsy();   // the refresh token is a cookie, not a body
+  expect(session.isAuthenticated()).toBe(true);
 });
 
 test('concurrent requests share one refresh', async () => {
+  let refreshed = false;
+  const answer = (value) => () => (refreshed ? [200, value] : [401, {}]);
   const calls = installServer({
-    'GET /a/': (config) => (config.headers.Authorization === 'Bearer fresh' ? [200, 'a'] : [401, {}]),
-    'GET /b/': (config) => (config.headers.Authorization === 'Bearer fresh' ? [200, 'b'] : [401, {}]),
-    'GET /c/': (config) => (config.headers.Authorization === 'Bearer fresh' ? [200, 'c'] : [401, {}]),
-    'POST /auth/token/refresh/': () => [200, { access: 'fresh', refresh: 'fresh-refresh' }],
+    'GET /a/': answer('a'),
+    'GET /b/': answer('b'),
+    'GET /c/': answer('c'),
+    'POST /auth/token/refresh/': () => {
+      refreshed = true;
+      return [204, null];
+    },
   });
 
   const results = await Promise.all([api.get('/a/'), api.get('/b/'), api.get('/c/')]);
@@ -74,21 +91,41 @@ test('concurrent requests share one refresh', async () => {
   expect(calls.filter((c) => c.key === 'POST /auth/token/refresh/')).toHaveLength(1);
 });
 
-test('a failed refresh ends the session and reports the original error', async () => {
+test('a failed refresh ends the session when the profile says so too', async () => {
   installServer({
     'GET /courses/enrolled/': () => [401, { detail: 'expired' }],
     'POST /auth/token/refresh/': () => [401, { detail: 'blacklisted' }],
+    'GET /auth/profile/': () => [401, { detail: 'expired' }],
   });
 
   await expect(api.get('/courses/enrolled/')).rejects.toMatchObject({ response: { status: 401 } });
 
   expect(session.isAuthenticated()).toBe(false);
-  expect(session.getRefreshToken()).toBeNull();
+  expect(session.getStatus()).toBe('anonymous');
+});
+
+test('another tab that refreshed first keeps this one signed in', async () => {
+  // this tab's refresh was refused because the other tab rotated the refresh cookie; the
+  // profile (the cookies are shared) is fine, so the request is simply replayed
+  let calls = 0;
+  installServer({
+    'GET /courses/enrolled/': () => {
+      calls += 1;
+      return calls === 1 ? [401, {}] : [200, ['ok']];
+    },
+    'POST /auth/token/refresh/': () => [401, { detail: 'blacklisted' }],
+    'GET /auth/profile/': () => [200, { user }],
+  });
+
+  const response = await api.get('/courses/enrolled/');
+
+  expect(response.data).toEqual(['ok']);
+  expect(session.isAuthenticated()).toBe(true);
 });
 
 test('a wrong password is not an expired session', async () => {
   const calls = installServer({ 'POST /auth/login/': () => [401, { error: 'Invalid credentials' }] });
-  session.clear();
+  session.setAnonymous();
 
   await expect(api.post('/auth/login/', { email: 'a', password: 'b' }))
     .rejects.toMatchObject({ response: { status: 401 } });

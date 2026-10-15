@@ -1,4 +1,4 @@
-import { errorMessage, fieldErrors } from './errors';
+import { errorCode, errorMessage, errorSummary, fieldErrors } from './errors';
 
 const failure = (data, status = 400) => ({ response: { status, data } });
 
@@ -23,4 +23,20 @@ test('field errors keep the first message per field', () => {
     email: 'bad',
     password: 'short',
   });
+});
+
+test('the stable code of an error is read when there is one', () => {
+  expect(errorCode(failure({ error: 'Time is up', code: 'time_limit_exceeded' }))).toBe('time_limit_exceeded');
+  expect(errorCode(failure({ error: 'plain' }))).toBeNull();
+  expect(errorCode(failure('<html></html>', 500))).toBeNull();
+  expect(errorCode(new Error('offline'))).toBeNull();
+});
+
+test('a form response is summarised with every field that is wrong', () => {
+  expect(errorSummary(failure({ title: ['This field is required.'], category: ['Invalid pk'] }))).toBe(
+    'title: This field is required. category: Invalid pk.'
+  );
+  expect(errorSummary(failure({ error: 'Cannot edit published courses.' }))).toBe('Cannot edit published courses.');
+  expect(errorSummary(failure('<html></html>', 500), 'try later')).toBe('try later');
+  expect(errorSummary({ message: 'Network Error' })).toMatch(/network/i);
 });

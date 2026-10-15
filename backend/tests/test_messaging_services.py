@@ -8,6 +8,20 @@ from apps.messaging import selectors, services
 pytestmark = pytest.mark.django_db
 
 
+@pytest.fixture(autouse=True)
+def _classroom(request, db):
+    """The people of these tests know each other: the instructor teaches a course the students take."""
+    names = request.fixturenames
+    if 'instructor' not in names:
+        return
+    students = [request.getfixturevalue(name) for name in ('student', 'other_student') if name in names]
+    if not students:
+        return
+    course = f.make_course(request.getfixturevalue('instructor'), status='published')
+    for learner in students:
+        f.enroll(learner, course)
+
+
 def test_send_message_trims_stores_and_returns_the_message(student, instructor):
     message = services.send_message(student, instructor.id, '  hi there  ')
 

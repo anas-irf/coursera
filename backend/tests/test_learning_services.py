@@ -3,6 +3,7 @@ from decimal import Decimal
 
 import pytest
 from django.contrib.auth.models import AnonymousUser
+from django.db import OperationalError
 
 import factories as f
 from apps.core import events
@@ -99,22 +100,71 @@ def test_complete_lecture_once_ignores_lectures_that_are_done(instructor, studen
     assert again.completed_date == stamp
 
 
-def test_complete_lecture_once_never_raises(instructor, student, monkeypatch):
+def test_complete_lecture_once_survives_a_database_error_and_logs_it(
+        instructor, student, monkeypatch, caplog):
     bundle = f.build_course(instructor, status='published')
     enrollment = f.enroll(student, bundle.course)
 
     def broken(*args, **kwargs):
-        raise RuntimeError('database went away')
+        raise OperationalError('database went away')
     monkeypatch.setattr(services, 'progress_for', broken)
 
     assert services.complete_lecture_once(enrollment, bundle.video) is None
+    assert 'database went away' in caplog.text
 
 
-def test_active_enrollment_ignores_finished_ones(instructor, student):
+def test_complete_lecture_once_does_not_hide_a_bug(instructor, student, monkeypatch):
+    bundle = f.build_course(instructor, status='published')
+    enrollment = f.enroll(student, bundle.course)
+
+    def broken(*args, **kwargs):
+        raise AttributeError('a mistake in the code')
+    monkeypatch.setattr(services, 'progress_for', broken)
+
+    with pytest.raises(AttributeError):
+        services.complete_lecture_once(enrollment, bundle.video)
+
+
+def test_completing_the_last_lecture_completes_the_course_once_and_announces_it(instructor, student):
+    bundle = f.build_course(instructor, status='published')
+    enrollment = f.enroll(student, bundle.course)
+    seen = []
+    events.course_completed.connect(lambda sender, **kw: seen.append(kw['enrollment']),
+                                    weak=False, dispatch_uid='test-complete')
+    try:
+        services.complete_lecture(enrollment, bundle.video)
+        services.complete_lecture(enrollment, bundle.reading)
+        services.complete_lecture_once(enrollment, bundle.quiz_lecture)
+        assert seen == []
+        services.complete_lecture_once(enrollment, bundle.assignment_lecture)
+        # nothing announces it twice, however often a lecture is completed again
+        services.complete_lecture(enrollment, bundle.video)
+        services.complete_lecture_once(enrollment, bundle.assignment_lecture)
+    finally:
+        events.course_completed.disconnect(dispatch_uid='test-complete')
+
+    assert seen == [enrollment]
+    assert enrollment.status == 'completed'
+    assert enrollment.completed_date is not None
+    assert enrollment.progress_percentage == Decimal('100.00')
+
+
+def test_a_lecture_that_completes_by_itself_cannot_be_marked_as_done(instructor, student):
+    bundle = f.build_course(instructor, status='published')
+    enrollment = f.enroll(student, bundle.course)
+
+    for lecture in (bundle.quiz_lecture, bundle.assignment_lecture):
+        with pytest.raises(ServiceError, match='completed by taking it'):
+            services.complete_lecture(enrollment, lecture)
+
+
+def test_the_running_enrollment_lookup_ignores_finished_ones_but_access_does_not(instructor, student):
     course = f.make_course(instructor, status='published')
-    f.enroll(student, course, status='completed')
+    finished = f.enroll(student, course, status='completed')
 
-    assert services.active_enrollment(student, course) is None
+    assert selectors.enrollment_for(student, course) is None
+    assert selectors.enrollment_for_access(student, course) == finished
+    assert selectors.enrollment_for(student, course, statuses=('completed',)) == finished
 
 
 def test_toggle_bookmark(instructor, student):
@@ -169,6 +219,21 @@ def test_catalog_card_data_comes_from_one_query_per_page(instructor, student, dj
         [serializers.catalog_card(c, student_view=True, has_plus=True) for c in courses]
 
     assert len(courses) == 5
+
+
+def test_my_courses_come_from_one_query_whatever_their_number(instructor, student, django_assert_max_num_queries):
+    for index in range(4):
+        built = f.build_course(instructor, status='published', title=f'Mine {index}')
+        enrollment = f.enroll(student, built.course)
+        services.complete_lecture(enrollment, built.video)
+
+    with django_assert_max_num_queries(1):
+        rows = [serializers.enrolled_course_row(e) for e in selectors.enrolled_courses(student)]
+
+    assert len(rows) == 4
+    assert {row['completed_lessons'] for row in rows} == {1}
+    assert {row['total_lessons'] for row in rows} == {4}
+    assert {row['next_lesson'] for row in rows} == {'Reading 1'}
 
 
 # --------------------------------------------------------------------------- #

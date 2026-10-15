@@ -40,18 +40,26 @@ def test_other_api_exceptions_are_left_to_drf():
     assert _handle(NotAuthenticated()).status_code in (401, 403)
 
 
-def test_unexpected_exceptions_are_not_swallowed():
-    assert _handle(RuntimeError('boom')) is None
+def test_an_unexpected_exception_is_a_logged_500_that_names_no_cause(caplog):
+    response = _handle(RuntimeError('SECRET-DETAIL'))
+
+    assert response.status_code == 500
+    assert response.data == {
+        'error': 'Something went wrong on our side. Please try again later.',
+        'code': 'server_error',
+    }
+    assert 'SECRET-DETAIL' not in str(response.data)
+    assert 'SECRET-DETAIL' in caplog.text  # the cause is on the server
 
 
 @pytest.mark.parametrize('raw,expected', [
     (None, ''),
     ('', ''),
     ('  python  ', 'python'),
-    ('rock & roll', 'rock  roll'),
-    ('DROP table', 'table'),
-    ('a/*b*/c', 'abc'),
+    ('rock & roll', 'rock & roll'),
+    ('Updated Python', 'Updated Python'),
+    ('DROP table', 'DROP table'),
     ('x' * 150, 'x' * 100),
 ])
-def test_sanitize_search_query(raw, expected):
+def test_sanitize_search_query_trims_and_caps_but_does_not_rewrite(raw, expected):
     assert sanitize_search_query(raw) == expected

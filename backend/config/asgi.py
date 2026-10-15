@@ -13,7 +13,9 @@ import django
 from django.core.asgi import get_asgi_application
 
 # Set Django settings module before any Django imports
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.dev')
+# production unless told otherwise: it refuses to start without its required variables
+# (manage.py defaults to the development settings)
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.prod')
 
 # Initialize Django before importing other modules that use Django ORM
 django.setup()

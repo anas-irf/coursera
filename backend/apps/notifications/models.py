@@ -1,4 +1,5 @@
-# notifications/models.py
+"""A notification a user receives."""
+
 from django.db import models
 from django.conf import settings
 from apps.core.models import BaseModel
@@ -6,6 +7,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 
 class Notification(BaseModel):
+    """Something a user is told: a type, a text and optionally where to go."""
     NOTIFICATION_TYPE_CHOICES = (
         # Course management
         ('course_rejected', 'Course Rejected'),
@@ -51,10 +53,6 @@ class Notification(BaseModel):
     is_read = models.BooleanField(default=False)
     read_at = models.DateTimeField(null=True, blank=True)
     
-    # Email
-    email_sent = models.BooleanField(default=False)
-    email_sent_at = models.DateTimeField(null=True, blank=True)
-    
     # Action URL
     action_url = models.URLField(blank=True, null=True)
     
@@ -65,41 +63,3 @@ class Notification(BaseModel):
             models.Index(fields=['recipient', 'is_read']),
             models.Index(fields=['notification_type']),
         ]
-
-class NotificationPreference(BaseModel):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
-                               related_name='notification_preferences')
-    
-    # Email notifications
-    email_enrollment = models.BooleanField(default=True)
-    email_course_updates = models.BooleanField(default=True)
-    email_assignments = models.BooleanField(default=True)
-    email_announcements = models.BooleanField(default=True)
-    email_discussions = models.BooleanField(default=False)
-    email_messages = models.BooleanField(default=True)
-    email_marketing = models.BooleanField(default=False)
-    
-    # In-app notifications
-    app_enrollment = models.BooleanField(default=True)
-    app_course_updates = models.BooleanField(default=True)
-    app_assignments = models.BooleanField(default=True)
-    app_announcements = models.BooleanField(default=True)
-    app_discussions = models.BooleanField(default=True)
-    app_messages = models.BooleanField(default=True)
-    
-    class Meta:
-        db_table = 'notification_preferences'
-
-class EmailTemplate(BaseModel):
-    name = models.CharField(max_length=100, unique=True)
-    subject = models.CharField(max_length=200)
-    html_content = models.TextField()
-    text_content = models.TextField(blank=True)
-    
-    # Variables that can be used in template
-    available_variables = models.JSONField(default=list)
-    
-    is_active = models.BooleanField(default=True)
-    
-    class Meta:
-        db_table = 'email_templates'

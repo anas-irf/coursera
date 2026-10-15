@@ -1,4 +1,5 @@
-# accounts/models.py
+"""Users (students, instructors, administrators) and the profile each role keeps."""
+
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
@@ -6,6 +7,7 @@ from django.utils import timezone
 import uuid
 
 class User(AbstractUser):
+    """A person who can sign in; ``user_type`` says whether they learn, teach or administer."""
     USER_TYPE_CHOICES = (
         ('student', 'Student'),
         ('instructor', 'Instructor'),
@@ -29,7 +31,6 @@ class User(AbstractUser):
     
     # Additional fields
     email_verified = models.BooleanField(default=False)
-    email_verification_token = models.CharField(max_length=255, blank=True, null=True)
     is_active = models.BooleanField(default=True)
     date_joined = models.DateTimeField(default=timezone.now)
     last_login_ip = models.GenericIPAddressField(blank=True, null=True)
@@ -59,21 +60,19 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.email} - {self.user_type}"
-    
-    @property
-    def is_student(self):
-        return self.user_type == 'student'
-    
-    @property
-    def is_instructor(self):
-        return self.user_type == 'instructor'
-    
+
     @property
     def is_admin(self):
         return self.user_type == 'admin' or self.is_superuser
 
+    @classmethod
+    def admins(cls):
+        """Everybody for whom ``is_admin`` is true, as a queryset: the one definition of "an admin"."""
+        return cls.objects.filter(models.Q(user_type='admin') | models.Q(is_superuser=True))
+
 
 class InstructorProfile(models.Model):
+    """What is kept about an instructor besides the account: verification, totals, rating and payout details."""
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='instructor_profile')
     verified_instructor = models.BooleanField(default=False)
     total_students = models.IntegerField(default=0)
@@ -91,6 +90,7 @@ class InstructorProfile(models.Model):
         db_table = 'instructor_profiles'
 
 class StudentProfile(models.Model):
+    """What a student keeps besides the account: interests and the learning totals."""
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='student_profile')
     learning_goals = models.TextField(blank=True)
     interests = models.JSONField(default=list, blank=True)

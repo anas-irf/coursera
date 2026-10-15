@@ -1,14 +1,19 @@
-# learning/api/views.py
+"""HTTP adapters of learning: the catalogue, enrolling, the player and progress."""
+
 import logging
 
 from django.shortcuts import get_object_or_404
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsInstructor, IsStudent
 from apps.billing.selectors import has_plus_access
+from apps.core.api.errors import PermissionDenied, ServiceError
+from apps.core.api.pagination import paginate
+from apps.core.api.params import object_body
+from apps.core.api.throttling import ProgressThrottle
 from apps.courses.models import Course, Lecture
 
 from .. import selectors, services
@@ -16,19 +21,25 @@ from . import serializers
 
 logger = logging.getLogger(__name__)
 
+CATALOG_PAGE_SIZE = 20  # what the catalogue answers when the caller does not ask for a page
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def all_courses(request):
     """Get all available courses for students to explore"""
     params = request.GET
-    courses = selectors.catalog(
-        request.user,
-        category=params.get('category', 'all'),
-        level=params.get('level', 'all'),
-        course_type=params.get('type', 'all'),
-        search=params.get('search', ''),
-        sort=params.get('sort', 'popular'),
+    courses, headers = paginate(
+        request,
+        selectors.catalog(
+            request.user,
+            category=params.get('category', 'all'),
+            level=params.get('level', 'all'),
+            course_type=params.get('type', 'all'),
+            search=params.get('search', ''),
+            sort=params.get('sort', 'popular'),
+        ),
+        default_size=CATALOG_PAGE_SIZE,
     )
 
     is_student = request.user.is_authenticated and request.user.user_type == 'student'
@@ -37,17 +48,19 @@ def all_courses(request):
     return Response([
         serializers.catalog_card(course, student_view=is_student, has_plus=has_plus)
         for course in courses
-    ])
+    ], headers=headers)
 
 
 @api_view(['GET'])
 @permission_classes([IsStudent])
 def student_enrolled_courses(request):
-    """Get student's enrolled courses with progress"""
-    return Response([
-        serializers.enrolled_course_row(enrollment)
-        for enrollment in selectors.enrolled_courses(request.user)
-    ])
+    """The student's courses with progress; ``?status=active`` (default), ``completed`` or ``all``."""
+    view = request.query_params.get('status', 'active')
+    if view not in selectors.ENROLLED_VIEWS:
+        raise ServiceError(f"status must be one of {', '.join(selectors.ENROLLED_VIEWS)}")
+    enrollments, headers = paginate(request, selectors.enrolled_courses(request.user, view=view))
+    return Response([serializers.enrolled_course_row(enrollment) for enrollment in enrollments],
+                    headers=headers)
 
 
 @api_view(['POST'])
@@ -82,21 +95,15 @@ def course_learn_view(request, course_uuid):
     course = get_object_or_404(Course, uuid=course_uuid, status='published')
     student = request.user
 
-    enrollment = services.active_enrollment(student, course)
+    enrollment = selectors.enrollment_for_access(student, course)
     if enrollment is None:
-        return Response(
-            {'error': 'You must be enrolled in this course to access learning materials'},
-            status=status.HTTP_403_FORBIDDEN
-        )
+        raise PermissionDenied('You must be enrolled in this course to access learning materials')
 
     outline = selectors.player_outline(course)
-    # rows of lectures added after the enrollment are created on first view
-    progress_by_lecture = {
-        lecture.pk: services.progress_for(enrollment, lecture)
-        for _, lectures in outline for lecture in lectures
-    }
+    progress = selectors.progress_by_lecture(
+        enrollment, [lecture for _, lectures in outline for lecture in lectures])
 
-    return Response(serializers.player_payload(course, enrollment, student, outline, progress_by_lecture))
+    return Response(serializers.player_payload(course, enrollment, student, outline, progress))
 
 
 @api_view(['POST'])
@@ -106,12 +113,9 @@ def mark_lecture_complete(request, course_uuid, lecture_uuid):
     course = get_object_or_404(Course, uuid=course_uuid, status='published')
     lecture = get_object_or_404(Lecture, uuid=lecture_uuid, section__course=course)
 
-    enrollment = services.active_enrollment(request.user, course)
+    enrollment = selectors.enrollment_for_access(request.user, course)
     if enrollment is None:
-        return Response(
-            {'error': 'You must be enrolled in this course'},
-            status=status.HTTP_403_FORBIDDEN
-        )
+        raise PermissionDenied('You must be enrolled in this course')
 
     services.complete_lecture(enrollment, lecture)
 
@@ -122,35 +126,30 @@ def mark_lecture_complete(request, course_uuid, lecture_uuid):
     })
 
 
-@api_view(['GET'])
+@api_view(['POST'])
 @permission_classes([IsStudent])
-def plus_courses_preview(request):
-    """Get preview of Plus courses for upgrade promotion"""
-    if has_plus_access(request.user):
-        return Response(
-            {'message': 'You already have Plus access'},
-            status=status.HTTP_200_OK
-        )
+@throttle_classes([ProgressThrottle])
+def record_watch_progress(request, course_uuid, lecture_uuid):
+    """Heartbeat of the video player: ``{position, finished?}`` in seconds.
 
-    total_plus_courses, total_free_courses = selectors.published_counts()
+    Remembers where to resume and counts the time spent watching.
+    """
+    course = get_object_or_404(Course, uuid=course_uuid, status='published')
+    lecture = get_object_or_404(Lecture, uuid=lecture_uuid, section__course=course)
+
+    enrollment = selectors.enrollment_for_access(request.user, course)
+    if enrollment is None:
+        raise PermissionDenied('You must be enrolled in this course')
+
+    body = object_body(request)
+    progress = services.record_watch(
+        enrollment, lecture, body.get('position'), finished=body.get('finished') is True)
 
     return Response({
-        'preview_courses': [serializers.preview_card(course) for course in selectors.plus_preview_courses()],
-        'benefits': {
-            'total_plus_courses': total_plus_courses,
-            'total_free_courses': total_free_courses,
-            'unlimited_access': True,
-            'certificates_included': True,
-            'offline_download': True,
-            'no_ads': True
-        },
-        'pricing': {
-            'monthly': 49.99,
-            'yearly': 399.99,
-            'yearly_savings': round((49.99 * 12) - 399.99, 2),
-            'yearly_savings_percentage': round(((49.99 * 12) - 399.99) / (49.99 * 12) * 100)
-        },
-        'checkout_url': '/api/payments/checkout/data/'
+        'last_watched_position': progress.last_watched_position,
+        'progress_seconds': progress.progress_seconds,
+        'watch_count': progress.watch_count,
+        'total_time_spent': enrollment.total_time_spent,
     })
 
 
@@ -163,21 +162,14 @@ def course_students(request, course_uuid):
     """Get list of enrolled students"""
     course = get_object_or_404(Course, uuid=course_uuid, instructor=request.user)
 
-    return Response([
-        serializers.roster_entry(enrollment) for enrollment in selectors.course_roster(course)
-    ])
+    enrollments, headers = paginate(request, selectors.course_roster(course))
+    return Response([serializers.roster_entry(enrollment) for enrollment in enrollments],
+                    headers=headers)
 
 
 @api_view(['GET'])
 @permission_classes([IsInstructor])
 def instructor_students(request):
     """Get all students enrolled in instructor's courses"""
-    try:
-        enrollments = selectors.instructor_roster(request.user)
-        return Response(serializers.student_directory(enrollments))
-    except Exception:
-        logger.exception('Failed to fetch students')
-        return Response(
-            {'error': 'Failed to fetch students'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    enrollments, headers = paginate(request, selectors.instructor_roster(request.user))
+    return Response(serializers.student_directory(enrollments), headers=headers)

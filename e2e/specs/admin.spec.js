@@ -51,4 +51,8 @@ test('approving a course takes it out of the queue', async ({ page, signIn }) =>
 
   await expect(main).not.toContainText('Cloud Computing Fundamentals');
   await expect.poll(waiting).toBe(before - 1);
+  // the sidebar badge reads the same queue
+  if (before > 1) {
+    await expect(page.getByRole('link', { name: /Course Approvals/ })).toContainText(String(before - 1));
+  }
 });

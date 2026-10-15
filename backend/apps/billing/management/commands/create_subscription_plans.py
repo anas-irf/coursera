@@ -1,54 +1,34 @@
-# payments/management/commands/create_subscription_plans.py
+"""Creates the Coursera Plus plans from the price list in ``apps.billing.plans``."""
+
 from django.core.management.base import BaseCommand
+
+from apps.billing import plans
 from apps.billing.models import SubscriptionPlan
 
 
 class Command(BaseCommand):
+    """Creates or updates the Coursera Plus plans."""
     help = 'Create default subscription plans for Coursera Plus'
 
     def handle(self, *args, **options):
-        # Create monthly plan
-        monthly_plan, created = SubscriptionPlan.objects.get_or_create(
-            billing_cycle='monthly',
-            defaults={
-                'name': 'Coursera Plus Monthly',
-                'description': 'Access to all Plus courses with monthly billing. Cancel anytime.',
-                'price': 49.99,
-                'unlimited_courses': True,
-                'certificate_included': True,
-                'download_enabled': True,
-                'is_active': True
-            }
-        )
-        if created:
-            self.stdout.write(
-                self.style.SUCCESS(f'Created monthly plan: {monthly_plan.name}')
+        for cycle in plans.CYCLES:
+            default = plans.DEFAULTS[cycle]
+            plan, created = SubscriptionPlan.objects.get_or_create(
+                billing_cycle=cycle,
+                defaults={
+                    'name': default.name,
+                    'description': default.description,
+                    'price': default.price,
+                    'unlimited_courses': True,
+                    'certificate_included': True,
+                    'download_enabled': True,
+                    'is_active': True,
+                },
             )
-        else:
-            self.stdout.write(f'Monthly plan already exists: {monthly_plan.name}')
+            if created:
+                self.stdout.write(self.style.SUCCESS(f'Created {cycle} plan: {plan.name}'))
+            else:
+                self.stdout.write(f'{cycle.capitalize()} plan already exists: {plan.name}')
 
-        # Create yearly plan
-        yearly_plan, created = SubscriptionPlan.objects.get_or_create(
-            billing_cycle='yearly',
-            defaults={
-                'name': 'Coursera Plus Annual',
-                'description': 'Access to all Plus courses with annual billing. Save 20% compared to monthly!',
-                'price': 399.99,
-                'unlimited_courses': True,
-                'certificate_included': True,
-                'download_enabled': True,
-                'is_active': True
-            }
-        )
-        if created:
-            self.stdout.write(
-                self.style.SUCCESS(f'Created yearly plan: {yearly_plan.name}')
-            )
-        else:
-            self.stdout.write(f'Yearly plan already exists: {yearly_plan.name}')
-
-        # Summary
         total_plans = SubscriptionPlan.objects.filter(is_active=True).count()
-        self.stdout.write(
-            self.style.SUCCESS(f'Total active subscription plans: {total_plans}')
-        )
+        self.stdout.write(self.style.SUCCESS(f'Total active subscription plans: {total_plans}'))

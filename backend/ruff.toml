@@ -12,9 +12,17 @@ select = [
     "C4",   # comprehensions
     "SIM",  # simplifications
     "S",    # bandit-style security checks
+    "D100", # a module says what it is for
+    "D101", # so does a class (models are documented: what a row is)
+    "TID251", # banned imports (see banned-api below)
 ]
 
+[lint.flake8-tidy-imports.banned-api]
+"django.http".msg = "HTTP types belong to the adapters (api/, consumers, middleware); services, selectors and models stay free of them"
+
 [lint.per-file-ignores]
-"tests/**" = ["S101", "S105", "S106", "S311"]   # asserts, fixture passwords, random in tests
-"apps/seeding/**" = ["S311"]                    # seeded variation is deliberately not cryptographic
+"**/migrations/**" = ["D100", "D101"]          # generated
+"**/api/**" = ["TID251"]                       # the HTTP adapters are where HTTP types belong
+"tests/**" = ["D100", "D101", "TID251", "S101", "S105", "S106", "S311"]   # test names say what they test; asserts, fixture passwords, random
+"apps/seeding/**" = ["D100", "D101", "TID251", "S311"]                      # development tooling; seeded variation is deliberately not cryptographic
 "config/settings/test.py" = ["S105"]            # test-only webhook secret

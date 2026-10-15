@@ -1,7 +1,7 @@
 """Identity slice: signup, login, profile, logout, token refresh, email verification.
 
 Characterization tests - they pin what the API does today.  Authentication uses
-the real ``/api/auth/login/`` endpoint and real simplejwt tokens.
+the real ``/api/v1/auth/login/`` endpoint and real simplejwt tokens.
 """
 import uuid
 
@@ -12,11 +12,11 @@ import factories as f
 
 pytestmark = pytest.mark.django_db
 
-SIGNUP = '/api/auth/signup/'
-LOGIN = '/api/auth/login/'
-LOGOUT = '/api/auth/logout/'
-REFRESH = '/api/auth/token/refresh/'
-PROFILE = '/api/auth/profile/'
+SIGNUP = '/api/v1/auth/signup/'
+LOGIN = '/api/v1/auth/login/'
+LOGOUT = '/api/v1/auth/logout/'
+REFRESH = '/api/v1/auth/token/refresh/'
+PROFILE = '/api/v1/auth/profile/'
 
 
 def signup_payload(**overrides):
@@ -40,7 +40,7 @@ def do_login(api, email, password=f.DEFAULT_PASSWORD):
 # signup
 # --------------------------------------------------------------------------- #
 def test_signup_student_returns_user_tokens_and_creates_profile(api):
-    """Student signup: 201, user + tokens, student profile and a verification token."""
+    """Student signup: 201, user + tokens and a student profile."""
     payload = signup_payload()
     r = api.post(SIGNUP, payload, format='json')
 
@@ -58,8 +58,6 @@ def test_signup_student_returns_user_tokens_and_creates_profile(api):
     assert user.check_password(payload['password'])
     assert f.StudentProfile.objects.filter(user=user).exists()
     assert not f.InstructorProfile.objects.filter(user=user).exists()
-    # a verification token is generated (the mail itself is a TODO in the app)
-    assert user.email_verification_token
     assert user.email_verified is False
 
 
@@ -179,10 +177,9 @@ def test_login_rejects_bad_password_unknown_user_and_missing_fields(api):
     assert 'password' in r.json()
 
 
-@pytest.mark.pinned_bug
 def test_login_inactive_user_is_a_plain_401(api):
-    """Current behaviour: ModelBackend refuses inactive users before the view's
-    "account deactivated" 403 branch can run, so that branch is unreachable."""
+    """An inactive account is answered exactly like a wrong password: the backend
+    refuses it before the view runs, so nothing discloses the state of the account."""
     user = f.make_student()
     user.is_active = False
     user.save()
@@ -214,7 +211,7 @@ def test_profile_with_bearer_token_from_real_login(api):
 def test_endpoints_require_a_valid_token(api):
     """Missing or garbage bearer tokens are 401."""
     assert api.get(PROFILE).status_code == 401
-    assert api.get('/api/learning/enrolled/').status_code == 401
+    assert api.get('/api/v1/learning/enrolled/').status_code == 401
 
     api.credentials(HTTP_AUTHORIZATION='Bearer not-a-real-token')
     assert api.get(PROFILE).status_code == 401
@@ -227,6 +224,7 @@ def test_logout_blacklists_the_refresh_token(api):
     """Logout answers 205 and the refresh token stops working."""
     student = f.make_student()
     tokens = do_login(api, student.email).json()['tokens']
+    api.cookies.clear()
     api.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access']}")
 
     r = api.post(LOGOUT, {'refresh': tokens['refresh']}, format='json')
@@ -238,23 +236,27 @@ def test_logout_blacklists_the_refresh_token(api):
     assert r.status_code == 401
 
 
-def test_logout_with_invalid_refresh_token_is_400_and_requires_auth(api):
-    """Logout needs authentication; a bad refresh token is a 400."""
+def test_logout_is_authenticated_by_the_refresh_token_and_a_bad_one_is_a_400(api):
+    """Signing out must work when the access token has expired, so the credential is the refresh
+    token; one that is not valid is a 400."""
     student = f.make_student()
     tokens = do_login(api, student.email).json()['tokens']
+    api.cookies.clear()
 
-    assert api.post(LOGOUT, {'refresh': tokens['refresh']}, format='json').status_code == 401
-
-    api.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access']}")
     r = api.post(LOGOUT, {'refresh': 'garbage'}, format='json')
     assert r.status_code == 400
-    assert 'error' in r.json()
+    assert r.json() == {'error': 'Invalid or expired refresh token'}
+
+    # no access token at all, and it still works
+    assert api.post(LOGOUT, {'refresh': tokens['refresh']}, format='json').status_code == 205
+    assert api.post(REFRESH, {'refresh': tokens['refresh']}, format='json').status_code == 401
 
 
 def test_token_refresh_rotates_and_blacklists_the_old_refresh_token(api):
     """Refresh returns a new refresh token and blacklists the old one."""
     student = f.make_student()
     old_refresh = do_login(api, student.email).json()['tokens']['refresh']
+    api.cookies.clear()
 
     r = api.post(REFRESH, {'refresh': old_refresh}, format='json')
 
@@ -271,32 +273,3 @@ def test_token_refresh_rotates_and_blacklists_the_old_refresh_token(api):
     assert api.post(REFRESH, {'refresh': old_refresh}, format='json').status_code == 401
     # ... and the rotated one can be used once more
     assert api.post(REFRESH, {'refresh': body['refresh']}, format='json').status_code == 200
-
-
-# --------------------------------------------------------------------------- #
-# e-mail verification
-# --------------------------------------------------------------------------- #
-def test_email_verification_token_flow(api):
-    """Verification token marks the e-mail verified and is single use."""
-    payload = signup_payload()
-    assert api.post(SIGNUP, payload, format='json').status_code == 201
-    token = f.User.objects.get(email=payload['email']).email_verification_token
-    assert token
-
-    r = api.get(f'/api/auth/verify-email/{token}/')
-    assert r.status_code == 200
-    assert 'message' in r.json()
-    user = f.User.objects.get(email=payload['email'])
-    assert user.email_verified is True
-    assert user.email_verification_token is None
-
-    # the token is single use
-    r = api.get(f'/api/auth/verify-email/{token}/')
-    assert r.status_code == 400
-    assert 'error' in r.json()
-
-
-def test_email_verification_with_unknown_token_is_400(api):
-    """Unknown verification token is a 400."""
-    r = api.get('/api/auth/verify-email/does-not-exist/')
-    assert r.status_code == 400

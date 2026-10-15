@@ -7,17 +7,17 @@ import factories as f
 
 pytestmark = pytest.mark.django_db
 
-PENDING = '/api/courses/admin/pending/'
-ALL_COURSES = '/api/courses/admin/all/'
-ALL_USERS = '/api/insights/admin/users/'
+PENDING = '/api/v1/courses/admin/pending/'
+ALL_COURSES = '/api/v1/courses/admin/all/'
+ALL_USERS = '/api/v1/insights/admin/users/'
 
 
 def approve_url(course):
-    return f'/api/courses/admin/{course.uuid}/approve/'
+    return f'/api/v1/courses/admin/{course.uuid}/approve/'
 
 
 def reject_url(course):
-    return f'/api/courses/admin/{course.uuid}/reject/'
+    return f'/api/v1/courses/admin/{course.uuid}/reject/'
 
 
 @pytest.fixture
@@ -110,11 +110,11 @@ def test_admin_approves_course(auth_client, admin, instructor, pending_bundle):
 
 def test_approved_course_becomes_visible_in_public_catalogue(api, auth_client, admin, pending_bundle):
     """An approved course appears in the public catalogue."""
-    assert api.get('/api/learning/courses/').json() == []
+    assert api.get('/api/v1/learning/courses/').json() == []
 
     assert auth_client(admin).post(approve_url(pending_bundle.course)).status_code == 200
 
-    ids = [row['id'] for row in api.get('/api/learning/courses/').json()]
+    ids = [row['id'] for row in api.get('/api/v1/learning/courses/').json()]
     assert ids == [str(pending_bundle.course.uuid)]
 
 
@@ -162,7 +162,7 @@ def test_rejected_course_can_be_resubmitted_and_approved(auth_client, admin, ins
     course = pending_bundle.course
     assert auth_client(admin).post(reject_url(course), {'reason': 'Fix it'}, format='json').status_code == 200
 
-    r = auth_client(instructor).post(f'/api/courses/instructor/courses/{course.uuid}/apply_for_publish/')
+    r = auth_client(instructor).post(f'/api/v1/courses/instructor/courses/{course.uuid}/apply_for_publish/')
     assert r.status_code == 200
     assert auth_client(admin).post(approve_url(course)).status_code == 200
 
@@ -190,7 +190,7 @@ def test_approve_and_reject_non_pending_course_is_a_404(auth_client, admin, inst
 
 
 def test_approve_unknown_course_is_a_404(auth_client, admin):
-    r = auth_client(admin).post(f'/api/courses/admin/{uuid.uuid4()}/approve/')
+    r = auth_client(admin).post(f'/api/v1/courses/admin/{uuid.uuid4()}/approve/')
 
     assert r.status_code == 404
 

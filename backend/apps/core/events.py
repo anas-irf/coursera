@@ -21,9 +21,14 @@ course_rejected = Signal()    # course, rejected_by, reason
 
 # --- learning ------------------------------------------------------------- #
 student_enrolled = Signal()   # enrollment
+course_completed = Signal()   # enrollment: the last lecture was completed
 
 # --- assessments ---------------------------------------------------------- #
 assignment_graded = Signal()  # submission, grade, graded_by
+quiz_attempt_finished = Signal()   # attempt: graded, so a retake can lift the final grade
+
+# --- certificates --------------------------------------------------------- #
+certificate_issued = Signal()  # certificate
 
 # --- billing -------------------------------------------------------------- #
 subscription_activated = Signal()  # user, subscription, amount
@@ -36,4 +41,5 @@ def emit(signal, **payload):
     """Send ``signal`` and never raise: receiver errors are logged, not propagated."""
     for receiver, result in signal.send_robust(sender=None, **payload):
         if isinstance(result, Exception):
-            logger.error('Event receiver %s failed: %r', getattr(receiver, '__qualname__', receiver), result)
+            logger.error('Event receiver %s failed: %r', getattr(receiver, '__qualname__', receiver), result,
+                         exc_info=result)

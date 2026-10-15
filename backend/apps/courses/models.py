@@ -1,4 +1,5 @@
-# courses/models.py
+"""Courses and their curriculum: sections and lectures."""
+
 from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -32,6 +33,7 @@ def validate_course_thumbnail(value):
         raise ValidationError('Invalid image file. Please upload a valid image.') from None
 
 class Course(BaseModel):
+    """A course: its description, who teaches it and where it is in the publishing workflow."""
     LEVEL_CHOICES = (
         ('beginner', 'Beginner'),
         ('intermediate', 'Intermediate'),
@@ -137,17 +139,8 @@ class Course(BaseModel):
         return self.title
     
 
-class CoursePrerequisite(BaseModel):
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='prerequisites')
-    prerequisite_course = models.ForeignKey(Course, on_delete=models.CASCADE,
-                                           related_name='required_for')
-    is_mandatory = models.BooleanField(default=True)
-    
-    class Meta:
-        db_table = 'course_prerequisites'
-        unique_together = ['course', 'prerequisite_course']
-
 class Section(BaseModel):
+    """An ordered group of lectures inside a course."""
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='sections')
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
@@ -163,6 +156,7 @@ class Section(BaseModel):
         return f"{self.course.title} - {self.title}"
 
 class Lecture(BaseModel):
+    """One unit of a course; its ``content_type`` says which slice holds its content."""
     CONTENT_TYPE_CHOICES = (
         ('video', 'Video'),
         ('reading', 'Reading'),
@@ -189,23 +183,3 @@ class Lecture(BaseModel):
     
     def __str__(self):
         return self.title
-
-class LectureResource(BaseModel):
-    lecture = models.ForeignKey(Lecture, on_delete=models.CASCADE, related_name='resources')
-    title = models.CharField(max_length=200)
-    file = models.FileField(upload_to='lectures/resources/')
-    is_downloadable = models.BooleanField(default=True)
-    
-    class Meta:
-        db_table = 'lecture_resources'
-
-class CourseAnnouncement(BaseModel):
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='announcements')
-    title = models.CharField(max_length=200)
-    content = models.TextField()
-    is_pinned = models.BooleanField(default=False)
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
-    
-    class Meta:
-        db_table = 'course_announcements'
-        ordering = ['-is_pinned', '-created_at']

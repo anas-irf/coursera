@@ -1,21 +1,63 @@
 """Assignments: handing in, grading and getting the files back."""
+import logging
 import math
 import mimetypes
+import os
+import re
 
 from django.core.files.storage import default_storage
-from django.http import Http404
 from django.utils import timezone
 
-from apps.core.api.errors import PermissionDenied, ServiceError
+from apps.core.api.errors import NotFound, PermissionDenied, ServiceError
 from apps.core.events import assignment_graded, emit
+from apps.learning import selectors as learning_selectors
 from apps.learning import services as learning
 
 from ..models import AssignmentSubmission
 
+logger = logging.getLogger(__name__)
+
+MAX_FILE_BYTES = 50 * 1024 * 1024
+ALLOWED_EXTENSIONS = ('.pdf', '.doc', '.docx', '.txt', '.rtf', '.jpg', '.jpeg', '.png', '.gif',
+                      '.pptx', '.xlsx')
+SAFE_FILENAME = re.compile(r'^[a-zA-Z0-9._-]+$')
+UNSAFE_PATTERNS = ('..', '/', '\\', '<script', '<?php', '<?xml', '.exe', '.bat', '.cmd', '.sh',
+                   '.dll', '.scr', '.vbs', '.js', '.jar', '.class', '.php', '.asp')
+EXECUTABLE_EXTENSIONS = ('.exe', '.bat', '.cmd', '.sh', '.scr', '.com', '.pif')
+
+
+def validate_file(file):
+    """Refuse a hand-in file that is too big, of a type that is not accepted, or named like an attack."""
+    if file.size > MAX_FILE_BYTES:
+        raise ServiceError('File size cannot exceed 50MB')
+
+    extension = os.path.splitext(file.name)[1].lower()
+    if extension not in ALLOWED_EXTENSIONS:
+        raise ServiceError(
+            f"File type {extension} not allowed. Allowed types: {', '.join(ALLOWED_EXTENSIONS)}")
+
+    filename = os.path.basename(file.name)
+    if not SAFE_FILENAME.match(filename):
+        raise ServiceError('Filename contains invalid characters. Only letters, numbers, dots, '
+                           'hyphens and underscores are allowed.')
+
+    lowered = filename.lower()
+    if any(pattern in lowered for pattern in UNSAFE_PATTERNS):
+        raise ServiceError('Filename contains unsafe patterns.')
+
+    # file.txt.exe: every extension but the last one is checked
+    if lowered.count('.') > 1:
+        inner = re.findall(r'\.[a-zA-Z0-9]+', lowered)[:-1]
+        if any(item in EXECUTABLE_EXTENSIONS for item in inner):
+            raise ServiceError('File has suspicious double extension.')
+
 
 def submit(student, assignment, text, file):
     """Hand in work for ``assignment``; returns the stored submission."""
-    enrollment = learning.active_enrollment(student, assignment.course)
+    if not assignment.is_active:
+        raise ServiceError('This assignment is not available')
+
+    enrollment = learning_selectors.enrollment_for_access(student, assignment.course)
     if enrollment is None:
         raise PermissionDenied('You must be enrolled in this course')
 
@@ -30,20 +72,18 @@ def submit(student, assignment, text, file):
     text = text if isinstance(text, str) else ''
     if not text.strip() and not file:
         raise ServiceError('Please provide either text submission or upload a file')
+    if file:
+        validate_file(file)
 
-    try:
-        submission = AssignmentSubmission.objects.create(
-            assignment=assignment,
-            student=student,
-            enrollment=enrollment,
-            submission_text=text,
-            submission_file=file,
-            original_filename=file.name if file else '',
-            is_late=is_late,
-        )
-    except Exception as e:
-        # model validation (file type, size, name) reports through the same channel
-        raise ServiceError(f'Failed to create submission: {str(e)}') from e
+    submission = AssignmentSubmission.objects.create(
+        assignment=assignment,
+        student=student,
+        enrollment=enrollment,
+        submission_text=text,
+        submission_file=file,
+        original_filename=file.name if file else '',
+        is_late=is_late,
+    )
 
     if assignment.lecture:
         learning.complete_lecture_once(enrollment, assignment.lecture)
@@ -92,7 +132,7 @@ def readable_submission(user, submission_uuid):
         .first()
     )
     if submission is None:
-        raise Http404('Submission not found')
+        raise NotFound('Submission not found')
 
     if user.user_type == 'student':
         allowed = submission.student_id == user.id
@@ -101,24 +141,25 @@ def readable_submission(user, submission_uuid):
     else:
         allowed = False
     if not allowed:
-        raise Http404('Submission not found')
+        raise NotFound('Submission not found')
     return submission
 
 
 def read_submission_file(submission):
     """``(content, content_type, filename)`` of the stored file."""
     if not submission.submission_file:
-        raise Http404('No file attached to this submission')
+        raise NotFound('No file attached to this submission')
 
     path = submission.submission_file.name
     if not default_storage.exists(path):
-        raise Http404('File not found on server')
+        raise NotFound('File not found on server')
 
     try:
         with default_storage.open(path) as stored:
             content = stored.read()
-    except Exception:
-        raise Http404('Error reading file') from None
+    except OSError:
+        logger.exception('Could not read the stored file of submission %s', submission.pk)
+        raise NotFound('Error reading file') from None
 
     content_type, _ = mimetypes.guess_type(submission.original_filename)
     return content, content_type or 'application/octet-stream', submission.original_filename

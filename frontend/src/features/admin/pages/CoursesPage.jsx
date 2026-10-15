@@ -1,51 +1,29 @@
-import React, { useEffect, useState } from 'react';
-import { BookOpen, Search, MoreVertical } from 'lucide-react';
+import React, { useState } from 'react';
+import { BookOpen, Search } from 'lucide-react';
 
+import { isFullWeight } from '../../../shared/lib/gradeWeight';
+import { formatDate } from '../../../shared/lib/time';
+import ErrorState from '../../../shared/ui/ErrorState';
 import { PageSpinner } from '../../../shared/ui/Spinner';
-import * as adminApi from '../api';
+import StatusBadge from '../../../shared/ui/StatusBadge';
+import { useAdminCourses } from '../hooks/useAdmin';
 
 const CoursesPage = () => {
-  const [courses, setCourses] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const query = useAdminCourses();
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    let cancelled = false;
-    adminApi
-      .allCourses()
-      .then((rows) => !cancelled && setCourses(rows))
-      .catch(() => !cancelled && setCourses([]))
-      .finally(() => !cancelled && setLoading(false));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'published': return 'bg-green-100 text-green-800';
-      case 'pending_review': return 'bg-yellow-100 text-yellow-800';
-      case 'draft': return 'bg-gray-100 text-gray-800';
-      case 'unpublished': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusText = (status) => {
-    switch (status) {
-      case 'published': return 'Published';
-      case 'pending_review': return 'Pending Review';
-      case 'draft': return 'Draft';
-      case 'unpublished': return 'Unpublished';
-      default: return status;
-    }
-  };
-
-  if (loading) {
+  if (query.isPending) {
     return <PageSpinner />;
   }
 
+  if (query.isError) {
+    return (
+      <ErrorState title="We could not load the courses" error={query.error} onRetry={() => query.refetch()} />
+    );
+  }
+
+  const courses = query.data;
   const filteredCourses = courses.filter(course => {
     const matchesStatus = filter === 'all' || course.status === filter;
     const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -71,11 +49,13 @@ const CoursesPage = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search courses or instructors..."
+              aria-label="Search courses or instructors"
               className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
           <select
+            aria-label="Status"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -84,7 +64,7 @@ const CoursesPage = () => {
             <option value="published">Published</option>
             <option value="pending_review">Pending Review</option>
             <option value="draft">Draft</option>
-            <option value="unpublished">Unpublished</option>
+            <option value="rejected">Rejected</option>
           </select>
         </div>
       </div>
@@ -116,9 +96,6 @@ const CoursesPage = () => {
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Created
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -142,9 +119,7 @@ const CoursesPage = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(course.status)}`}>
-                      {getStatusText(course.status)}
-                    </span>
+                    <StatusBadge status={course.status} />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
@@ -163,19 +138,13 @@ const CoursesPage = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`text-sm font-medium ${
-                      course.total_weight === 100 ? 'text-green-600' : 'text-red-600'
+                      isFullWeight(course.total_weight) ? 'text-green-600' : 'text-red-600'
                     }`}>
                       {course.total_weight}%
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(course.created_date).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <button className="text-indigo-600 hover:text-indigo-900 mr-3">View</button>
-                    <button className="text-gray-600 hover:text-gray-900">
-                      <MoreVertical size={16} />
-                    </button>
+                    {formatDate(course.created_date)}
                   </td>
                 </tr>
               ))}

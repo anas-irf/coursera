@@ -1,14 +1,30 @@
-// The browser session: JWT pair, user and profile, kept in localStorage.
+// The browser session.
 //
-// Everything that needs to know who is logged in goes through this module, and
-// everything that can change it (login, logout, token refresh, another tab)
-// notifies subscribers, so the UI never reads stale storage.
-const KEYS = {
-  access: 'access_token',
-  refresh: 'refresh_token',
-  user: 'user',
-  profile: 'profile',
+// The tokens are HttpOnly cookies: scripts (this one, and any that got onto the page) cannot
+// read them, and this module never sees them.  What it keeps, in memory, is who is signed in
+// and where the session stands:
+//
+//   unknown       the app has not asked the server yet (a spinner, not the login page)
+//   authenticated a user is signed in
+//   anonymous     nobody is signed in
+//   unavailable   the server could not be reached: the session is not known to be over
+//
+// The only thing persisted is a *hint* that this browser has a session, which keeps a visitor
+// who never signed in from asking the server on every visit and tells other tabs about a
+// login or a logout (``storage`` events).
+//
+// Everything that needs to know who is signed in goes through this module, and everything that
+// can change it (login, logout, a failed refresh, another tab) notifies subscribers.
+export const STATUS = {
+  unknown: 'unknown',
+  authenticated: 'authenticated',
+  anonymous: 'anonymous',
+  unavailable: 'unavailable',
 };
+
+const HINT_KEY = 'session_hint';
+// what the release before cookies kept in localStorage
+const LEGACY_KEYS = ['access_token', 'refresh_token', 'user', 'profile'];
 
 const listeners = new Set();
 
@@ -28,35 +44,25 @@ const write = (key, value) => {
       window.localStorage.setItem(key, value);
     }
   } catch (error) {
-    // storage may be unavailable (private mode, quota); the session is then in-memory only
+    // storage may be unavailable (private mode, quota): the session still works for this tab
   }
 };
 
-const readJson = (key) => {
-  const raw = read(key);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch (error) {
-    return null;
-  }
-};
+let state = { status: STATUS.unknown, user: null, profile: null };
 
-const build = () => {
-  const access = read(KEYS.access);
-  const refresh = read(KEYS.refresh);
-  return {
-    authenticated: Boolean(access && refresh),
-    user: readJson(KEYS.user),
-    profile: readJson(KEYS.profile),
-  };
-};
+const build = () => ({
+  status: state.status,
+  authenticated: state.status === STATUS.authenticated,
+  user: state.user,
+  profile: state.profile,
+});
 
 // A snapshot is rebuilt only when something changed, so it can be handed to
 // useSyncExternalStore without causing renders.
 let snapshot = build();
 
-const publish = () => {
+const set = (next) => {
+  state = { ...state, ...next };
   snapshot = build();
   listeners.forEach((listener) => listener());
 };
@@ -69,37 +75,60 @@ export const session = {
     return () => listeners.delete(listener);
   },
 
-  getAccessToken: () => read(KEYS.access),
-  getRefreshToken: () => read(KEYS.refresh),
+  getStatus: () => snapshot.status,
   getUser: () => snapshot.user,
   getProfile: () => snapshot.profile,
   isAuthenticated: () => snapshot.authenticated,
 
-  /** Store the result of a login / signup. */
-  start({ tokens, user, profile }) {
-    write(KEYS.access, tokens.access);
-    write(KEYS.refresh, tokens.refresh);
-    write(KEYS.user, JSON.stringify(user));
-    write(KEYS.profile, profile ? JSON.stringify(profile) : null);
-    publish();
+  /** This browser signed in before (and has not signed out): worth asking the server about. */
+  hasHint: () => Boolean(read(HINT_KEY)),
+
+  /** A user signed in (login, or the server confirmed the cookie session on boot). */
+  start({ user, profile }) {
+    write(HINT_KEY, String(Date.now()));
+    set({ status: STATUS.authenticated, user, profile: profile || null });
   },
 
-  /** Store the result of a token refresh; the server rotates the refresh token. */
-  setTokens({ access, refresh }) {
-    write(KEYS.access, access);
-    if (refresh) write(KEYS.refresh, refresh);
-    publish();
+  /** Nobody is signed in (logout, an expired session, another tab signed out). */
+  setAnonymous() {
+    write(HINT_KEY, null);
+    set({ status: STATUS.anonymous, user: null, profile: null });
   },
 
-  clear() {
-    Object.values(KEYS).forEach((key) => write(key, null));
-    publish();
+  /** The server could not be asked: keep what the page shows, offer a retry. */
+  setUnavailable() {
+    set({ status: STATUS.unavailable });
+  },
+
+  /** Ask the server again (the retry of the "cannot reach the server" screen, another tab's login). */
+  setUnknown() {
+    set({ status: STATUS.unknown });
+  },
+
+  /** The refresh token the release before cookies left in localStorage, if any. */
+  legacyRefreshToken: () => read('refresh_token'),
+
+  /** Forget what the release before cookies kept (tokens, user, profile). */
+  dropLegacy() {
+    LEGACY_KEYS.forEach((key) => write(key, null));
+  },
+
+  /** Back to the very beginning (tests). */
+  reset() {
+    write(HINT_KEY, null);
+    LEGACY_KEYS.forEach((key) => write(key, null));
+    set({ status: STATUS.unknown, user: null, profile: null });
   },
 };
 
-// another tab logged in or out
+// another tab signed in or out
 if (typeof window !== 'undefined' && window.addEventListener) {
   window.addEventListener('storage', (event) => {
-    if (event.key === null || Object.values(KEYS).includes(event.key)) publish();
+    if (event.key !== HINT_KEY && event.key !== null) return;
+    if (event.newValue) {
+      if (snapshot.status !== STATUS.authenticated) set({ status: STATUS.unknown });
+    } else if (snapshot.status === STATUS.authenticated) {
+      set({ status: STATUS.anonymous, user: null, profile: null });
+    }
   });
 }

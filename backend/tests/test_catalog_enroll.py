@@ -11,18 +11,18 @@ import factories as f
 
 pytestmark = pytest.mark.django_db
 
-ALL = '/api/learning/courses/'
-ENROLLED = '/api/learning/enrolled/'
-PLUS_PREVIEW = '/api/learning/plus-preview/'
+ALL = '/api/v1/learning/courses/'
+ENROLLED = '/api/v1/learning/enrolled/'
 
 CATALOG_KEYS = {'id', 'title', 'instructor', 'instructor_id', 'thumbnail', 'rating',
-                'students', 'duration', 'level', 'category', 'course_type', 'modules',
+                'students', 'duration', 'duration_seconds', 'level', 'category', 'course_type',
+                'modules',
                 'description', 'is_enrolled', 'is_bookmarked', 'can_enroll',
                 'enrollment_message', 'progress'}
 
 
 def enroll_url(course):
-    return f'/api/learning/courses/{course.uuid}/enroll/'
+    return f'/api/v1/learning/courses/{course.uuid}/enroll/'
 
 
 def ids(response):
@@ -81,9 +81,8 @@ def test_catalogue_filters_and_sorting(api, instructor):
     assert ids(api.get(ALL)) == ids(api.get(ALL, {'sort': 'popular'}))
 
 
-@pytest.mark.pinned_bug
-def test_catalogue_reports_module_count_and_video_hours(api, instructor):
-    """``modules`` counts sections; ``duration`` is the video seconds as whole hours."""
+def test_catalogue_reports_module_count_and_video_length(api, instructor):
+    """``modules`` counts sections; ``duration`` is the length of the videos, not floored hours."""
     course = f.make_course(instructor, status='published')
     first = f.make_section(course)
     second = f.make_section(course)
@@ -94,7 +93,23 @@ def test_catalogue_reports_module_count_and_video_hours(api, instructor):
     (row,) = api.get(ALL).json()
 
     assert row['modules'] == 2
-    assert row['duration'] == '5 hours'
+    assert row['duration'] == '5.5 hours'
+    assert row['duration_seconds'] == 5 * 3600 + 1800
+
+
+@pytest.mark.parametrize('seconds, shown', [
+    (None, '-'), (0, '-'),                 # never recorded: not "0 hours"
+    (45, '1 min'), (20 * 60, '20 min'), (3599, '1 hour'),
+    (3600, '1 hour'), (7200, '2 hours'), (5400, '1.5 hours'), (19800, '5.5 hours'),
+])
+def test_catalogue_duration_is_shown_the_way_a_person_says_it(api, instructor, seconds, shown):
+    course = f.make_course(instructor, status='published')
+    if seconds is not None:
+        f.make_video(f.make_section(course), duration=seconds)
+
+    (row,) = api.get(ALL).json()
+
+    assert row['duration'] == shown
 
 
 def test_catalogue_search_filters_by_title(api, instructor):
@@ -128,7 +143,7 @@ def test_catalogue_enrolment_flags_for_a_student(auth_client, instructor, studen
     assert rows[str(plus.uuid)]['enrollment_message']  # explains that Plus is needed
 
     f.enroll(student, free)
-    assert client.post(f'/api/learning/courses/{free.uuid}/bookmark/').status_code == 200
+    assert client.post(f'/api/v1/learning/courses/{free.uuid}/bookmark/').status_code == 200
     rows = {row['id']: row for row in client.get(ALL).json()}
     assert rows[str(free.uuid)]['is_enrolled'] is True
     assert rows[str(free.uuid)]['is_bookmarked'] is True
@@ -203,10 +218,16 @@ def test_plus_course_without_subscription_is_402(auth_client, instructor, studen
 
 
 def test_plus_course_with_lapsed_subscription_is_402(auth_client, instructor, student):
-    """Cancelled or expired subscriptions do not unlock Plus courses."""
+    """A cancelled subscription unlocks Plus courses until its paid period ends; after that, and for
+    an expired or suspended one, they stay locked."""
     course = f.build_course(instructor, status='published', course_type='coursera_plus').course
-    sub = f.give_plus(student, status='cancelled')
+    sub = f.give_plus(student, status='suspended')
 
+    assert auth_client(student).post(enroll_url(course)).status_code == 402
+
+    sub.status = 'cancelled'
+    sub.end_date = timezone.now() - timedelta(days=1)
+    sub.save()
     assert auth_client(student).post(enroll_url(course)).status_code == 402
 
     sub.status = 'active'
@@ -248,7 +269,7 @@ def test_only_students_can_enroll_and_unknown_course_is_404(api, auth_client, in
 
     assert api.post(enroll_url(course)).status_code == 401
     assert auth_client(instructor).post(enroll_url(course)).status_code == 403
-    assert auth_client(student).post(f'/api/learning/courses/{uuid.uuid4()}/enroll/').status_code == 404
+    assert auth_client(student).post(f'/api/v1/learning/courses/{uuid.uuid4()}/enroll/').status_code == 404
 
 
 # --------------------------------------------------------------------------- #
@@ -258,7 +279,7 @@ def test_bookmark_toggles(auth_client, instructor, student):
     """The bookmark endpoint toggles; instructors 403, unknown course 404."""
     course = f.make_course(instructor, status='published')
     client = auth_client(student)
-    url = f'/api/learning/courses/{course.uuid}/bookmark/'
+    url = f'/api/v1/learning/courses/{course.uuid}/bookmark/'
 
     r = client.post(url)
     assert r.status_code == 200
@@ -270,7 +291,7 @@ def test_bookmark_toggles(auth_client, instructor, student):
     assert f.CourseBookmark.objects.filter(student=student, course=course).count() == 0
 
     assert auth_client(instructor).post(url).status_code == 403
-    assert client.post(f'/api/learning/courses/{uuid.uuid4()}/bookmark/').status_code == 404
+    assert client.post(f'/api/v1/learning/courses/{uuid.uuid4()}/bookmark/').status_code == 404
 
 
 # --------------------------------------------------------------------------- #
@@ -288,62 +309,48 @@ def test_enrolled_courses_lists_active_enrollments_with_progress(auth_client, in
 
     # complete one lecture of "first" through the API
     client = auth_client(student)
-    r = client.post(f'/api/learning/courses/{first.course.uuid}/lectures/{first.video.uuid}/complete/')
+    r = client.post(f'/api/v1/learning/courses/{first.course.uuid}/lectures/{first.video.uuid}/complete/')
     assert r.status_code == 200
 
     r = client.get(ENROLLED)
 
     assert r.status_code == 200
     rows = {row['course_id']: row for row in r.json()}
-    # current behaviour: only *active* enrollments are listed
+    # without a filter only the *running* enrollments are listed
     assert set(rows) == {str(first.course.uuid), str(second.course.uuid)}
     row = rows[str(first.course.uuid)]
     assert set(row) == {'id', 'course_id', 'title', 'instructor', 'thumbnail', 'progress',
-                        'last_accessed', 'next_lesson', 'total_lessons', 'completed_lessons',
-                        'estimated_completion'}
+                        'status', 'last_accessed', 'next_lesson', 'total_lessons',
+                        'completed_lessons', 'estimated_completion'}
+    assert row['status'] == 'active'
     assert row['total_lessons'] == 4
     assert row['completed_lessons'] == 1
     assert row['progress'] == pytest.approx(25.0)
     assert row['next_lesson']
 
 
+def test_enrolled_courses_can_be_filtered_by_status(auth_client, instructor, student):
+    """``status=completed`` lists the finished courses, ``all`` both, anything else is a 400."""
+    running = f.build_course(instructor, status='published', title='Running')
+    done = f.build_course(instructor, status='published', title='Done')
+    f.enroll(student, running.course)
+    f.enroll(student, done.course, status='completed')
+    client = auth_client(student)
+
+    def titles(**params):
+        return {row['title'] for row in client.get(ENROLLED, params).json()}
+
+    assert titles() == titles(status='active') == {'Running'}
+    assert titles(status='completed') == {'Done'}
+    assert titles(status='all') == {'Running', 'Done'}
+    assert [row['status'] for row in client.get(ENROLLED, {'status': 'completed'}).json()] == ['completed']
+
+    r = client.get(ENROLLED, {'status': 'refunded'})
+    assert r.status_code == 400
+    assert 'status must be one of' in r.json()['error']
+
+
 def test_enrolled_courses_is_student_only(api, auth_client, instructor):
     """Anonymous 401, instructors 403."""
     assert api.get(ENROLLED).status_code == 401
     assert auth_client(instructor).get(ENROLLED).status_code == 403
-
-
-# --------------------------------------------------------------------------- #
-# Plus preview
-# --------------------------------------------------------------------------- #
-def test_plus_preview_for_student_without_subscription(auth_client, instructor, student):
-    """Preview lists published Plus courses plus benefits and pricing."""
-    plus = f.make_course(instructor, status='published', course_type='coursera_plus', title='Plus course')
-    f.make_course(instructor, status='published', course_type='free', title='Free course')
-    f.make_course(instructor, status='draft', course_type='coursera_plus', title='Draft plus')
-
-    r = auth_client(student).get(PLUS_PREVIEW)
-
-    assert r.status_code == 200
-    body = r.json()
-    assert set(body) == {'preview_courses', 'benefits', 'pricing', 'checkout_url'}
-    assert [c['id'] for c in body['preview_courses']] == [str(plus.uuid)]
-    assert set(body['preview_courses'][0]) == {'id', 'title', 'instructor', 'thumbnail', 'rating',
-                                               'students', 'duration', 'level', 'category',
-                                               'description'}
-    assert body['benefits']['total_plus_courses'] == 1
-    assert body['benefits']['total_free_courses'] == 1
-    assert {'monthly', 'yearly', 'yearly_savings', 'yearly_savings_percentage'} <= set(body['pricing'])
-
-
-def test_plus_preview_for_subscriber_and_for_non_students(auth_client, api, instructor, student):
-    """Subscribers get a message, non-students 403, anonymous 401."""
-    f.give_plus(student)
-
-    r = auth_client(student).get(PLUS_PREVIEW)
-    assert r.status_code == 200
-    assert 'message' in r.json()
-    assert 'preview_courses' not in r.json()
-
-    assert auth_client(instructor).get(PLUS_PREVIEW).status_code == 403
-    assert api.get(PLUS_PREVIEW).status_code == 401

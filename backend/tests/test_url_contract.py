@@ -44,7 +44,7 @@ def candidates(template):
     """Concrete URLs for a template: ids are uuids, or small integers."""
     with_uuid = re.sub(r'\$\{[^}]+\}', SAMPLE_UUID, template)
     with_number = re.sub(r'\$\{[^}]+\}', '1', template)
-    return ['/api' + with_uuid, '/api' + with_number]
+    return ['/api/v1' + with_uuid, '/api/v1' + with_number]
 
 
 def allowed_methods(match):

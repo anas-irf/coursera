@@ -1,6 +1,4 @@
 """People: the users of every role with their profiles."""
-from decimal import Decimal
-
 from apps.accounts.models import InstructorProfile, StudentProfile, User
 
 from ..data.people import PEOPLE
@@ -71,9 +69,8 @@ def _profile(ctx, user, person):
             profile.save(update_fields=['verified_instructor', 'updated_at'])
     elif person.role == 'student':
         profile, _ = StudentProfile.objects.get_or_create(user=user)
-        if person.hours and not profile.total_learning_hours:
-            profile.total_learning_hours = Decimal(str(person.hours))
+        if not profile.learning_goals:
+            # hours, streak and the last day of learning come from the log (see ``finishing``)
             profile.learning_goals = person.goals
             profile.interests = list(person.interests)
-            profile.last_learning_date = ctx.ago(person.login or 0).date() if person.login is not None else None
             profile.save()

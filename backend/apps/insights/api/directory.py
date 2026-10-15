@@ -1,10 +1,11 @@
-# insights/api/directory.py
+"""HTTP adapters of the administrator's user directory."""
+
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsAdmin
 
-from .. import directory
+from ..selectors import directory
 
 
 @api_view(['GET'])

@@ -1,63 +1,46 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, PlayCircle } from 'lucide-react';
+import { BarChart2, ChevronRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-import { mediaUrl } from '../../../shared/lib/media';
+import EmptyState from '../../../shared/ui/EmptyState';
+import ErrorState from '../../../shared/ui/ErrorState';
 import { PageSpinner } from '../../../shared/ui/Spinner';
-import { fetchSubscriptionStatus } from '../../billing';
-import { CourseCard, listCourses, myCourses } from '../../learning';
-import * as insightsApi from '../api';
+import { useSubscription } from '../../billing';
+import {
+  CourseCard,
+  EnrolledCourseCard,
+  useMyCourses,
+  useRecommendedCourses,
+} from '../../learning';
+import { useStudentStats, useWeeklyProgress } from '../hooks/useInsights';
+
+const CONTINUE_COUNT = 3;
+const NOT_LOADED = '–';
+
+/** Hours with one decimal ("0.3", "12.5", "5"): twenty minutes of study must not read as zero. */
+const hours = (value) => Number((value || 0).toFixed(1));
+
+const Figure = ({ label, value }) => (
+  <div role="group" aria-label={label} className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
+    <div className="text-2xl font-bold">{value}</div>
+    <div className="text-sm text-indigo-100">{label}</div>
+  </div>
+);
 
 const StudentHomePage = () => {
   const navigate = useNavigate();
-  const [stats, setStats] = useState(null);
-  const [enrolledCourses, setEnrolledCourses] = useState([]);
-  const [recommendedCourses, setRecommendedCourses] = useState([]);
-  const [subscriptionStatus, setSubscriptionStatus] = useState(null);
-  const [weeklyProgress, setWeeklyProgress] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const stats = useStudentStats();
+  const enrolled = useMyCourses({ status: 'active' });
+  const recommended = useRecommendedCourses();
+  const subscription = useSubscription();
+  const weeklyProgress = useWeeklyProgress();
 
-  const fetchHomeData = useCallback(async () => {
-    try {
-      const [statsData, enrolled, courses, subscription, progress] = await Promise.all([
-        insightsApi.fetchStudentStats(),
-        myCourses(),
-        listCourses(),
-        fetchSubscriptionStatus(),
-        insightsApi.fetchWeeklyProgress(),
-      ]);
-
-      setStats(statsData);
-      setEnrolledCourses(enrolled.slice(0, 3));
-      setRecommendedCourses(courses.slice(0, 6));
-      setSubscriptionStatus(subscription);
-      setWeeklyProgress(progress);
-    } catch (error) {
-      // an empty home page is better than none
-      setStats({
-        courses_enrolled: 0,
-        courses_completed: 0,
-        certificates_earned: 0,
-        total_learning_hours: 0,
-        learning_streak: 0
-      });
-      setEnrolledCourses([]);
-      setRecommendedCourses([]);
-      setSubscriptionStatus({ has_subscription: false, can_access_plus_courses: false });
-      setWeeklyProgress({ monthly_progress: [] });
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchHomeData();
-  }, [fetchHomeData]);
-
-  if (loading) {
-    return <PageSpinner />;
-  }
+  // a figure that could not be loaded is shown as such, never as a zero
+  const figure = (read) => (stats.isSuccess ? read(stats.data) : NOT_LOADED);
+  const showUpgrade = !subscription.loading && !subscription.error && !subscription.isPlus;
+  const monthly = weeklyProgress.data ? weeklyProgress.data.monthly_progress || [] : [];
+  const hasLearningTime = monthly.some((month) => month.hours > 0);
 
   return (
     <div className="space-y-8">
@@ -67,27 +50,30 @@ const StudentHomePage = () => {
         <p className="text-indigo-100 mb-6">Ready to continue your learning journey?</p>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-            <div className="text-2xl font-bold">{stats?.courses_enrolled || 0}</div>
-            <div className="text-sm text-indigo-100">Courses Enrolled</div>
-          </div>
-          <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-            <div className="text-2xl font-bold">{stats?.courses_completed || 0}</div>
-            <div className="text-sm text-indigo-100">Completed</div>
-          </div>
-          <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-            <div className="text-2xl font-bold">{stats?.certificates_earned || 0}</div>
-            <div className="text-sm text-indigo-100">Certificates</div>
-          </div>
-          <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-            <div className="text-2xl font-bold">{Math.round(stats?.total_learning_hours || 0)}</div>
-            <div className="text-sm text-indigo-100">Hours Learned</div>
-          </div>
+          <Figure label="Courses Enrolled" value={figure((data) => data.courses_enrolled || 0)} />
+          <Figure label="Completed" value={figure((data) => data.courses_completed || 0)} />
+          <Figure label="Certificates" value={figure((data) => data.certificates_earned || 0)} />
+          <Figure label="Hours Learned" value={figure((data) => hours(data.total_learning_hours))} />
         </div>
+
+        {stats.isError && (
+          <p role="alert" className="mt-4 text-sm text-indigo-100">
+            Your figures could not be loaded.{' '}
+            <button onClick={() => stats.refetch()} className="underline font-medium">Try again</button>
+          </p>
+        )}
       </div>
 
       {/* Continue Learning Section */}
-      {enrolledCourses.length > 0 && (
+      {enrolled.isPending && <PageSpinner className="h-40" />}
+      {enrolled.isError && (
+        <ErrorState
+          title="We could not load your courses"
+          error={enrolled.error}
+          onRetry={() => enrolled.refetch()}
+        />
+      )}
+      {enrolled.isSuccess && enrolled.data.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900">Continue Learning</h2>
@@ -100,44 +86,8 @@ const StudentHomePage = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {enrolledCourses.map((course) => (
-              <div key={course.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
-                <div className="relative">
-                  <img
-                    src={mediaUrl(course.thumbnail) || 'https://via.placeholder.com/400x200/4F46E5/ffffff?text=Course'}
-                    alt={course.title}
-                    className="w-full h-40 object-cover"
-                  />
-                  <div className="absolute top-4 right-4">
-                    <PlayCircle className="text-white drop-shadow-lg" size={32} />
-                  </div>
-                </div>
-
-                <div className="p-6">
-                  <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">{course.title}</h3>
-                  <p className="text-sm text-gray-600 mb-4">{course.instructor}</p>
-
-                  <div className="mb-4">
-                    <div className="flex justify-between text-sm text-gray-600 mb-2">
-                      <span>Progress</span>
-                      <span>{Math.round(course.progress || 0)}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${course.progress || 0}%` }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => navigate(`/courses/${course.course_id}/learn`)}
-                    className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors"
-                  >
-                    Continue Learning
-                  </button>
-                </div>
-              </div>
+            {enrolled.data.slice(0, CONTINUE_COUNT).map((course) => (
+              <EnrolledCourseCard key={course.id} course={course} compact />
             ))}
           </div>
         </div>
@@ -155,21 +105,31 @@ const StudentHomePage = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {recommendedCourses.length > 0 ? (
-            recommendedCourses.map((course) => (
-              <CourseCard key={course.id} course={course} onEnrollSuccess={fetchHomeData} />
-            ))
-          ) : (
-            <div className="col-span-full text-center py-12">
-              <p className="text-gray-500">No courses available</p>
-            </div>
-          )}
-        </div>
+        {recommended.isPending && <PageSpinner className="h-40" />}
+        {recommended.isError && (
+          <ErrorState
+            title="We could not load the courses"
+            error={recommended.error}
+            onRetry={() => recommended.refetch()}
+          />
+        )}
+        {recommended.isSuccess && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {recommended.data.length > 0 ? (
+              recommended.data.map((course) => (
+                <CourseCard key={course.id} course={course} />
+              ))
+            ) : (
+              <div className="col-span-full text-center py-12">
+                <p className="text-gray-500">No courses available</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Subscription Status */}
-      {subscriptionStatus && !subscriptionStatus.has_subscription && (
+      {showUpgrade && (
         <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl p-6 text-white">
           <h3 className="text-lg font-semibold mb-2">Unlock Premium Content</h3>
           <p className="text-purple-100 mb-4">
@@ -185,12 +145,26 @@ const StudentHomePage = () => {
       )}
 
       {/* Learning Progress Chart */}
-      {weeklyProgress?.monthly_progress && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Learning Progress</h3>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Learning Progress</h3>
+        {weeklyProgress.isPending && <PageSpinner className="h-40" />}
+        {weeklyProgress.isError && (
+          <ErrorState
+            className="py-6"
+            title="We could not load your progress"
+            error={weeklyProgress.error}
+            onRetry={() => weeklyProgress.refetch()}
+          />
+        )}
+        {weeklyProgress.isSuccess && !hasLearningTime && (
+          <EmptyState icon={BarChart2} title="No learning time yet" className="py-6">
+            The hours you spend watching lectures will show up here.
+          </EmptyState>
+        )}
+        {weeklyProgress.isSuccess && hasLearningTime && (
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyProgress.monthly_progress}>
+              <BarChart data={monthly}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
@@ -199,8 +173,8 @@ const StudentHomePage = () => {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 
 import { errorMessage } from '../../../shared/api/errors';
 import { useToast } from '../../../shared/ui/Toast';
-import * as assessmentsApi from '../api';
+import { useSubmitAssignment } from '../hooks/useAttempts';
 
 const MAX_BYTES = 50 * 1024 * 1024;
 const ALLOWED_TYPES = ['.pdf', '.doc', '.docx', '.txt', '.jpg', '.jpeg', '.png', '.zip'];
 
 /** Hand in an assignment as text, a file, or both. */
 const AssignmentSubmissionForm = ({ assignment, onSubmitted }) => {
-  const [submitting, setSubmitting] = useState(false);
+  const submit = useSubmitAssignment();
   const [text, setText] = useState('');
   const [file, setFile] = useState(null);
   const toast = useToast();
@@ -43,14 +43,12 @@ const AssignmentSubmissionForm = ({ assignment, onSubmitted }) => {
       return;
     }
 
-    setSubmitting(true);
+    const formData = new FormData();
+    formData.append('submission_text', text);
+    if (file) formData.append('submission_file', file);
+
     try {
-      const formData = new FormData();
-      formData.append('submission_text', text);
-      if (file) formData.append('submission_file', file);
-
-      await assessmentsApi.submitAssignment(assignment.assignment_id, formData);
-
+      await submit.mutateAsync({ assignmentId: assignment.assignment_id, formData });
       toast.success('Assignment submitted successfully!', 'Submission Complete');
       if (onSubmitted) onSubmitted();
     } catch (err) {
@@ -58,11 +56,10 @@ const AssignmentSubmissionForm = ({ assignment, onSubmitted }) => {
         errorMessage(err, 'Failed to submit assignment. Please try again.'),
         'Submission Failed'
       );
-    } finally {
-      setSubmitting(false);
     }
   };
 
+  const submitting = submit.isPending;
   const isLate = assignment.due_date && new Date() > new Date(assignment.due_date);
   const blocked = isLate && !assignment.allow_late_submission;
 

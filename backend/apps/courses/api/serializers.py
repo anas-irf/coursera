@@ -1,14 +1,13 @@
-# courses/api/serializers.py
+"""Serializers and list rows of the courses API."""
+
+from django.db import IntegrityError, transaction
 from rest_framework import serializers
 
 from .. import extensions
-from ..models import Course, Section, Lecture, LectureResource
+from ..models import Course, Section, Lecture
+from ..services import courses as course_service
 
-
-class LectureResourceSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = LectureResource
-        fields = ['id', 'uuid', 'title', 'file', 'is_downloadable']
+SLUG_ATTEMPTS = 3  # two courses created in the same instant may pick the same free slug
 
 
 class LectureSerializer(serializers.ModelSerializer):
@@ -19,7 +18,7 @@ class LectureSerializer(serializers.ModelSerializer):
     ``courses.extensions``; every lecture exposes the same set of keys.
     """
     id = serializers.UUIDField(source='uuid', read_only=True)
-    resources = LectureResourceSerializer(many=True, read_only=True)
+    resources = serializers.SerializerMethodField()  # kept for the v1 shape: always empty
     completion_rate = serializers.SerializerMethodField()
     quiz_settings = serializers.SerializerMethodField()
     questions = serializers.SerializerMethodField()
@@ -47,6 +46,9 @@ class LectureSerializer(serializers.ModelSerializer):
             payload.update(extensions.lecture_extras(obj))
             cache[obj.pk] = payload
         return cache[obj.pk]
+
+    def get_resources(self, obj):
+        return []
 
     def get_completion_rate(self, obj):
         return self._extra(obj).get('completion_rate', 0)
@@ -80,6 +82,7 @@ class LectureSerializer(serializers.ModelSerializer):
 
 
 class SectionSerializer(serializers.ModelSerializer):
+    """A section with its lectures, as the instructor edits them."""
     id = serializers.UUIDField(source='uuid', read_only=True)
     lectures = LectureSerializer(many=True, read_only=True)
     total_duration = serializers.SerializerMethodField()
@@ -121,7 +124,9 @@ class CourseCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating/updating courses.
 
     The status workflow fields are read-only: a course only changes state
-    through the lifecycle service (submit, approve, reject, unpublish).
+    through the lifecycle service (submit, approve, reject, unpublish).  The
+    slug is optional: one is made from the title (and kept when the title changes,
+    so links to the course keep working); a client that sends one still decides.
     """
     class Meta:
         model = Course
@@ -129,7 +134,91 @@ class CourseCreateSerializer(serializers.ModelSerializer):
                   'average_rating', 'published_date']
         read_only_fields = ['status', 'is_featured', 'rejection_reason',
                             'rejection_date', 'rejected_by']
+        extra_kwargs = {'slug': {'required': False}}
 
     def create(self, validated_data):
         validated_data['instructor'] = self.context['request'].user
-        return super().create(validated_data)
+        generated = not validated_data.get('slug')
+
+        for attempt in range(SLUG_ATTEMPTS):
+            if generated:
+                validated_data['slug'] = course_service.unique_slug(validated_data['title'])
+            try:
+                with transaction.atomic():
+                    return super().create(validated_data)
+            except IntegrityError:
+                if not generated or attempt == SLUG_ATTEMPTS - 1:
+                    raise
+
+
+# --------------------------------------------------------------------------- #
+# list rows (plain dicts: some carry columns that slices above courses add)
+# --------------------------------------------------------------------------- #
+def instructor_course_row(course):
+    """One row of the instructor's course list."""
+    row = {
+        'id': str(course.uuid),
+        'title': course.title,
+        'status': course.status,
+        'course_type': course.course_type,
+        'total_enrolled': course.total_enrolled or 0,
+        'average_rating': float(course.average_rating or 0),
+        'created_at': course.created_at.isoformat(),
+        'thumbnail': course.thumbnail.url if course.thumbnail else None,
+    }
+    return extensions.enrich_course_row(course, row)
+
+
+def _admin_course_summary(course):
+    """Fields shared by the pending and the all-courses lists of the admin."""
+    instructor = course.instructor
+    # the counters are annotated by the selector; a course loaded some other way is counted here
+    sections = getattr(course, 'sections_total', None)
+    lectures = getattr(course, 'lectures_total', None)
+    if sections is None:
+        sections = course.sections.count()
+        lectures = sum(section.lectures.count() for section in course.sections.all())
+
+    return {
+        'id': str(course.uuid),
+        'title': course.title,
+        'instructor': {
+            'id': str(instructor.uuid),
+            'name': f"{instructor.first_name} {instructor.last_name}".strip() or instructor.email,
+            'email': instructor.email,
+        },
+        'category': course.category.name if course.category else 'Uncategorized',
+        'course_type': course.course_type,
+        'sections_count': sections,
+        'lectures_count': lectures,
+        'total_weight': float(extensions.total_grade_weight(course)),
+        'description': course.description,
+        'thumbnail': course.thumbnail.url if course.thumbnail else None,
+        'duration_hours': float(course.duration_hours) if course.duration_hours else 0,
+    }
+
+
+def pending_course_row(course):
+    """A course waiting for review."""
+    return {**_admin_course_summary(course), 'submitted_date': course.updated_at.isoformat()}
+
+
+def admin_course_row(course):
+    """A course in the admin overview."""
+    return {
+        **_admin_course_summary(course),
+        'status': course.status,
+        'created_date': course.created_at.isoformat(),
+        'published_date': course.published_date.isoformat() if course.published_date else None,
+        'total_enrolled': course.total_enrolled,
+        'average_rating': float(course.average_rating) if course.average_rating else 0,
+    }
+
+
+def category_row(category):
+    """What the create form needs of a category: the id it sends back, and the label."""
+    return {'id': category.pk, 'name': category.name, 'slug': category.slug}
+
+
+def language_row(language):
+    return {'id': language.pk, 'code': language.code, 'name': language.name}

@@ -1,6 +1,7 @@
 [importlinter]
 root_package = apps
-include_external_packages = False
+# external packages are analysed too: the contract below is about DRF and django.http
+include_external_packages = True
 
 # Slices depend downwards only: a slice may import the slices below it and never the
 # ones above it.  Slices on the same line are independent of each other.  Upward
@@ -15,9 +16,10 @@ type = layers
 layers =
     apps.seeding
     apps.insights | apps.notifications
-    apps.assessments | apps.certificates
+    apps.certificates
+    apps.assessments | apps.messaging
     apps.learning
-    apps.billing | apps.messaging | apps.content
+    apps.billing | apps.content
     apps.courses
     apps.accounts
     apps.core
@@ -44,3 +46,44 @@ layers =
     (services)
     (selectors)
     (models)
+
+# The domain code does not know HTTP: a service raises ServiceError (apps.core.api.errors), a
+# selector returns querysets or plain values, a model holds data and rules.  The HTTP adapters
+# (api/) translate; nothing below them imports the framework's request or response types.
+[importlinter:contract:no-http-in-the-domain]
+name = services, selectors and models know nothing about HTTP
+type = forbidden
+source_modules =
+    apps.accounts.services
+    apps.accounts.models
+    apps.assessments.services
+    apps.assessments.selectors
+    apps.assessments.models
+    apps.billing.services
+    apps.billing.selectors
+    apps.billing.models
+    apps.certificates.services
+    apps.certificates.selectors
+    apps.certificates.models
+    apps.content.models
+    apps.core.models
+    apps.courses.services
+    apps.courses.selectors
+    apps.courses.models
+    apps.insights.services
+    apps.insights.selectors
+    apps.insights.models
+    apps.learning.services
+    apps.learning.selectors
+    apps.learning.models
+    apps.messaging.services
+    apps.messaging.selectors
+    apps.messaging.models
+    apps.notifications.services
+    apps.notifications.models
+forbidden_modules =
+    rest_framework
+# only direct imports: apps.core.api.errors itself builds on DRF and is allowed everywhere.
+# (django.http is a subpackage of an external package, which this contract type cannot name;
+# ruff bans it outside the HTTP adapters, see TID251 in ruff.toml)
+allow_indirect_imports = True
