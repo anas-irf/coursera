@@ -42,8 +42,8 @@ urlpatterns = [
     # Admin endpoints for course publishing
     path('admin/pending/', moderation.admin_pending_courses, name='admin-pending-courses'),
     path('admin/all/', moderation.admin_all_courses, name='admin-all-courses'),
-    path('admin/<uuid:course_id>/approve/', moderation.admin_approve_course, name='admin-approve-course'),
-    path('admin/<uuid:course_id>/reject/', moderation.admin_reject_course, name='admin-reject-course'),
+    path('admin/<uuid:course_uuid>/approve/', moderation.admin_approve_course, name='admin-approve-course'),
+    path('admin/<uuid:course_uuid>/reject/', moderation.admin_reject_course, name='admin-reject-course'),
 
     # Router paths (must come after all specific paths to avoid conflicts)
     path('', include(router.urls)),

@@ -8,8 +8,8 @@ app_name = 'insights'
 
 urlpatterns = [
     # student
-    path('student/stats/', student.student_stats, name='student_stats'),
-    path('student/weekly-progress/', student.student_weekly_progress, name='student_weekly_progress'),
+    path('student/stats/', student.student_stats, name='student-stats'),
+    path('student/weekly-progress/', student.student_weekly_progress, name='student-weekly-progress'),
     path('student/achievements/', student.student_achievements, name='student-achievements'),
 
     # instructor

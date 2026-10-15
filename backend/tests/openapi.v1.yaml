@@ -1036,13 +1036,13 @@ paths:
         sessionCookie: []
       tags:
       - courses
-  /api/v1/courses/admin/{course_id}/approve/:
+  /api/v1/courses/admin/{course_uuid}/approve/:
     post:
       description: Approve a course for publishing
       operationId: courses_admin_approve_create
       parameters:
       - in: path
-        name: course_id
+        name: course_uuid
         required: true
         schema:
           format: uuid
@@ -1055,13 +1055,13 @@ paths:
         sessionCookie: []
       tags:
       - courses
-  /api/v1/courses/admin/{course_id}/reject/:
+  /api/v1/courses/admin/{course_uuid}/reject/:
     post:
       description: Reject a course publishing request
       operationId: courses_admin_reject_create
       parameters:
       - in: path
-        name: course_id
+        name: course_uuid
         required: true
         schema:
           format: uuid

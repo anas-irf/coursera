@@ -9,11 +9,11 @@ from .api import views
 app_name = 'messaging'
 
 urlpatterns = [
-    path('conversations/', views.get_conversations, name='get_conversations'),
+    path('conversations/', views.get_conversations, name='get-conversations'),
     path('conversations/<str:conversation_id>/', views.get_conversation_messages,
-         name='get_conversation_messages'),
+         name='get-conversation-messages'),
     path('conversations/<str:conversation_id>/mark-read/', views.mark_messages_read,
-         name='mark_messages_read'),
-    path('send/', views.send_message, name='send_message'),
-    path('users/', views.get_available_users, name='get_available_users'),
+         name='mark-messages-read'),
+    path('send/', views.send_message, name='send-message'),
+    path('users/', views.get_available_users, name='get-available-users'),
 ]

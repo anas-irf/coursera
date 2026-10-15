@@ -13,6 +13,6 @@ urlpatterns = [
     path('checkout/verify/', views.verify_stripe_session, name='verify-stripe-session'),
 
     # the student's own subscription
-    path('subscription/', views.student_subscription_status, name='student_subscription_status'),
-    path('subscription/cancel/', views.cancel_plus_subscription, name='cancel_plus_subscription'),
+    path('subscription/', views.student_subscription_status, name='student-subscription-status'),
+    path('subscription/cancel/', views.cancel_plus_subscription, name='cancel-plus-subscription'),
 ]

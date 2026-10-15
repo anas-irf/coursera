@@ -25,9 +25,9 @@ def admin_pending_courses(request):
 
 @api_view(['POST'])
 @permission_classes([IsAdmin])
-def admin_approve_course(request, course_id):
+def admin_approve_course(request, course_uuid):
     """Approve a course for publishing"""
-    course = get_object_or_404(selectors.pending_review(), uuid=course_id)
+    course = get_object_or_404(selectors.pending_review(), uuid=course_uuid)
 
     lifecycle.approve(course, request.user)
 
@@ -40,9 +40,9 @@ def admin_approve_course(request, course_id):
 
 @api_view(['POST'])
 @permission_classes([IsAdmin])
-def admin_reject_course(request, course_id):
+def admin_reject_course(request, course_uuid):
     """Reject a course publishing request"""
-    course = get_object_or_404(selectors.pending_review(), uuid=course_id)
+    course = get_object_or_404(selectors.pending_review(), uuid=course_uuid)
     reason = object_body(request).get('reason') or ''
 
     if not isinstance(reason, str) or not reason.strip():
