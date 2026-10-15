@@ -7,6 +7,7 @@ A learning platform with three roles (student, instructor, admin): course author
 ```
 backend/    Django 5 + DRF + Channels API         python manage.py ...
 frontend/   React 19 + TypeScript single page app pnpm start
+package.json pnpm dev starts both of them: backend on :8000, frontend on :3000
 docs/       ARCHITECTURE.md: slices, rules, how to extend
 ```
 
@@ -37,6 +38,19 @@ corepack enable                    # once: pnpm in the version package.json name
 pnpm install
 pnpm start                         # http://localhost:3000
 ```
+
+Both at once, from the repository root (it runs `scripts/dev.mjs` and nothing else):
+
+```bash
+pnpm install                       # once: installs the launcher only
+pnpm dev                           # backend on :8000, frontend on :3000; Ctrl+C stops both
+```
+
+It uses the Python of `.venv` when there is one (otherwise the first `python` on the PATH; `PYTHON=...`
+overrides, and is an executable: it is run as a program, not as a command line) and tells the frontend where
+the API is (`REACT_APP_API_URL` and `REACT_APP_WS_URL`), whatever `frontend/.env` and the environment say. It
+refuses to start when :8000 or :3000 is taken (the backend allows the frontend on :3000 only), and when one of
+the two stops, the other is stopped too. It does not install, migrate or seed anything: do the steps above first.
 
 ### PostgreSQL
 

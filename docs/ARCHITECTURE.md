@@ -5,6 +5,7 @@ The platform is split into **slices**: each product phase owns its models, rules
 ```
 backend/    Django 5 + DRF + Channels     python manage.py ...
 frontend/   React 19 (Create React App)   pnpm start
+package.json                              pnpm dev: both of them (scripts/dev.mjs), :8000 and :3000
 docs/       this file
 ```
 
