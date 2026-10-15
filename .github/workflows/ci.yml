@@ -210,6 +210,12 @@ jobs:
       - name: Set up the frontend
         uses: ./.github/actions/setup-frontend
 
+      # from the repository root, so that the paths in the report are the ones of the checkout
+      - name: TypeScript (strict, the tests included)
+        run: |
+          echo "::add-matcher::.github/matchers/tsc.json"
+          npx --prefix frontend tsc --project frontend --noEmit --pretty false
+
       - name: ESLint (module boundaries included, no warnings allowed)
         working-directory: frontend
         run: |

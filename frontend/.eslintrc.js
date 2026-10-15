@@ -2,13 +2,13 @@
 //
 //   shared/    knows nothing about features or the app shell
 //   features/  never import the app shell, and one feature reaches another only
-//              through its index.js (the public surface), in the directions below
+//              through its index (the public surface), in the directions below
 //   app/       wires the features together
 //
 // and one rule about what a screen may touch:
 //
 //   pages/ and components/ read and write through the hooks of their feature
-//   (features/<name>/hooks), never through api.js.  The hooks own the query keys,
+//   (features/<name>/hooks), never through api.ts.  The hooks own the query keys,
 //   what is refreshed after a change and how a failure is reported, so a screen
 //   cannot forget them.
 //
@@ -39,8 +39,9 @@ features.forEach((target) => {
         from: `./src/features/${other}`,
       };
       if (FEATURE_DEPENDENCIES[target].includes(other)) {
-        zone.except = ['./index.js'];
-        zone.message = `Import ${other} through features/${other}/index.js`;
+        // the index of a feature is index.ts (index.js until the feature is converted)
+        zone.except = ['./index.js', './index.ts'];
+        zone.message = `Import ${other} through features/${other}/index.ts`;
       } else {
         zone.message = `features/${target} must not depend on features/${other}`;
       }
@@ -58,7 +59,7 @@ module.exports = {
   root: true,
   extends: ['react-app', 'react-app/jest'],
   settings: {
-    'import/resolver': { node: { extensions: ['.js', '.jsx'] } },
+    'import/resolver': { node: { extensions: ['.js', '.jsx', '.ts', '.tsx'] } },
   },
   rules: {
     // errors are shown to the user or reported by the error boundary, not logged and forgotten
@@ -66,7 +67,15 @@ module.exports = {
   },
   overrides: [
     {
-      files: ['src/shared/**/*.{js,jsx}'],
+      // the compiler checks the types; these keep its escape hatches closed
+      files: ['src/**/*.{ts,tsx}'],
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'error',
+        '@typescript-eslint/ban-ts-comment': 'error',
+      },
+    },
+    {
+      files: ['src/shared/**/*.{js,jsx,ts,tsx}'],
       rules: {
         'import/no-restricted-paths': [
           'error',
@@ -80,15 +89,15 @@ module.exports = {
       },
     },
     {
-      files: ['src/features/**/*.{js,jsx}'],
+      files: ['src/features/**/*.{js,jsx,ts,tsx}'],
       rules: {
         'import/no-restricted-paths': ['error', { zones: [appShellZone, ...featureZones] }],
       },
     },
     {
-      // screens: the zones above (a rule's options are replaced, not merged) plus the api.js rule
-      files: ['src/features/*/pages/**/*.{js,jsx}', 'src/features/*/components/**/*.{js,jsx}'],
-      excludedFiles: ['**/*.test.{js,jsx}'],
+      // screens: the zones above (a rule's options are replaced, not merged) plus the api rule
+      files: ['src/features/*/pages/**/*.{js,jsx,ts,tsx}', 'src/features/*/components/**/*.{js,jsx,ts,tsx}'],
+      excludedFiles: ['**/*.test.{js,jsx,ts,tsx}'],
       rules: {
         'import/no-restricted-paths': [
           'error',
@@ -98,8 +107,8 @@ module.exports = {
               ...featureZones,
               {
                 target: './src/features',
-                from: './src/features/*/api.js',
-                message: 'Screens go through the hooks of their feature (hooks/), not through api.js',
+                from: './src/features/*/api.{js,ts}',
+                message: 'Screens go through the hooks of their feature (hooks/), not through api.ts',
               },
             ],
           },

@@ -26,7 +26,8 @@
     "test": "react-scripts test",
     "test:ci": "react-scripts test --watchAll=false --ci --coverage --reporters=default --reporters=jest-ctrf-json-reporter",
     "eject": "react-scripts eject",
-    "lint": "eslint --ext .js,.jsx --max-warnings=0 src"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint --ext .js,.jsx,.ts,.tsx --max-warnings=0 src"
   },
   "jest": {
     "moduleNameMapper": {
@@ -35,10 +36,11 @@
       "^react-router/dom$": "<rootDir>/node_modules/react-router/dist/development/dom-export.js"
     },
     "collectCoverageFrom": [
-      "src/**/*.{js,jsx}",
-      "!src/**/*.test.{js,jsx}",
-      "!src/index.js",
-      "!src/setupTests.js"
+      "src/**/*.{js,jsx,ts,tsx}",
+      "!src/**/*.test.{js,jsx,ts,tsx}",
+      "!src/**/*.d.ts",
+      "!src/index.{js,tsx}",
+      "!src/setupTests.{js,ts}"
     ],
     "coverageReporters": [
       "text-summary",
@@ -67,9 +69,17 @@
     ]
   },
   "devDependencies": {
+    "@types/jest": "^27.5.2",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
     "autoprefixer": "^10.4.21",
     "jest-ctrf-json-reporter": "0.0.9",
     "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.17"
+    "tailwindcss": "^3.4.17",
+    "typescript": "~5.9.3"
+  },
+  "overrides": {
+    "typescript": "$typescript"
   }
 }
