@@ -13,7 +13,7 @@ daphne==4.2.3
 psycopg2-binary==2.9.13
 
 # Payments
-stripe==11.6.0
+stripe==16.0.0
 
 # Other
 Pillow==12.3.0
