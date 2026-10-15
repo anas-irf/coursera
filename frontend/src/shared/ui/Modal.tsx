@@ -1,14 +1,18 @@
 import React, { useEffect, useId, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { X } from 'lucide-react';
 
-const SIZES = {
+type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
+type ModalLayer = 'base' | 'top';
+
+const SIZES: Record<ModalSize, string> = {
   sm: 'max-w-md',
   md: 'max-w-2xl',
   lg: 'max-w-4xl',
   xl: 'max-w-6xl',
 };
 
-const LAYERS = {
+const LAYERS: Record<ModalLayer, string> = {
   base: 'z-50',
   top: 'z-[9999]', // a confirmation asked from inside another dialog
 };
@@ -18,8 +22,20 @@ const FOCUSABLE =
   'select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 // the dialogs that are open, the newest last: only that one answers Escape and Tab
-const openDialogs = [];
+const openDialogs: object[] = [];
 let savedOverflow = '';
+
+interface ModalProps {
+  title?: ReactNode;
+  onClose?: () => void;
+  size?: ModalSize;
+  layer?: ModalLayer;
+  headerExtra?: ReactNode;
+  bare?: boolean;
+  labelledBy?: string;
+  className?: string;
+  children?: ReactNode;
+}
 
 /**
  * A dialog: dimmed backdrop, titled panel, close button.
@@ -42,8 +58,8 @@ export function Modal({
   labelledBy,
   className = '',
   children,
-}) {
-  const panelRef = useRef(null);
+}: ModalProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const closeRef = useRef(onClose);
 
@@ -53,8 +69,9 @@ export function Modal({
 
   useEffect(() => {
     const panel = panelRef.current;
+    if (!panel) return undefined;
     const entry = {};
-    const previouslyFocused = document.activeElement;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
 
     if (openDialogs.length === 0) {
       savedOverflow = document.body.style.overflow;
@@ -62,10 +79,10 @@ export function Modal({
     }
     openDialogs.push(entry);
 
-    const first = panel.querySelector('[data-autofocus]');
+    const first = panel.querySelector<HTMLElement>('[data-autofocus]');
     (first || panel).focus();
 
-    const onKeyDown = (event) => {
+    const onKeyDown = (event: KeyboardEvent) => {
       if (openDialogs[openDialogs.length - 1] !== entry) return;
 
       if (event.key === 'Escape') {
@@ -75,7 +92,7 @@ export function Modal({
       }
 
       if (event.key === 'Tab') {
-        const targets = Array.from(panel.querySelectorAll(FOCUSABLE));
+        const targets = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE));
         if (targets.length === 0) {
           event.preventDefault();
           panel.focus();

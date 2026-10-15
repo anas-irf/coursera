@@ -1,10 +1,37 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
-// Toast Context
-const ToastContext = createContext();
+export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
-export const useToast = () => {
+interface ToastItem {
+  id: number;
+  type: ToastType;
+  duration: number;
+  message: string;
+  title?: string;
+}
+
+/** What may be said besides the message and the title. */
+export interface ToastOptions {
+  /** Milliseconds on screen (0 keeps it until it is closed). */
+  duration?: number;
+}
+
+type ShowToast = (message: string, title?: string, options?: ToastOptions) => number;
+
+/** One method per kind; each answers the id of the toast it showed. */
+export interface ToastApi {
+  success: ShowToast;
+  error: ShowToast;
+  warning: ShowToast;
+  info: ShowToast;
+}
+
+// Toast Context
+const ToastContext = createContext<ToastApi | null>(null);
+
+export const useToast = (): ToastApi => {
   const context = useContext(ToastContext);
   if (!context) {
     throw new Error('useToast must be used within a ToastProvider');
@@ -13,15 +40,15 @@ export const useToast = () => {
 };
 
 // Toast Component
-const Toast = ({ toast, onClose }) => {
-  const icons = {
+const Toast = ({ toast, onClose }: { toast: ToastItem; onClose: (id: number) => void }) => {
+  const icons: Record<ToastType, ReactElement> = {
     success: <CheckCircle className="w-5 h-5 text-green-500" />,
     error: <AlertCircle className="w-5 h-5 text-red-500" />,
     warning: <AlertTriangle className="w-5 h-5 text-yellow-500" />,
     info: <Info className="w-5 h-5 text-blue-500" />
   };
 
-  const bgColors = {
+  const bgColors: Record<ToastType, string> = {
     success: 'bg-green-50 border-green-200',
     error: 'bg-red-50 border-red-200',
     warning: 'bg-yellow-50 border-yellow-200',
@@ -54,7 +81,7 @@ const Toast = ({ toast, onClose }) => {
 };
 
 // Toast Container
-const ToastContainer = ({ toasts, removeToast }) => {
+const ToastContainer = ({ toasts, removeToast }: { toasts: ToastItem[]; removeToast: (id: number) => void }) => {
   if (toasts.length === 0) return null;
 
   return (
@@ -70,17 +97,19 @@ const ToastContainer = ({ toasts, removeToast }) => {
   );
 };
 
-// Toast Provider
-export const ToastProvider = ({ children }) => {
-  const [toasts, setToasts] = useState([]);
+type NewToast = Pick<ToastItem, 'message'> & Partial<Omit<ToastItem, 'id' | 'message'>>;
 
-  const removeToast = useCallback((id) => {
+// Toast Provider
+export const ToastProvider = ({ children }: { children: ReactNode }) => {
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  const removeToast = useCallback((id: number) => {
     setToasts(prev => prev.filter(toast => toast.id !== id));
   }, []);
 
-  const addToast = useCallback((toast) => {
+  const addToast = useCallback((toast: NewToast): number => {
     const id = Date.now() + Math.random();
-    const newToast = {
+    const newToast: ToastItem = {
       id,
       type: 'info',
       duration: 5000,
@@ -100,24 +129,24 @@ export const ToastProvider = ({ children }) => {
   }, [removeToast]);
 
   // Convenience methods
-  const success = useCallback((message, title, options = {}) => {
+  const success = useCallback<ShowToast>((message, title, options = {}) => {
     return addToast({ type: 'success', message, title, ...options });
   }, [addToast]);
 
-  const error = useCallback((message, title, options = {}) => {
+  const error = useCallback<ShowToast>((message, title, options = {}) => {
     return addToast({ type: 'error', message, title, duration: 7000, ...options });
   }, [addToast]);
 
-  const warning = useCallback((message, title, options = {}) => {
+  const warning = useCallback<ShowToast>((message, title, options = {}) => {
     return addToast({ type: 'warning', message, title, ...options });
   }, [addToast]);
 
-  const info = useCallback((message, title, options = {}) => {
+  const info = useCallback<ShowToast>((message, title, options = {}) => {
     return addToast({ type: 'info', message, title, ...options });
   }, [addToast]);
 
   // stable, so the many components that call useToast() do not render again for every toast
-  const value = useMemo(
+  const value = useMemo<ToastApi>(
     () => ({ success, error, warning, info }),
     [success, error, warning, info]
   );

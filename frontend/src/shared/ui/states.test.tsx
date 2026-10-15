@@ -26,13 +26,13 @@ test('an empty state says what is missing', () => {
 });
 
 describe('error boundary', () => {
-  let spy;
+  let spy: jest.SpyInstance;
   beforeEach(() => {
     spy = jest.spyOn(console, 'error').mockImplementation(() => {});
   });
   afterEach(() => spy.mockRestore());
 
-  const Broken = ({ explode }) => {
+  const Broken = ({ explode }: { explode?: boolean }) => {
     if (explode) throw new Error('boom');
     return <p>fine</p>;
   };

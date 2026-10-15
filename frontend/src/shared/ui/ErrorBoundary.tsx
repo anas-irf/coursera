@@ -1,4 +1,15 @@
 import React from 'react';
+import type { ErrorInfo, ReactNode } from 'react';
+
+interface ErrorBoundaryProps {
+  /** Clears the error when it changes (the pathname of the page below, say). */
+  resetKey?: string;
+  children?: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  error: Error | null;
+}
 
 /**
  * Catches an error thrown while rendering below it, so one broken page does not blank the whole
@@ -7,25 +18,23 @@ import React from 'react';
  * ``resetKey`` (e.g. the pathname) clears the error when it changes, so navigating away from a
  * broken page recovers.
  */
-export class ErrorBoundary extends React.Component {
-  constructor(props) {
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { error: null };
   }
 
-  static getDerivedStateFromError(error) {
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { error };
   }
 
-  componentDidCatch(error, info) {
-    // leave a trace for the browser console and for whatever monitors it
-    // eslint-disable-next-line no-console
+  componentDidCatch(error: Error, info: ErrorInfo) {
     // the one place a failure is logged: the browser console is where a developer looks for it
     // eslint-disable-next-line no-console
     console.error('Render error', error, info && info.componentStack);
   }
 
-  componentDidUpdate(previous) {
+  componentDidUpdate(previous: ErrorBoundaryProps) {
     if (this.state.error && previous.resetKey !== this.props.resetKey) {
       this.setState({ error: null });
     }
