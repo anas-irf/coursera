@@ -10,7 +10,7 @@ frontend/   React 19 single page application      npm start
 docs/       ARCHITECTURE.md: slices, rules, how to extend
 ```
 
-Both sides are organised by the same product slices (identity, authoring, monetisation, learning, assessment, engagement, recognition, insight); see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Both sides are organised by the same product slices (identity, authoring, monetisation, learning, assessment, engagement, recognition, insight); see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the slices and their rules, [docs/CONVENTIONS.md](docs/CONVENTIONS.md) for how code is written, [backend/README.md](backend/README.md) and [frontend/README.md](frontend/README.md) for each side, and [docs/CI.md](docs/CI.md) for the pipeline.
 
 ## Quickstart
 
@@ -92,8 +92,8 @@ Checkout needs a test-mode secret key and the webhook secret in `backend/.env` (
 ```bash
 cd backend
 python -m pytest --cov            # SQLite; TEST_DB_ENGINE=postgres for PostgreSQL; fails under 90 % coverage
-ruff check apps config tests      # rules in backend/ruff.toml
-lint-imports                      # slices depend downwards only
+ruff check apps config tests      # rules and docstrings: backend/ruff.toml
+lint-imports                      # slices depend downwards only, no HTTP in the domain
 python manage.py makemigrations --check --dry-run
 
 cd ../frontend
@@ -102,7 +102,8 @@ npm run test:ci                   # Jest with coverage
 npm run build                     # warnings fail it
 
 cd ../e2e
-npm test                          # browser specs against the seeded stack, see docs/CI.md
+npm test                          # browser specs against the seeded stack (start the API with
+                                  # THROTTLE_LOGIN=1000/min: they sign in dozens of times a minute), see docs/CI.md
 ```
 
 CI (`.github/workflows/ci.yml`) runs all of it in parallel on every pull request, adds dependency
