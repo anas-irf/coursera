@@ -149,11 +149,10 @@ const SectionComponent = ({
                 strategy={verticalListSortingStrategy}
               >
                 <div className="space-y-2">
-                  {section.lectures.map((lecture, lectureIndex) => (
+                  {section.lectures.map((lecture) => (
                     <LectureItem
                       key={lecture.id}
                       lecture={lecture}
-                      lectureIndex={lectureIndex}
                       onEdit={() => onEditLecture(lecture)}
                       onDelete={() => onDeleteLecture(lecture.id)}
                     />

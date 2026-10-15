@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { X, AlertTriangle } from 'lucide-react';
+
+import { errorMessage } from '../../../shared/api/errors';
+import Modal from '../../../shared/ui/Modal';
 
 const DeleteCourseModal = ({ course, currentUser, onClose, onConfirm }) => {
   const [confirmationInput, setConfirmationInput] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState('');
+  const titleId = useId();
 
   const expectedConfirmation = `${currentUser?.email}/${course?.title}`;
 
@@ -21,7 +25,7 @@ const DeleteCourseModal = ({ course, currentUser, onClose, onConfirm }) => {
       await onConfirm(confirmationInput);
       onClose();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to delete course');
+      setError(errorMessage(err, 'Failed to delete course'));
       setIsDeleting(false);
     }
   };
@@ -29,8 +33,8 @@ const DeleteCourseModal = ({ course, currentUser, onClose, onConfirm }) => {
   const isConfirmationValid = confirmationInput === expectedConfirmation;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+    <Modal bare size="sm" labelledBy={titleId} onClose={isDeleting ? undefined : onClose}>
+      <div>
         <div className="p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
@@ -39,13 +43,14 @@ const DeleteCourseModal = ({ course, currentUser, onClose, onConfirm }) => {
                 <AlertTriangle className="w-5 h-5 text-red-600" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Delete Course</h2>
+                <h2 id={titleId} className="text-lg font-semibold text-gray-900">Delete Course</h2>
                 <p className="text-sm text-gray-500">This action cannot be undone</p>
               </div>
             </div>
             <button
               onClick={onClose}
               disabled={isDeleting}
+              aria-label="Close"
               className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
             >
               <X size={24} />
@@ -76,11 +81,13 @@ const DeleteCourseModal = ({ course, currentUser, onClose, onConfirm }) => {
 
           {/* Confirmation Input */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="delete-course-confirmation" className="block text-sm font-medium text-gray-700 mb-2">
               Type <span className="font-mono text-red-600">{expectedConfirmation}</span> to confirm:
             </label>
             <input
+              id="delete-course-confirmation"
               type="text"
+              data-autofocus
               value={confirmationInput}
               onChange={(e) => {
                 setConfirmationInput(e.target.value);
@@ -121,7 +128,7 @@ const DeleteCourseModal = ({ course, currentUser, onClose, onConfirm }) => {
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 

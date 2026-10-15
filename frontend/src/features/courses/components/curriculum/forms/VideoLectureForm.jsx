@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Upload, Loader2 } from 'lucide-react';
 import { useToast } from '../../../../../shared/ui/Toast';
 import { useConfirm } from '../../../../../shared/ui/ConfirmDialog';
+import { readVideoDuration } from '../../../lib/media';
 
 const VideoLectureForm = ({ formData, setFormData, isUploading, setIsUploading }) => {
   const { error } = useToast();
   const { confirmWarning } = useConfirm();
   const [videoSource, setVideoSource] = useState('url');
+  const durationRead = useRef(0); // the newest file's reading: an older one must not overwrite it
 
   // Initialize video source based on existing data
   useEffect(() => {
@@ -60,7 +62,15 @@ const VideoLectureForm = ({ formData, setFormData, isUploading, setIsUploading }
         }
       }
 
-      setFormData({ ...formData, video_file: file, video_url: '' });
+      setFormData({ ...formData, video_file: file, video_url: '', duration: undefined });
+
+      // the length is not known to the server, which cannot read the file: the browser tells it
+      const ticket = durationRead.current + 1;
+      durationRead.current = ticket;
+      const seconds = await readVideoDuration(file);
+      if (seconds && durationRead.current === ticket) {
+        setFormData((current) => ({ ...current, duration: seconds }));
+      }
     }
   };
 

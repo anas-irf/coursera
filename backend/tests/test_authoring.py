@@ -43,7 +43,10 @@ def create_course(client, **overrides):
         'thumbnail': f.png_file(),
     }
     data.update(overrides)
-    data.setdefault('slug', f"slug-{uuid.uuid4().hex[:8]}")
+    if 'slug' not in overrides:
+        data['slug'] = f"slug-{uuid.uuid4().hex[:8]}"
+    elif overrides['slug'] is None:  # the client sends none: the server makes it
+        del data['slug']
     return client.post(COURSES, data, format='multipart')
 
 
@@ -114,7 +117,7 @@ def test_instructor_creates_course_with_thumbnail(auth_client, instructor):
 
 
 def test_create_course_validation_errors(auth_client, instructor):
-    """Thumbnail and slug are required, only images are accepted."""
+    """The thumbnail is required and only images are accepted."""
     client = auth_client(instructor)
 
     # thumbnail is mandatory
@@ -127,11 +130,43 @@ def test_create_course_validation_errors(auth_client, instructor):
     assert r.status_code == 400
     assert 'thumbnail' in r.json()
 
-    # the slug is required by the serializer
-    data = {'title': 'No slug', 'description': 'd', 'thumbnail': f.png_file()}
-    r = client.post(COURSES, data, format='multipart')
-    assert r.status_code == 400
-    assert 'slug' in r.json()
+
+
+def test_course_slug_is_made_from_the_title_when_none_is_sent(auth_client, instructor):
+    """The slug is optional: the server makes one, and two courses with the same title get
+    different ones (the client used to make it, and the second author got a 400 about a field
+    they never saw)."""
+    client = auth_client(instructor)
+    data = {'title': 'Intro to Python!', 'description': 'd', 'thumbnail': f.png_file()}
+
+    first = client.post(COURSES, data, format='multipart')
+    data['thumbnail'] = f.png_file()
+    second = client.post(COURSES, data, format='multipart')
+
+    assert first.status_code == 201 and second.status_code == 201
+    assert f.Course.objects.get(uuid=first.json()['id']).slug == 'intro-to-python'
+    assert f.Course.objects.get(uuid=second.json()['id']).slug == 'intro-to-python-2'
+
+
+def test_course_slug_survives_a_new_title(auth_client, instructor):
+    """Editing the title leaves the slug (and so the links to the course) alone."""
+    client = auth_client(instructor)
+    course_id = create_course(client, title='Original Title', slug=None).json()['id']
+
+    r = client.patch(f'{COURSES}{course_id}/', {'title': 'A Different Title'}, format='json')
+
+    assert r.status_code == 200
+    assert f.Course.objects.get(uuid=course_id).slug == 'original-title'
+
+
+def test_a_slug_that_is_sent_is_still_honoured_and_must_be_free(auth_client, instructor):
+    client = auth_client(instructor)
+    assert create_course(client, title='Mine', slug='my-own-slug').status_code == 201
+
+    taken = create_course(client, title='Other', slug='my-own-slug')
+
+    assert taken.status_code == 400
+    assert 'slug' in taken.json()
 
 
 def test_create_course_ignores_privileged_fields(auth_client, api, instructor):

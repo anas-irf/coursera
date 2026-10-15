@@ -41,6 +41,13 @@ export function lectureFormData(lecture) {
   return formData;
 }
 
+// --- what the course form offers ----------------------------------------------------
+/** Categories a course can be filed under: ``[{id, name, slug}]``. */
+export const listCategories = () => api.get('/courses/categories/').then((response) => response.data);
+
+/** Languages a course can be taught in: ``[{id, code, name}]``. */
+export const listLanguages = () => api.get('/courses/languages/').then((response) => response.data);
+
 // --- courses -------------------------------------------------------------------
 export const listCourses = () => api.get(`${BASE}/courses/`).then((response) => response.data);
 

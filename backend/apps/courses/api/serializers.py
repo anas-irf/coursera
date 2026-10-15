@@ -1,8 +1,12 @@
 # courses/api/serializers.py
+from django.db import IntegrityError, transaction
 from rest_framework import serializers
 
 from .. import extensions
 from ..models import Course, Section, Lecture
+from ..services import courses as course_service
+
+SLUG_ATTEMPTS = 3  # two courses created in the same instant may pick the same free slug
 
 
 class LectureSerializer(serializers.ModelSerializer):
@@ -118,7 +122,9 @@ class CourseCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating/updating courses.
 
     The status workflow fields are read-only: a course only changes state
-    through the lifecycle service (submit, approve, reject, unpublish).
+    through the lifecycle service (submit, approve, reject, unpublish).  The
+    slug is optional: one is made from the title (and kept when the title changes,
+    so links to the course keep working); a client that sends one still decides.
     """
     class Meta:
         model = Course
@@ -126,10 +132,21 @@ class CourseCreateSerializer(serializers.ModelSerializer):
                   'average_rating', 'published_date']
         read_only_fields = ['status', 'is_featured', 'rejection_reason',
                             'rejection_date', 'rejected_by']
+        extra_kwargs = {'slug': {'required': False}}
 
     def create(self, validated_data):
         validated_data['instructor'] = self.context['request'].user
-        return super().create(validated_data)
+        generated = not validated_data.get('slug')
+
+        for attempt in range(SLUG_ATTEMPTS):
+            if generated:
+                validated_data['slug'] = course_service.unique_slug(validated_data['title'])
+            try:
+                with transaction.atomic():
+                    return super().create(validated_data)
+            except IntegrityError:
+                if not generated or attempt == SLUG_ATTEMPTS - 1:
+                    raise
 
 
 # --------------------------------------------------------------------------- #
