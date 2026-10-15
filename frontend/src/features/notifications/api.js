@@ -13,4 +13,6 @@ export const list = ({ limit = 20, includeRead } = {}) => {
 
 export const markRead = (id) => api.post(`${BASE}/${id}/read/`);
 
-export const markAllRead = (ids) => Promise.all(ids.map(markRead));
+/** One request for any number of notifications; without ``ids`` every unread one is marked. */
+export const markAllRead = (ids) =>
+  api.post(`${BASE}/read-all/`, ids ? { ids } : {}).then((response) => response.data);

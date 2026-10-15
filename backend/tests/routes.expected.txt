@@ -59,5 +59,6 @@ api/v1/messaging/users/ | GET | get_available_users
 api/v1/notifications/ | GET | user-notifications
 api/v1/notifications/<int:notification_id>/read/ | POST | mark-notification-read
 api/v1/notifications/count/ | GET | notification-count
+api/v1/notifications/read-all/ | POST | mark-all-notifications-read
 ws/chat/<str:conversation_id>/ | WS | -
 ws/user/ | WS | -

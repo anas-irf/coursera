@@ -1,50 +1,30 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell } from 'lucide-react';
 
 import { timeAgo } from '../../../shared/lib/time';
-import * as notificationsApi from '../api';
+import { ErrorState } from '../../../shared/ui/ErrorState';
+import { useMarkRead, useNotificationList, useUnreadCount } from '../hooks/useNotifications';
 import NotificationIcon from './NotificationIcon';
 
 /**
  * The bell in the header of every role.
  *
- * ``viewAllPath`` is the page with the full list; roles without one omit it.
+ * ``viewAllPath`` is the page with the full list; roles without one omit it.  The count and the
+ * list come from the same cache as the notifications page, so reading something anywhere
+ * updates the badge.
  */
 const NotificationDropdown = ({ viewAllPath = null, limit = 20 }) => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(false);
   const dropdownRef = useRef(null);
 
-  const loadCount = useCallback(async () => {
-    try {
-      setUnreadCount(await notificationsApi.unreadCount());
-    } catch (error) {
-      // the bell simply shows no badge
-    }
-  }, []);
+  const count = useUnreadCount();
+  const list = useNotificationList({ limit, enabled: isOpen });
+  const markRead = useMarkRead();
 
-  const loadList = useCallback(async () => {
-    setLoading(true);
-    try {
-      setNotifications(await notificationsApi.list({ limit }));
-    } catch (error) {
-      setNotifications([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [limit]);
-
-  useEffect(() => {
-    loadCount();
-  }, [loadCount]);
-
-  useEffect(() => {
-    if (isOpen) loadList();
-  }, [isOpen, loadList]);
+  const unreadCount = count.data || 0;
+  const notifications = list.data || [];
 
   useEffect(() => {
     const onClickOutside = (event) => {
@@ -54,30 +34,8 @@ const NotificationDropdown = ({ viewAllPath = null, limit = 20 }) => {
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
-  const markRead = async (id) => {
-    try {
-      await notificationsApi.markRead(id);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, is_read: true, read_at: new Date().toISOString() } : n))
-      );
-      setUnreadCount((count) => Math.max(0, count - 1));
-    } catch (error) {
-      // stays unread
-    }
-  };
-
-  const markAllRead = async () => {
-    try {
-      await notificationsApi.markAllRead(notifications.filter((n) => !n.is_read).map((n) => n.id));
-      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-      setUnreadCount(0);
-    } catch (error) {
-      loadCount();
-    }
-  };
-
   const open = (notification) => {
-    if (!notification.is_read) markRead(notification.id);
+    if (!notification.is_read) markRead.mutate([notification.id]);
     if (!notification.action_url) return;
     setIsOpen(false);
     if (notification.action_url.startsWith('/')) {
@@ -107,17 +65,27 @@ const NotificationDropdown = ({ viewAllPath = null, limit = 20 }) => {
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
             {unreadCount > 0 && (
-              <button onClick={markAllRead} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+              <button
+                onClick={() => markRead.mutate(null)}
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+              >
                 Mark all as read
               </button>
             )}
           </div>
 
           <div className="max-h-96 overflow-y-auto">
-            {loading ? (
+            {list.isPending ? (
               <div className="flex items-center justify-center py-8">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
               </div>
+            ) : list.isError ? (
+              <ErrorState
+                error={list.error}
+                title="Could not load notifications"
+                onRetry={list.refetch}
+                className="py-8 px-4"
+              />
             ) : notifications.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <Bell size={48} className="mx-auto text-gray-300 mb-2" />

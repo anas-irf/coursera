@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { AlertTriangle, Info, Trash2, LogOut, X } from 'lucide-react';
 
 // Confirm Dialog Context
@@ -157,12 +157,10 @@ export const ConfirmProvider = ({ children }) => {
     });
   }, [confirm]);
 
-  const value = {
-    confirm,
-    confirmDelete,
-    confirmLogout,
-    confirmWarning
-  };
+  const value = useMemo(
+    () => ({ confirm, confirmDelete, confirmLogout, confirmWarning }),
+    [confirm, confirmDelete, confirmLogout, confirmWarning]
+  );
 
   return (
     <ConfirmContext.Provider value={value}>

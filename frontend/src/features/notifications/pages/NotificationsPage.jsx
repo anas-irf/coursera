@@ -1,10 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bell, Check, CheckCheck, ChevronLeft, Filter, Search } from 'lucide-react';
 
 import { PageSpinner } from '../../../shared/ui/Spinner';
+import { EmptyState } from '../../../shared/ui/EmptyState';
+import { ErrorState } from '../../../shared/ui/ErrorState';
 import { timeAgo } from '../../../shared/lib/time';
-import * as notificationsApi from '../api';
+import { useMarkRead, useNotificationList } from '../hooks/useNotifications';
 import NotificationIcon from '../components/NotificationIcon';
 
 const FILTERS = [
@@ -18,26 +20,13 @@ const FILTERS = [
 ];
 
 const NotificationsPage = () => {
-  const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const list = useNotificationList({ limit: 100, includeRead: true });
+  const markRead = useMarkRead();
   const [selected, setSelected] = useState([]);
   const [filterType, setFilterType] = useState('all');
   const [query, setQuery] = useState('');
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      setNotifications(await notificationsApi.list({ limit: 100, includeRead: true }));
-    } catch (error) {
-      setNotifications([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const notifications = useMemo(() => list.data || [], [list.data]);
 
   const visible = useMemo(() => {
     let rows = notifications;
@@ -57,18 +46,10 @@ const NotificationsPage = () => {
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
-  const markRead = async (ids) => {
-    try {
-      await notificationsApi.markAllRead(ids);
-      const now = new Date().toISOString();
-      setNotifications((prev) =>
-        prev.map((n) => (ids.includes(n.id) ? { ...n, is_read: true, read_at: now } : n))
-      );
-      setSelected((prev) => prev.filter((id) => !ids.includes(id)));
-    } catch (error) {
-      load();
-    }
-  };
+  const read = (ids) =>
+    markRead.mutate(ids, {
+      onSuccess: () => setSelected((prev) => prev.filter((id) => !ids.includes(id))),
+    });
 
   const toggle = (id) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]));
@@ -81,15 +62,18 @@ const NotificationsPage = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {unreadCount > 0
-              ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}`
-              : 'All caught up!'}
+            {list.isPending && 'Loading...'}
+            {list.isError && 'The list could not be loaded'}
+            {list.isSuccess &&
+              (unreadCount > 0
+                ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}`
+                : 'All caught up!')}
           </p>
         </div>
 
         {unreadCount > 0 && (
           <button
-            onClick={() => markRead(notifications.filter((n) => !n.is_read).map((n) => n.id))}
+            onClick={() => read(notifications.filter((n) => !n.is_read).map((n) => n.id))}
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             <CheckCheck size={16} className="mr-2" />
@@ -133,7 +117,7 @@ const NotificationsPage = () => {
           </span>
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => markRead(selected)}
+              onClick={() => read(selected)}
               className="flex items-center px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
             >
               <Check size={14} className="mr-1" />
@@ -150,16 +134,14 @@ const NotificationsPage = () => {
       )}
 
       <div className="bg-white rounded-lg shadow">
-        {loading ? (
+        {list.isPending ? (
           <PageSpinner className="py-12 h-auto" color="border-blue-600" />
+        ) : list.isError ? (
+          <ErrorState error={list.error} title="Could not load your notifications" onRetry={list.refetch} />
         ) : visible.length === 0 ? (
-          <div className="text-center py-12">
-            <Bell size={48} className="mx-auto text-gray-300 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No notifications found</h3>
-            <p className="text-gray-500">
-              {query ? 'Try adjusting your search query' : "You're all caught up!"}
-            </p>
-          </div>
+          <EmptyState icon={Bell} title="No notifications found">
+            {query ? 'Try adjusting your search query' : "You're all caught up!"}
+          </EmptyState>
         ) : (
           <div className="divide-y divide-gray-100">
             <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
@@ -206,7 +188,7 @@ const NotificationsPage = () => {
                       {!notification.is_read && (
                         <div className="flex items-center space-x-2 ml-4">
                           <button
-                            onClick={() => markRead([notification.id])}
+                            onClick={() => read([notification.id])}
                             className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
                             title="Mark as read"
                           >

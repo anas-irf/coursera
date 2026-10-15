@@ -118,3 +118,34 @@ def test_notification_endpoints_require_authentication_but_no_particular_role(
         client = auth_client(user)
         assert client.get(LIST).status_code == 200
         assert client.get(COUNT).json() == {'unread_count': 1}
+
+
+def test_mark_all_read_marks_every_unread_notification_of_the_caller_only(
+        auth_client, student, other_student):
+    for _ in range(3):
+        f.make_notification(student, is_read=False)
+    f.make_notification(other_student, is_read=False)
+
+    r = auth_client(student).post('/api/v1/notifications/read-all/', {}, format='json')
+
+    assert r.status_code == 200
+    assert r.json() == {'marked_read': 3}
+    assert auth_client(student).get(COUNT).json() == {'unread_count': 0}
+    assert auth_client(other_student).get(COUNT).json() == {'unread_count': 1}
+
+
+def test_mark_all_read_can_be_limited_to_some_notifications(auth_client, student):
+    first = f.make_notification(student, is_read=False)
+    f.make_notification(student, is_read=False)
+
+    r = auth_client(student).post('/api/v1/notifications/read-all/', {'ids': [first.id]}, format='json')
+
+    assert r.json() == {'marked_read': 1}
+    assert auth_client(student).get(COUNT).json() == {'unread_count': 1}
+
+
+def test_mark_all_read_rejects_ids_that_are_not_a_list_of_numbers(auth_client, student):
+    r = auth_client(student).post('/api/v1/notifications/read-all/', {'ids': 'all'}, format='json')
+
+    assert r.status_code == 400
+    assert 'ids' in r.json()['error']

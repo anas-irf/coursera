@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
 // Toast Context
@@ -116,12 +116,11 @@ export const ToastProvider = ({ children }) => {
     return addToast({ type: 'info', message, title, ...options });
   }, [addToast]);
 
-  const value = {
-    success,
-    error,
-    warning,
-    info
-  };
+  // stable, so the many components that call useToast() do not render again for every toast
+  const value = useMemo(
+    () => ({ success, error, warning, info }),
+    [success, error, warning, info]
+  );
 
   return (
     <ToastContext.Provider value={value}>

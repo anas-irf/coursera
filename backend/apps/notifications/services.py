@@ -51,3 +51,11 @@ def get_user_notifications(user, limit=20, include_read=True):
     if not include_read:
         queryset = queryset.filter(is_read=False)
     return queryset.order_by('-created_at')[:limit]
+
+
+def mark_all_read(user, ids=None):
+    """Mark the unread notifications of ``user`` as read, all of them or only ``ids``; returns how many."""
+    unread = Notification.objects.filter(recipient=user, is_read=False)
+    if ids is not None:
+        unread = unread.filter(id__in=ids)
+    return unread.update(is_read=True, read_at=timezone.now())
