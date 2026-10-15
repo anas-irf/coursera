@@ -9,5 +9,5 @@ class LearningConfig(AppConfig):
     verbose_name = 'Learning'
 
     def ready(self):
-        from . import hooks
-        hooks.register()
+        from . import course_extensions
+        course_extensions.register()

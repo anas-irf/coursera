@@ -8,5 +8,5 @@ class ContentConfig(AppConfig):
 
     def ready(self):
         # video and reading lectures plug into the courses slice
-        from . import handlers
-        handlers.register()
+        from . import course_extensions
+        course_extensions.register()

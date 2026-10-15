@@ -1,29 +1,16 @@
 # courses/api/curriculum.py - sections and lectures of an instructor's course
-import logging
-
-from django.db import transaction
 from django.shortcuts import get_object_or_404
-from rest_framework import status, viewsets
-from rest_framework.exceptions import ValidationError
+from rest_framework import viewsets
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsInstructor
 from apps.core.api.params import object_body
 from apps.core.api.throttling import UploadThrottle
 
-from .. import extensions
-from ..models import Course, Lecture, Section
+from .. import selectors
 from ..services import curriculum
 from .serializers import LectureSerializer, SectionSerializer
-
-logger = logging.getLogger(__name__)
-
-
-def _published_response(message, status_key, course):
-    return Response(
-        {'error': message, status_key: course.status},
-        status=status.HTTP_400_BAD_REQUEST
-    )
 
 
 class SectionViewSet(viewsets.ModelViewSet):
@@ -32,59 +19,23 @@ class SectionViewSet(viewsets.ModelViewSet):
     lookup_field = 'uuid'
 
     def get_queryset(self):
-        course_uuid = self.kwargs.get('course_uuid')
-        if course_uuid:
-            return Section.objects.filter(
-                course__uuid=course_uuid,
-                course__instructor=self.request.user
-            )
-        else:
-            return Section.objects.filter(
-                course__instructor=self.request.user
-            )
+        return selectors.instructor_sections(self.request.user, self.kwargs.get('course_uuid'))
 
     def perform_create(self, serializer):
-        course_uuid = self.kwargs.get('course_uuid')
-        course = get_object_or_404(Course, uuid=course_uuid, instructor=self.request.user)
-
-        if course.status == 'published':
-            raise ValidationError('Cannot add sections to published courses. Please unpublish the course first.')
-
-        serializer.save(
-            course=course,
-            order=curriculum.next_order(Section.objects.filter(course=course)),
-        )
-
-    def reorder_sections(self, request, course_uuid=None):
-        """Reorder sections within a course"""
-        # course_uuid comes from the URL or from the caller
-        course_uuid = course_uuid or self.kwargs.get('course_uuid')
-        course = get_object_or_404(Course, uuid=course_uuid, instructor=request.user)
-
-        curriculum.reorder(
-            Section.objects.filter(course=course),
-            object_body(request).get('section_orders', []),
-        )
-
-        return Response({'message': 'Sections reordered successfully'})
+        course = get_object_or_404(
+            selectors.instructor_courses(self.request.user), uuid=self.kwargs.get('course_uuid'))
+        serializer.instance = curriculum.add_section(course, serializer.validated_data)
 
     def update(self, request, *args, **kwargs):
-        """Override update to prevent editing sections of published courses"""
-        section = self.get_object()
-        if section.course.status == 'published':
-            return _published_response(
-                'Cannot edit sections of published courses. Please unpublish the course first.',
-                'course_status', section.course)
+        # a published course is refused before the payload is even looked at
+        curriculum.ensure_editable(self.get_object().course, 'edit sections of')
         return super().update(request, *args, **kwargs)
 
-    def perform_destroy(self, instance):
-        """Delete a section and renumber the remaining ones 1..n"""
-        if instance.course.status == 'published':
-            raise ValidationError('Cannot delete sections of published courses. Please unpublish the course first.')
+    def perform_update(self, serializer):
+        curriculum.edit_section(serializer.instance, serializer.validated_data)
 
-        course = instance.course
-        super().perform_destroy(instance)
-        curriculum.resequence(Section.objects.filter(course=course))
+    def perform_destroy(self, instance):
+        curriculum.delete_section(instance)
 
 
 class LectureViewSet(viewsets.ModelViewSet):
@@ -94,79 +45,39 @@ class LectureViewSet(viewsets.ModelViewSet):
     lookup_field = 'uuid'
 
     def get_queryset(self):
-        section_uuid = self.kwargs.get('section_uuid')
-        if section_uuid:
-            return Lecture.objects.filter(
-                section__uuid=section_uuid,
-                section__course__instructor=self.request.user
-            )
-        else:
-            return Lecture.objects.filter(
-                section__course__instructor=self.request.user
-            )
+        return selectors.instructor_lectures(self.request.user, self.kwargs.get('section_uuid'))
 
     def perform_create(self, serializer):
-        section_uuid = self.kwargs.get('section_uuid')
         section = get_object_or_404(
-            Section,
-            uuid=section_uuid,
-            course__instructor=self.request.user
-        )
-
-        if section.course.status == 'published':
-            raise ValidationError('Cannot add lectures to published courses. Please unpublish the course first.')
-
-        # the lecture and its content are one write: a content that is refused leaves no lecture
-        with transaction.atomic():
-            lecture = serializer.save(
-                section=section,
-                order=curriculum.next_order(Lecture.objects.filter(section=section)),
-            )
-
-            # the content slice that owns this lecture type creates its rows
-            handler = extensions.get_content_handler(lecture.content_type)
-            if handler is not None:
-                handler.create(lecture, self.request.data, self.request.FILES)
-
-    def perform_update(self, serializer):
-        with transaction.atomic():
-            lecture = serializer.save()
-
-            handler = extensions.get_content_handler(lecture.content_type)
-            if handler is not None:
-                handler.update(lecture, self.request.data, self.request.FILES)
-
-    def perform_destroy(self, instance):
-        """Delete a lecture and renumber the remaining ones 1..n"""
-        if instance.section.course.status == 'published':
-            raise ValidationError('Cannot delete lectures of published courses. Please unpublish the course first.')
-
-        section = instance.section
-        super().perform_destroy(instance)
-        curriculum.resequence(Lecture.objects.filter(section=section))
-
-    def reorder_lectures(self, request, section_uuid=None):
-        """Reorder lectures within a section"""
-        # section_uuid comes from the URL or from the caller
-        section_uuid = section_uuid or self.kwargs.get('section_uuid')
-        section = get_object_or_404(
-            Section,
-            uuid=section_uuid,
-            course__instructor=request.user
-        )
-
-        curriculum.reorder(
-            Lecture.objects.filter(section=section),
-            object_body(request).get('lecture_orders', []),
-        )
-
-        return Response({'message': 'Lectures reordered successfully'})
+            selectors.instructor_sections(self.request.user), uuid=self.kwargs.get('section_uuid'))
+        serializer.instance = curriculum.add_lecture(
+            section, serializer.validated_data, self.request.data, self.request.FILES)
 
     def update(self, request, *args, **kwargs):
-        """Override update to prevent editing lectures of published courses"""
-        lecture = self.get_object()
-        if lecture.section.course.status == 'published':
-            return _published_response(
-                'Cannot edit lectures of published courses. Please unpublish the course first.',
-                'course_status', lecture.section.course)
+        curriculum.ensure_editable(self.get_object().section.course, 'edit lectures of')
         return super().update(request, *args, **kwargs)
+
+    def perform_update(self, serializer):
+        curriculum.edit_lecture(
+            serializer.instance, serializer.validated_data, self.request.data, self.request.FILES)
+
+    def perform_destroy(self, instance):
+        curriculum.delete_lecture(instance)
+
+
+@api_view(['POST'])
+@permission_classes([IsInstructor])
+def reorder_sections(request, course_uuid):
+    """Reorder the sections of a course: ``{"section_orders": [{"uuid", "order"}, ...]}``."""
+    course = get_object_or_404(selectors.instructor_courses(request.user), uuid=course_uuid)
+    curriculum.reorder_sections(course, object_body(request).get('section_orders', []))
+    return Response({'message': 'Sections reordered successfully'})
+
+
+@api_view(['POST'])
+@permission_classes([IsInstructor])
+def reorder_lectures(request, section_uuid):
+    """Reorder the lectures of a section: ``{"lecture_orders": [{"uuid", "order"}, ...]}``."""
+    section = get_object_or_404(selectors.instructor_sections(request.user), uuid=section_uuid)
+    curriculum.reorder_lectures(section, object_body(request).get('lecture_orders', []))
+    return Response({'message': 'Lectures reordered successfully'})

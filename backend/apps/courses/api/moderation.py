@@ -8,54 +8,25 @@ from apps.accounts.permissions import IsAdmin
 from apps.core.api.pagination import paginate
 from apps.core.api.params import object_body
 
-from .. import extensions
-from ..models import Course
+from .. import selectors
 from ..services import lifecycle
-
-
-def _course_summary(course):
-    """Fields shared by the pending and the all-courses admin lists."""
-    return {
-        'id': str(course.uuid),
-        'title': course.title,
-        'instructor': {
-            'id': str(course.instructor.uuid),
-            'name': f"{course.instructor.first_name} {course.instructor.last_name}".strip() or course.instructor.email,
-            'email': course.instructor.email
-        },
-        'category': course.category.name if course.category else 'Uncategorized',
-        'course_type': course.course_type,
-        'sections_count': course.sections.count(),
-        'lectures_count': sum(section.lectures.count() for section in course.sections.all()),
-        'total_weight': float(extensions.total_grade_weight(course)),
-        'description': course.description,
-        'thumbnail': course.thumbnail.url if course.thumbnail else None,
-        'duration_hours': float(course.duration_hours) if course.duration_hours else 0
-    }
+from . import serializers
 
 
 @api_view(['GET'])
 @permission_classes([IsAdmin])
 def admin_pending_courses(request):
     """Get all courses pending admin review"""
-    pending_courses, headers = paginate(request, Course.objects.filter(
-        status='pending_review'
-    ).select_related('instructor').order_by('-updated_at', 'id'))
+    courses, headers = paginate(request, selectors.pending_review())
 
-    data = []
-    for course in pending_courses:
-        row = _course_summary(course)
-        row['submitted_date'] = course.updated_at.isoformat()
-        data.append(row)
-
-    return Response(data, headers=headers)
+    return Response([serializers.pending_course_row(course) for course in courses], headers=headers)
 
 
 @api_view(['POST'])
 @permission_classes([IsAdmin])
 def admin_approve_course(request, course_id):
     """Approve a course for publishing"""
-    course = get_object_or_404(Course, uuid=course_id, status='pending_review')
+    course = get_object_or_404(selectors.pending_review(), uuid=course_id)
 
     lifecycle.approve(course, request.user)
 
@@ -70,7 +41,7 @@ def admin_approve_course(request, course_id):
 @permission_classes([IsAdmin])
 def admin_reject_course(request, course_id):
     """Reject a course publishing request"""
-    course = get_object_or_404(Course, uuid=course_id, status='pending_review')
+    course = get_object_or_404(selectors.pending_review(), uuid=course_id)
     reason = object_body(request).get('reason') or ''
 
     if not isinstance(reason, str) or not reason.strip():
@@ -93,21 +64,7 @@ def admin_reject_course(request, course_id):
 @api_view(['GET'])
 @permission_classes([IsAdmin])
 def admin_all_courses(request):
-    """Get all courses for admin dashboard"""
-    # all courses regardless of status
-    all_courses, headers = paginate(
-        request, Course.objects.select_related('instructor').order_by('-created_at', 'id'))
+    """Get all courses for admin dashboard (whatever their status)"""
+    courses, headers = paginate(request, selectors.all_courses())
 
-    data = []
-    for course in all_courses:
-        row = _course_summary(course)
-        row.update({
-            'status': course.status,
-            'created_date': course.created_at.isoformat(),
-            'published_date': course.published_date.isoformat() if course.published_date else None,
-            'total_enrolled': course.total_enrolled,
-            'average_rating': float(course.average_rating) if course.average_rating else 0,
-        })
-        data.append(row)
-
-    return Response(data, headers=headers)
+    return Response([serializers.admin_course_row(course) for course in courses], headers=headers)

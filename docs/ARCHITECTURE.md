@@ -62,6 +62,12 @@ Frontend, enforced by ESLint (`frontend/.eslintrc.js`, `import/no-restricted-pat
 
 The player's heartbeat (`POST /learning/courses/<c>/lectures/<l>/progress/`) stores the resume position and credits the time spent, bounded by the distance the position moved, the real time since the previous beat and 60 s per beat. Everything that is about time (hours, streak, ranks, the monthly chart, the date of a badge) is derived from the daily log, `LearningStreak`: one row per student and day, in seconds. `StudentProfile.learning_streak` and `total_learning_hours` are refreshed from it the first time a student is active each day.
 
+## Assessments
+
+A quiz or an assignment is created, edited and graded by `assessments.services` (`authoring`, `quizzes`, `assignments`, `grades`); `handlers` in the slice only adapt them to the lecture registry, and the JSON shapes are `api/serializers.py`. What a student sends is never trusted: an option counts only for the question it belongs to, an answer that is not an object is a wrong answer, a quiz answer that arrives after `time_limit` plus `QUIZ_SUBMIT_GRACE_SECONDS` closes the attempt at zero (400, `code: time_limit_exceeded`), and an inactive quiz or assignment takes no attempts or hand-ins.
+
+The lecture form posts nested structures as JSON strings; `authoring` parses and validates them (400 on anything else) and **edits in place**: questions and options are matched by `id` (by position when a client sends none), settings change only when they were sent, and only what was removed is deleted, so attempts, responses and hand-ins survive an edit. A lecture and its content are written in one transaction. A published course is not edited in place: `courses.services.curriculum.ensure_editable` is the one guard behind add, edit, delete and reorder.
+
 ## Database notes
 
 * Subscription models moved from `accounts` to `billing` with state-only migrations (`accounts.0004`, `payments.0002`): no DDL runs, rows and tables stay, content types are re-labelled.
@@ -157,6 +163,6 @@ What the seed cannot show, because the application cannot (see *Known gaps*): th
 
 Documented, not fixed in the restructuring:
 
-* **Security**: the Stripe webhook accepts unsigned bodies when `STRIPE_WEBHOOK_SECRET` is empty; quiz options are not checked to belong to the answered question and the quiz time limit is not enforced on the server; reading HTML is rendered unsanitised; tokens live in `localStorage` and the WebSocket token is in the query string; `/api/messaging/users/` lists every user.
-* **Logic**: editing a quiz or assignment recreates it and cascades to attempts / submissions; the subscription end date is not moved on renewal; certificates are never issued and `Certificate.save()` cannot build its number; nothing creates `InstructorEarning` rows (the seed writes them).
+* **Security**: the Stripe webhook accepts unsigned bodies when `STRIPE_WEBHOOK_SECRET` is empty; reading HTML is rendered unsanitised; tokens live in `localStorage` and the WebSocket token is in the query string; `/api/messaging/users/` lists every user.
+* **Logic**: the subscription end date is not moved on renewal; certificates are never issued and `Certificate.save()` cannot build its number; nothing creates `InstructorEarning` rows (the seed writes them).
 * **Product**: instructor analytics, instructor settings, admin revenue / reports / settings have no backend.

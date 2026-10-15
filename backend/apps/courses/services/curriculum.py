@@ -1,9 +1,26 @@
-"""Ordering rules of sections and lectures."""
+"""Sections and lectures of a course: the rules of editing, ordering and removing them.
+
+A published course is not edited in place: the instructor unpublishes it first, so what
+students are taking never changes under them.  ``ensure_editable`` is that rule, and every
+change below starts with it.
+"""
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Max
 
 from apps.core.api.errors import ServiceError
+
+from .. import extensions
+from ..models import Lecture, Section
+
+
+def ensure_editable(course, doing):
+    """Refuse a change to a published course; ``doing`` completes "Cannot ... published courses"."""
+    if course.status == 'published':
+        raise ServiceError(
+            f'Cannot {doing} published courses. Please unpublish the course first.',
+            course_status=course.status,
+        )
 
 
 def next_order(queryset):
@@ -51,3 +68,83 @@ def reorder(queryset, orders):
         for obj, new_order in to_update:
             obj.order = new_order
             obj.save()
+
+
+# --------------------------------------------------------------------------- #
+# sections
+# --------------------------------------------------------------------------- #
+def add_section(course, fields):
+    """Append a section to ``course``; the position is the next free one whatever ``fields`` say."""
+    ensure_editable(course, 'add sections to')
+    order = next_order(Section.objects.filter(course=course))
+    return Section.objects.create(**{**fields, 'course': course, 'order': order})
+
+
+def edit_section(section, fields):
+    ensure_editable(section.course, 'edit sections of')
+    for name, value in fields.items():
+        setattr(section, name, value)
+    section.save()
+    return section
+
+
+def delete_section(section):
+    """Delete a section and renumber the remaining ones 1..n."""
+    ensure_editable(section.course, 'delete sections of')
+    course = section.course
+    with transaction.atomic():
+        section.delete()
+        resequence(Section.objects.filter(course=course))
+
+
+def reorder_sections(course, orders):
+    ensure_editable(course, 'reorder sections of')
+    reorder(Section.objects.filter(course=course), orders)
+
+
+# --------------------------------------------------------------------------- #
+# lectures
+# --------------------------------------------------------------------------- #
+def add_lecture(section, fields, data, files):
+    """Append a lecture to ``section`` together with the content its type owns.
+
+    The lecture and its content are one write: a content that is refused (a file of the wrong
+    type, a length that is not a number) leaves no lecture behind.
+    """
+    ensure_editable(section.course, 'add lectures to')
+    order = next_order(Lecture.objects.filter(section=section))
+
+    with transaction.atomic():
+        lecture = Lecture.objects.create(**{**fields, 'section': section, 'order': order})
+        handler = extensions.get_content_handler(lecture.content_type)
+        if handler is not None:
+            handler.create(lecture, data, files)
+    return lecture
+
+
+def edit_lecture(lecture, fields, data, files):
+    """Change a lecture and its content in one write."""
+    ensure_editable(lecture.section.course, 'edit lectures of')
+
+    with transaction.atomic():
+        for name, value in fields.items():
+            setattr(lecture, name, value)
+        lecture.save()
+        handler = extensions.get_content_handler(lecture.content_type)
+        if handler is not None:
+            handler.update(lecture, data, files)
+    return lecture
+
+
+def delete_lecture(lecture):
+    """Delete a lecture and renumber the remaining ones 1..n."""
+    ensure_editable(lecture.section.course, 'delete lectures of')
+    section = lecture.section
+    with transaction.atomic():
+        lecture.delete()
+        resequence(Lecture.objects.filter(section=section))
+
+
+def reorder_lectures(section, orders):
+    ensure_editable(section.course, 'reorder lectures of')
+    reorder(Lecture.objects.filter(section=section), orders)

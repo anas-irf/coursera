@@ -769,19 +769,61 @@ def test_published_course_cannot_be_restructured(auth_client, instructor):
     assert 'error' in r.json()
 
 
-@pytest.mark.pinned_bug
-def test_reordering_is_not_guarded_on_published_courses_current_behaviour(auth_client, instructor):
-    """Current behaviour: only add/edit/delete are guarded; reorder endpoints are not."""
+def test_a_published_course_is_not_reordered_in_place(auth_client, instructor):
+    """Like add, edit and delete, reordering needs the course to be unpublished first."""
     client = auth_client(instructor)
     course = f.make_course(instructor, status='published')
     a, b = f.make_section(course, title='A'), f.make_section(course, title='B')
+    lecture_a, lecture_b = f.make_lecture(a, title='x'), f.make_lecture(a, title='y')
 
     r = client.post(f'{COURSES}{course.uuid}/sections/reorder/', {
         'section_orders': [{'uuid': str(b.uuid), 'order': 1}, {'uuid': str(a.uuid), 'order': 2}]},
         format='json')
 
+    assert r.status_code == 400
+    assert r.json() == {
+        'error': 'Cannot reorder sections of published courses. Please unpublish the course first.',
+        'course_status': 'published'}
+    assert (f.Section.objects.get(pk=a.pk).order, f.Section.objects.get(pk=b.pk).order) == (1, 2)
+
+    r = client.post(f'/api/v1/courses/instructor/sections/{a.uuid}/lectures/reorder/', {
+        'lecture_orders': [{'uuid': str(lecture_b.uuid), 'order': 1},
+                           {'uuid': str(lecture_a.uuid), 'order': 2}]}, format='json')
+    assert r.status_code == 400
+    assert r.json()['course_status'] == 'published'
+    assert f.Lecture.objects.get(pk=lecture_a.pk).order == 1
+
+    # the same course reorders once it is unpublished
+    f.Course.objects.filter(pk=course.pk).update(status='draft')
+    r = client.post(f'{COURSES}{course.uuid}/sections/reorder/', {
+        'section_orders': [{'uuid': str(b.uuid), 'order': 1}, {'uuid': str(a.uuid), 'order': 2}]},
+        format='json')
     assert r.status_code == 200
     assert f.Section.objects.get(pk=b.pk).order == 1
+
+
+def test_every_change_of_a_published_course_names_the_course_status(auth_client, instructor):
+    client = auth_client(instructor)
+    course = f.make_course(instructor, status='published')
+    section = f.make_section(course)
+    lecture = f.make_lecture(section, content_type='reading')
+    base = '/api/v1/courses/instructor'
+
+    attempts = [
+        client.post(f'{COURSES}{course.uuid}/sections/', {'title': 'S'}, format='json'),
+        client.put(f'{base}/sections/{section.uuid}/', {'title': 'S2'}, format='json'),
+        client.delete(f'{base}/sections/{section.uuid}/'),
+        create_lecture(client, section.uuid, title='L', content_type='reading', article_content='x'),
+        update_lecture(client, lecture.uuid, title='L2', content_type='reading'),
+        client.delete(f'{base}/lectures/{lecture.uuid}/'),
+    ]
+
+    for r in attempts:
+        assert r.status_code == 400
+        assert r.json()['course_status'] == 'published'
+        assert 'Please unpublish the course first' in r.json()['error']
+    assert f.Section.objects.filter(course=course).count() == 1
+    assert f.Lecture.objects.filter(section=section).count() == 1
 
 
 # --------------------------------------------------------------------------- #
@@ -1121,3 +1163,35 @@ def test_a_due_date_with_an_offset_is_accepted(auth_client, instructor):
     assert r.status_code == 201
     due = f.Assignment.objects.get(lecture__uuid=r.json()['id']).due_date
     assert due.utcoffset().total_seconds() == 0 and due.hour == 7   # stored in UTC
+
+
+# --------------------------------------------------------------------------- #
+# what the create form offers
+# --------------------------------------------------------------------------- #
+def test_categories_and_languages_are_listed_for_the_create_form(api, auth_client, instructor):
+    kept = f.make_category(name='Data Science')
+    f.make_category(name='Archived topic')
+    f.Category.objects.filter(name='Archived topic').update(is_active=False)
+    english = f.make_language(code='en', name='English')
+
+    assert api.get('/api/v1/courses/categories/').status_code == 401
+    assert api.get('/api/v1/courses/languages/').status_code == 401
+
+    categories = auth_client(instructor).get('/api/v1/courses/categories/').json()
+    languages = auth_client(instructor).get('/api/v1/courses/languages/').json()
+
+    assert [row['name'] for row in categories] == ['Data Science']
+    assert set(categories[0]) == {'id', 'name', 'slug'}
+    assert categories[0]['id'] == kept.pk
+    assert languages == [{'id': english.pk, 'code': 'en', 'name': 'English'}]
+
+
+def test_the_category_and_language_of_the_form_are_kept_on_the_course(auth_client, instructor):
+    category = f.make_category(name='Design')
+    language = f.make_language(code='fr', name='French')
+
+    r = create_course(auth_client(instructor), category=category.pk, language=language.pk)
+
+    assert r.status_code == 201
+    course = f.Course.objects.get(uuid=r.json()['id'])
+    assert course.category_id == category.pk and course.language_id == language.pk

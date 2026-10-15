@@ -8,5 +8,5 @@ class AssessmentsConfig(AppConfig):
 
     def ready(self):
         # quiz and assignment lectures plug into the courses slice
-        from . import handlers
-        handlers.register()
+        from . import course_extensions
+        course_extensions.register()

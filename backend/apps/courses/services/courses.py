@@ -4,6 +4,15 @@ from apps.core.api.errors import ServiceError
 from .. import extensions
 
 
+def ensure_editable(course):
+    """Refuse to change a published course: it is unpublished first."""
+    if course.status == 'published':
+        raise ServiceError(
+            'Cannot edit published courses. Please unpublish the course first.',
+            status=course.status,
+        )
+
+
 def delete_course(course, user, confirmation):
     """Permanently delete ``course`` after the typed confirmation.
 

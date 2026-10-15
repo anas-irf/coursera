@@ -9,5 +9,5 @@ class BillingConfig(AppConfig):
     verbose_name = 'Billing'
 
     def ready(self):
-        from . import hooks
-        hooks.register()
+        from . import course_extensions
+        course_extensions.register()
