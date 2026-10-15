@@ -22,6 +22,32 @@ export function errorMessage(error, fallback = 'Something went wrong. Please try
   return fallback;
 }
 
+/**
+ * Every problem of a form response in one sentence ("title: This field is required. slug: ..."),
+ * for forms whose fields the user cannot all see at once; other errors read like errorMessage.
+ */
+export function errorSummary(error, fallback) {
+  const data = error && error.response && error.response.data;
+  const isFieldMap =
+    data &&
+    typeof data === 'object' &&
+    !Array.isArray(data) &&
+    typeof data.error !== 'string' &&
+    typeof data.detail !== 'string' &&
+    typeof data.message !== 'string';
+
+  if (isFieldMap) {
+    const parts = Object.entries(data)
+      .filter(([, value]) => Array.isArray(value) ? value.length > 0 : typeof value === 'string')
+      .map(([field, value]) => {
+        const text = `${field}: ${[].concat(value).join(', ')}`;
+        return /[.!?]$/.test(text) ? text : `${text}.`;
+      });
+    if (parts.length > 0) return parts.join(' ');
+  }
+  return errorMessage(error, fallback);
+}
+
 /** The stable machine-readable `code` of an error response ("time_limit_exceeded"), else `null`. */
 export function errorCode(error) {
   const data = error && error.response && error.response.data;

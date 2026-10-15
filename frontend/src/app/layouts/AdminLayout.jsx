@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+import { NavLink, Outlet } from 'react-router-dom';
 import { BookCheck, BookOpen, DollarSign, FileText, Home, LogOut, Menu, Settings, Users, X } from 'lucide-react';
 
 import { NotificationDropdown } from '../../features/notifications';
-import { pendingCourses } from '../../features/admin';
+import { usePendingCount } from '../../features/admin';
 import { fullName } from '../../shared/lib/names';
 import Avatar from '../../shared/ui/Avatar';
 import { useConfirm } from '../../shared/ui/ConfirmDialog';
@@ -30,20 +30,9 @@ const linkClass = ({ isActive }) =>
 const AdminLayout = () => {
   const { user, logout } = useAuth();
   const { confirmLogout } = useConfirm();
-  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [pending, setPending] = useState(0);
-
-  // the badge follows the moderation queue: refreshed whenever the admin moves around
-  useEffect(() => {
-    let cancelled = false;
-    pendingCourses()
-      .then((rows) => !cancelled && setPending(rows.length))
-      .catch(() => !cancelled && setPending(0));
-    return () => {
-      cancelled = true;
-    };
-  }, [location.pathname]);
+  // the approval queue's own cache entry: approving or rejecting updates the badge too
+  const pending = usePendingCount();
 
   const name = fullName(user, 'Admin');
 

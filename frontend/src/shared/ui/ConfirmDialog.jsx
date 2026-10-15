@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useId, useState, useCallback, useMemo } from 'react';
 import { AlertTriangle, Info, Trash2, LogOut, X } from 'lucide-react';
+
+import Modal from './Modal';
 
 // Confirm Dialog Context
 const ConfirmContext = createContext();
@@ -14,6 +16,7 @@ export const useConfirm = () => {
 
 // Confirm Dialog Component
 const ConfirmDialog = ({ dialog, onConfirm, onCancel }) => {
+  const titleId = useId();
   if (!dialog) return null;
 
   const icons = {
@@ -43,14 +46,14 @@ const ConfirmDialog = ({ dialog, onConfirm, onCancel }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+    <Modal bare layer="top" size="sm" labelledBy={titleId} onClose={onCancel}>
+      <div>
         <div className="flex items-start p-6">
           <div className="flex-shrink-0">
             {icons[dialog.type] || icons.info}
           </div>
           <div className="ml-3 w-full">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
+            <h3 id={titleId} className="text-lg font-medium text-gray-900 mb-2">
               {dialog.title}
             </h3>
             <p className="text-sm text-gray-600">
@@ -60,6 +63,7 @@ const ConfirmDialog = ({ dialog, onConfirm, onCancel }) => {
           {dialog.showClose && (
             <button
               onClick={onCancel}
+              aria-label="Close"
               className="flex-shrink-0 ml-3 text-gray-400 hover:text-gray-600"
             >
               <X className="w-5 h-5" />
@@ -85,7 +89,7 @@ const ConfirmDialog = ({ dialog, onConfirm, onCancel }) => {
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 
