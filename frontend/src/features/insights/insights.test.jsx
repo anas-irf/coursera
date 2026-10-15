@@ -177,7 +177,7 @@ describe('the instructor pages', () => {
 
     expect(await screen.findByText('Dashboard Overview')).toBeInTheDocument();
     expect(screen.getByText('2 published, 1 draft')).toBeInTheDocument();
-    expect(screen.getByText('$1,250.5')).toBeInTheDocument();
+    expect(screen.getByText('$1,250.50')).toBeInTheDocument();
     expect(screen.queryByText(/from last month/)).not.toBeInTheDocument();
     expect(screen.queryByText(/\+12%/)).not.toBeInTheDocument();
     // reviews do not exist yet: a rating of 0 is not shown as a rating
@@ -214,7 +214,7 @@ describe('the instructor pages', () => {
     expect(screen.getByText('40% of what students pay is shared among Plus courses')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Course' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Student' })).not.toBeInTheDocument();
-    expect(screen.getByText('$412.5')).toBeInTheDocument();
+    expect(screen.getByText('$412.50')).toBeInTheDocument();
     expect(screen.getByText('Pending', { selector: 'span' })).toBeInTheDocument();
   });
 

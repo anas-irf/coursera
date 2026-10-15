@@ -313,6 +313,10 @@ jobs:
 
       - name: Start the API
         working-directory: backend
+        env:
+          # the specs sign in dozens of times a minute from one address: the login throttle
+          # (10/min by default) would answer 429
+          THROTTLE_LOGIN: 1000/min
         run: |
           nohup python manage.py runserver 127.0.0.1:8000 --noreload > "$RUNNER_TEMP/api.log" 2>&1 &
           for _ in $(seq 1 60); do

@@ -3,6 +3,7 @@ import { Plus, Search, Star, Edit2, Eye, EyeOff, Trash2, AlertCircle, BookOpen }
 
 import { useAuth } from '../../../shared/auth/AuthProvider';
 import { errorMessage } from '../../../shared/api/errors';
+import { formatMoney } from '../../../shared/lib/money';
 import { formatDate } from '../../../shared/lib/time';
 import CourseThumbnail from '../../../shared/ui/CourseThumbnail';
 import EmptyState from '../../../shared/ui/EmptyState';
@@ -199,7 +200,7 @@ const CoursesPage = () => {
                   </div>
                   <div className="text-center">
                     <p className="text-gray-500">Revenue</p>
-                    <p className="font-semibold text-green-600">${course.total_revenue}</p>
+                    <p className="font-semibold text-green-600">{formatMoney(course.total_revenue)}</p>
                   </div>
                 </div>
 

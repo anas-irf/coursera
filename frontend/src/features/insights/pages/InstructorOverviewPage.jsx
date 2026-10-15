@@ -2,6 +2,7 @@ import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { BookOpen, Users, DollarSign, Star } from 'lucide-react';
 
+import { formatMoney } from '../../../shared/lib/money';
 import { formatDate } from '../../../shared/lib/time';
 import CourseThumbnail from '../../../shared/ui/CourseThumbnail';
 import EmptyState from '../../../shared/ui/EmptyState';
@@ -52,7 +53,7 @@ const InstructorOverviewPage = () => {
     },
     {
       title: 'Revenue',
-      value: `$${stats.total_revenue.toLocaleString()}`,
+      value: formatMoney(stats.total_revenue),
       note: 'your share, all time',
       icon: DollarSign,
       color: 'from-purple-500 to-purple-600',
@@ -191,7 +192,7 @@ const InstructorOverviewPage = () => {
                         <Star size={14} className="mr-1" />
                         {rating(course.average_rating)}
                       </span>
-                      <span className="text-sm font-semibold text-green-600">${course.total_revenue}</span>
+                      <span className="text-sm font-semibold text-green-600">{formatMoney(course.total_revenue)}</span>
                     </div>
                   </div>
                 </div>

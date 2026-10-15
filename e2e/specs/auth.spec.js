@@ -26,7 +26,7 @@ test('a wrong password is refused and the visitor stays on the login page', asyn
   await submitLogin(page, 'demo.student@example.com', 'definitely-not-the-password');
 
   await expect(page).toHaveURL(/\/login/);
-  await expect(page.locator('main, body')).not.toContainText('Welcome back! 👋');
+  await expect(page.locator('body')).not.toContainText('Welcome back! 👋');
 });
 
 test('the form asks for a valid e-mail address and a password', async ({ page }) => {
@@ -81,7 +81,7 @@ test('a signed in user stays signed in after a reload', async ({ page, signIn })
   await page.reload();
 
   await expect(page).toHaveURL(/\/student$/);
-  await expect(page.locator('main, body')).toContainText('Welcome back');
+  await expect(page.locator('body')).toContainText('Welcome back');
 });
 
 test('after the server ended the session the next visit is sent to the login page', async ({ page, signIn }) => {

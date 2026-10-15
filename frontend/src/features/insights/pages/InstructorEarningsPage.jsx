@@ -2,12 +2,11 @@ import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { DollarSign, Clock, TrendingUp } from 'lucide-react';
 
+import { formatMoney } from '../../../shared/lib/money';
 import EmptyState from '../../../shared/ui/EmptyState';
 import ErrorState from '../../../shared/ui/ErrorState';
 import { PageSpinner } from '../../../shared/ui/Spinner';
 import { useInstructorEarnings } from '../hooks/useInsights';
-
-const money = (value) => `$${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
 const TH = 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
 
@@ -45,7 +44,7 @@ const InstructorEarningsPage = () => {
             <p className="text-green-100">Total Earnings</p>
             <DollarSign size={24} className="text-green-200" />
           </div>
-          <p className="text-3xl font-bold">{money(summary.total_earnings)}</p>
+          <p className="text-3xl font-bold">{formatMoney(summary.total_earnings)}</p>
           <p className="text-sm text-green-100 mt-2">Paid out so far</p>
         </div>
 
@@ -54,7 +53,7 @@ const InstructorEarningsPage = () => {
             <p className="text-yellow-100">Pending</p>
             <Clock size={24} className="text-yellow-200" />
           </div>
-          <p className="text-3xl font-bold">{money(summary.pending_earnings)}</p>
+          <p className="text-3xl font-bold">{formatMoney(summary.pending_earnings)}</p>
           <p className="text-sm text-yellow-100 mt-2">Earned, not paid out yet</p>
         </div>
 
@@ -63,7 +62,7 @@ const InstructorEarningsPage = () => {
             <p className="text-blue-100">This Month</p>
             <TrendingUp size={24} className="text-blue-200" />
           </div>
-          <p className="text-3xl font-bold">{money(summary.monthly_earnings)}</p>
+          <p className="text-3xl font-bold">{formatMoney(summary.monthly_earnings)}</p>
           <p className="text-sm text-blue-100 mt-2">Calculated for the current month</p>
         </div>
       </div>
@@ -126,7 +125,7 @@ const InstructorEarningsPage = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.enrollments}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.completions}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {money(row.amount)}
+                      {formatMoney(row.amount)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
