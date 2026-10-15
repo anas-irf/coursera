@@ -1,4 +1,5 @@
-# notifications/urls.py
+"""Routes of the notifications slice, mounted at ``/api/v1/notifications/``."""
+
 from django.urls import path
 
 from .api import views

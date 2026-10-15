@@ -1,4 +1,5 @@
-# courses/api/serializers.py
+"""Serializers and list rows of the courses API."""
+
 from django.db import IntegrityError, transaction
 from rest_framework import serializers
 
@@ -81,6 +82,7 @@ class LectureSerializer(serializers.ModelSerializer):
 
 
 class SectionSerializer(serializers.ModelSerializer):
+    """A section with its lectures, as the instructor edits them."""
     id = serializers.UUIDField(source='uuid', read_only=True)
     lectures = LectureSerializer(many=True, read_only=True)
     total_duration = serializers.SerializerMethodField()

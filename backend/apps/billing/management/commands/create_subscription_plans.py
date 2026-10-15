@@ -1,4 +1,5 @@
-# payments/management/commands/create_subscription_plans.py
+"""Creates the Coursera Plus plans from the price list in ``apps.billing.plans``."""
+
 from django.core.management.base import BaseCommand
 
 from apps.billing import plans
@@ -6,6 +7,7 @@ from apps.billing.models import SubscriptionPlan
 
 
 class Command(BaseCommand):
+    """Creates or updates the Coursera Plus plans."""
     help = 'Create default subscription plans for Coursera Plus'
 
     def handle(self, *args, **options):

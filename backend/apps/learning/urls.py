@@ -1,4 +1,5 @@
-# learning/urls.py - mounted at /api/learning/
+"""Routes of the learning slice, mounted at ``/api/v1/learning/``."""
+
 from django.urls import path
 
 from .api import views

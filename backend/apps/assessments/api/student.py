@@ -1,4 +1,5 @@
-# assessments/api/student.py - what a student does: attempt quizzes, hand in work, see grades
+"""What a student does with assessments: attempt quizzes, hand in work, see grades."""
+
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -11,8 +12,7 @@ from apps.core.api.throttling import UploadThrottle
 from apps.learning import selectors as learning
 
 from ..models import Assignment, Quiz
-from ..services import assignments, quizzes
-from ..services.grades import GradeCalculationService
+from ..services import assignments, grades, quizzes
 from . import serializers
 
 
@@ -88,7 +88,7 @@ def download_submission_file(request, submission_uuid):
 @permission_classes([IsStudent])
 def student_gradebook(request):
     """Get student's gradebook across all enrolled courses"""
-    gradebook = GradeCalculationService.get_student_gradebook(request.user)
+    gradebook = grades.student_gradebook(request.user)
 
     return Response({
         'student': {

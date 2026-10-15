@@ -1,9 +1,11 @@
-# content/models.py
+"""What a lecture holds besides its title: the video with its subtitles, the reading."""
+
 from django.db import models
 from apps.core.models import BaseModel
 from apps.courses.models import Lecture
 
 class VideoContent(BaseModel):
+    """The video of a lecture: a file or a link, and its length in seconds."""
     lecture = models.OneToOneField(Lecture, on_delete=models.CASCADE,
                                   related_name='video_content')
 
@@ -21,6 +23,7 @@ class VideoContent(BaseModel):
         return f"Video for {self.lecture.title}"
 
 class Subtitle(BaseModel):
+    """A subtitle track of an uploaded video."""
     LANGUAGE_CHOICES = (
         ('en', 'English'),
         ('es', 'Spanish'),
@@ -43,6 +46,7 @@ class Subtitle(BaseModel):
 
 
 class Reading(BaseModel):
+    """The text (or the document) of a reading lecture."""
     lecture = models.OneToOneField('courses.Lecture', on_delete=models.CASCADE,
                                   related_name='reading')
 

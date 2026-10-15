@@ -12,6 +12,7 @@ from .models import DirectMessage
 
 @dataclass
 class ConversationSummary:
+    """One conversation of a user: the other person, the last message and the unread count."""
     conversation_id: str
     other_user: User
     last_message: DirectMessage

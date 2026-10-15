@@ -17,7 +17,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.assessments import selectors as assessments
-from apps.assessments.services.grades import GradeCalculationService
+from apps.assessments.services import grades
 from apps.core.events import certificate_issued, emit
 from apps.learning.models import Enrollment
 
@@ -35,7 +35,7 @@ def verdict(enrollment):
     if assessments.awaiting_grade(enrollment.student, enrollment.course):
         return False, None
 
-    result = GradeCalculationService.calculate_student_course_grade(enrollment.student, enrollment.course)
+    result = grades.calculate_student_course_grade(enrollment.student, enrollment.course)
     if result is None or not result['total_weight']:
         return True, None   # nothing in the course is graded
     grade = Decimal(str(result['final_grade'])).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)

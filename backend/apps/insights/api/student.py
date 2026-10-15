@@ -1,10 +1,11 @@
-# insights/api/student.py
+"""HTTP adapters of the student's statistics, weekly progress and achievements."""
+
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsStudent
 
-from .. import student as student_insights
+from ..selectors import student as student_insights
 
 
 @api_view(['GET'])

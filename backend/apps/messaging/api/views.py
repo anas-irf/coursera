@@ -1,4 +1,5 @@
-# messaging/api/views.py
+"""HTTP adapters of direct messages: conversations, sending and who can be written to."""
+
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated

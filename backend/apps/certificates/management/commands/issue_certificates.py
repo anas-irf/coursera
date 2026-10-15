@@ -16,6 +16,7 @@ from apps.learning.models import Enrollment
 
 
 class Command(BaseCommand):
+    """Issues the certificates of completed enrolments that earned one."""
     help = 'Issue the certificates of completed enrollments that earned one but have none.'
 
     def add_arguments(self, parser):

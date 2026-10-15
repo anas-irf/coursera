@@ -6,7 +6,13 @@ worker shares them.  Scopes do not look at paths: ``/api/v1/...`` and the
 unversioned aliases of the first release are one bucket.  The client address is
 the one DRF derives from ``NUM_PROXIES``.
 """
-from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
+from rest_framework.throttling import AnonRateThrottle, BaseThrottle, UserRateThrottle
+
+
+def client_ip(request):
+    """The client address as the throttles see it: ``REMOTE_ADDR``, or the right hop of
+    ``X-Forwarded-For`` when ``NUM_PROXIES`` says that proxies sit in front of the app."""
+    return BaseThrottle().get_ident(request)
 
 
 class LoginThrottle(AnonRateThrottle):
@@ -15,10 +21,12 @@ class LoginThrottle(AnonRateThrottle):
 
 
 class SignupThrottle(AnonRateThrottle):
+    """Limits sign-ups per client address."""
     scope = 'signup'
 
 
 class RefreshThrottle(AnonRateThrottle):
+    """Limits token refreshes per client address."""
     scope = 'refresh'
 
 

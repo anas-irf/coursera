@@ -1,4 +1,5 @@
-# courses/api/moderation.py - admin review of submitted courses
+"""HTTP adapters for the administrator's review of submitted courses."""
+
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes

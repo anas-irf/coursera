@@ -1,4 +1,5 @@
-# insights/api/instructor.py
+"""HTTP adapters of the instructor's dashboard and earnings."""
+
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -6,7 +7,7 @@ from rest_framework.response import Response
 from apps.accounts.permissions import IsInstructor
 from apps.courses.models import Course
 
-from .. import instructor
+from ..selectors import instructor
 
 
 @api_view(['GET'])

@@ -41,10 +41,12 @@ class ServiceError(Exception):
 
 
 class NotFound(ServiceError):
+    """The thing asked for does not exist (404)."""
     status_code = status.HTTP_404_NOT_FOUND
 
 
 class PermissionDenied(ServiceError):
+    """The user may not do this (403)."""
     status_code = status.HTTP_403_FORBIDDEN
 
 

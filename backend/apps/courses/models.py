@@ -1,4 +1,5 @@
-# courses/models.py
+"""Courses and their curriculum: sections and lectures."""
+
 from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -32,6 +33,7 @@ def validate_course_thumbnail(value):
         raise ValidationError('Invalid image file. Please upload a valid image.') from None
 
 class Course(BaseModel):
+    """A course: its description, who teaches it and where it is in the publishing workflow."""
     LEVEL_CHOICES = (
         ('beginner', 'Beginner'),
         ('intermediate', 'Intermediate'),
@@ -138,6 +140,7 @@ class Course(BaseModel):
     
 
 class Section(BaseModel):
+    """An ordered group of lectures inside a course."""
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='sections')
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
@@ -153,6 +156,7 @@ class Section(BaseModel):
         return f"{self.course.title} - {self.title}"
 
 class Lecture(BaseModel):
+    """One unit of a course; its ``content_type`` says which slice holds its content."""
     CONTENT_TYPE_CHOICES = (
         ('video', 'Video'),
         ('reading', 'Reading'),

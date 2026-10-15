@@ -1,4 +1,5 @@
-# certificates/models.py
+"""The certificate a learner earns for completing and passing a course."""
+
 from django.db import models
 from django.conf import settings
 from apps.core.models import BaseModel
@@ -7,6 +8,7 @@ from apps.learning.models import Enrollment
 import secrets
 
 class Certificate(BaseModel):
+    """A certificate: one per completed and passed enrolment, with a number and a verification code."""
     enrollment = models.OneToOneField(Enrollment, on_delete=models.CASCADE,
                                      related_name='certificate')
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,

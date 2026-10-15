@@ -1,4 +1,5 @@
-# billing/api/views.py
+"""HTTP adapters of billing: plans, checkout, the subscription and the Stripe webhook."""
+
 import logging
 
 from django.conf import settings

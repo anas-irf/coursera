@@ -1,4 +1,5 @@
-# messaging/middleware.py - who is on the other end of a WebSocket
+"""Who is on the other end of a WebSocket: the session cookie (or a legacy token)."""
+
 import logging
 from http.cookies import CookieError, SimpleCookie
 from urllib.parse import parse_qs

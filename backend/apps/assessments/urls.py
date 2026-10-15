@@ -1,4 +1,5 @@
-# assessments/urls.py - mounted at /api/assessments/
+"""Routes of the assessments slice, mounted at ``/api/v1/assessments/``."""
+
 from django.urls import path
 
 from .api import instructor, student

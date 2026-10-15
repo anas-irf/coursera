@@ -1,4 +1,5 @@
-# insights/urls.py - mounted at /api/insights/
+"""Routes of the insights slice, mounted at ``/api/v1/insights/``."""
+
 from django.urls import path
 
 from .api import directory, instructor, student

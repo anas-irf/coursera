@@ -1,4 +1,5 @@
-# notifications/models.py
+"""A notification a user receives."""
+
 from django.db import models
 from django.conf import settings
 from apps.core.models import BaseModel
@@ -6,6 +7,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 
 class Notification(BaseModel):
+    """Something a user is told: a type, a text and optionally where to go."""
     NOTIFICATION_TYPE_CHOICES = (
         # Course management
         ('course_rejected', 'Course Rejected'),

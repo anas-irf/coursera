@@ -1,4 +1,5 @@
-# billing/urls.py - mounted at /api/billing/
+"""Routes of the billing slice, mounted at ``/api/v1/billing/``."""
+
 from django.urls import path
 
 from .api import views

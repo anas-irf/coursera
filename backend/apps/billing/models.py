@@ -1,4 +1,5 @@
-# payments/models.py
+"""Plans, memberships and payments of Coursera Plus, and the instructors' earnings from them."""
+
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
@@ -97,6 +98,7 @@ class CourseraRevenuePool(BaseModel):
 
 
 class StudentPlusSubscription(BaseModel):
+    """A student's Coursera Plus membership and where it stands (``end_date`` is paid access)."""
     SUBSCRIPTION_STATUS_CHOICES = (
         ('active', 'Active'),
         ('cancelled', 'Cancelled'),    # will not renew; usable until end_date
@@ -151,6 +153,7 @@ class StudentPlusSubscription(BaseModel):
 
 
 class StudentPlusPayment(BaseModel):
+    """One payment of a membership; a month's completed payments are the earnings pool."""
     PAYMENT_STATUS_CHOICES = (
         ('pending', 'Pending'),
         ('completed', 'Completed'),

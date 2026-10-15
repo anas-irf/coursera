@@ -1,4 +1,5 @@
-# accounts/api/serializers.py
+"""Serializers of the accounts API: signup, login and the user with its profile."""
+
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
@@ -8,6 +9,7 @@ from ..models import StudentProfile, InstructorProfile
 User = get_user_model()
 
 class SignupSerializer(serializers.ModelSerializer):
+    """Registration: validates the password and creates the user with the profile of its role."""
     password = serializers.CharField(write_only=True, validators=[validate_password])
     confirm_password = serializers.CharField(write_only=True)
     user_type = serializers.ChoiceField(choices=['student', 'instructor'], default='student')
@@ -34,10 +36,12 @@ class SignupSerializer(serializers.ModelSerializer):
         )
 
 class LoginSerializer(serializers.Serializer):
+    """The e-mail address and password of a login."""
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
 
 class UserSerializer(serializers.ModelSerializer):
+    """The user as the API shows them: names, role and verification."""
     full_name = serializers.SerializerMethodField()
     
     class Meta:
@@ -50,6 +54,7 @@ class UserSerializer(serializers.ModelSerializer):
         return f"{obj.first_name} {obj.last_name}".strip()
 
 class StudentProfileSerializer(serializers.ModelSerializer):
+    """A student's profile with its user."""
     user = UserSerializer(read_only=True)
     
     class Meta:
@@ -57,6 +62,7 @@ class StudentProfileSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class InstructorProfileSerializer(serializers.ModelSerializer):
+    """An instructor's profile with its user."""
     user = UserSerializer(read_only=True)
     
     class Meta:

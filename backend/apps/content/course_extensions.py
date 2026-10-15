@@ -30,6 +30,7 @@ def _file_name(file_field):
 
 
 class VideoHandler(LectureContentHandler):
+    """The video lecture: an uploaded file with subtitles or a YouTube link."""
     content_type = 'video'
 
     def create(self, lecture, data, files):
@@ -179,6 +180,7 @@ class VideoHandler(LectureContentHandler):
 
 
 class ReadingHandler(LectureContentHandler):
+    """The reading lecture: sanitised rich text or an uploaded document."""
     content_type = 'reading'
 
     @staticmethod

@@ -16,7 +16,7 @@ from django.utils import timezone
 
 from apps.billing.services.earnings import month_start
 from apps.core.api.errors import ServiceError
-from apps.insights import earnings
+from apps.insights.services import earnings
 
 
 def last_month(today):
@@ -32,6 +32,7 @@ def parse_month(value):
 
 
 class Command(BaseCommand):
+    """Calculates and records the instructors' earnings of a finished month."""
     help = "Calculate and record the instructors' earnings of a finished month."
 
     def add_arguments(self, parser):

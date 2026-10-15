@@ -1,4 +1,5 @@
-# assessments/api/instructor.py - grading side
+"""The grading side of assessments: the instructor's assignments and their hand-ins."""
+
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response

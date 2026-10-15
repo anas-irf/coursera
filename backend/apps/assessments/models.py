@@ -1,4 +1,5 @@
-# assessments/models.py
+"""Quizzes with their questions and attempts, assignments with their submissions."""
+
 from django.db import models
 from django.conf import settings
 from apps.core.models import BaseModel
@@ -20,6 +21,7 @@ def assignment_upload_path(instance, filename):
     return f"assignment_uploads/{assignment_short_id}/{unique_filename}"
 
 class Quiz(BaseModel):
+    """A graded or practice quiz that belongs to one lecture."""
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='quizzes')
     section = models.ForeignKey(Section, on_delete=models.CASCADE,
                                related_name='quizzes', null=True, blank=True)
@@ -46,6 +48,7 @@ class Quiz(BaseModel):
         verbose_name_plural = 'Quizzes'
 
 class Question(BaseModel):
+    """A question of a quiz."""
     QUESTION_TYPE_CHOICES = (
         ('multiple_choice', 'Multiple Choice'),
         ('true_false', 'True/False'),
@@ -72,6 +75,7 @@ class Question(BaseModel):
         ordering = ['order']
 
 class QuestionOption(BaseModel):
+    """One of the answers offered for a question."""
     question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name='options')
     option_text = models.CharField(max_length=500)
     is_correct = models.BooleanField(default=False)
@@ -82,6 +86,7 @@ class QuestionOption(BaseModel):
         ordering = ['order']
 
 class QuizAttempt(BaseModel):
+    """One go a student takes at a quiz; open until it is submitted or expires."""
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                                related_name='quiz_attempts')
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='attempts')
@@ -99,6 +104,7 @@ class QuizAttempt(BaseModel):
         unique_together = ['student', 'quiz', 'attempt_number']
 
 class QuestionResponse(BaseModel):
+    """What a student answered to one question of an attempt."""
     attempt = models.ForeignKey(QuizAttempt, on_delete=models.CASCADE,
                                related_name='responses')
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
@@ -117,6 +123,7 @@ class QuestionResponse(BaseModel):
         unique_together = ['attempt', 'question']
 
 class Assignment(BaseModel):
+    """A piece of work students hand in, graded by the instructor."""
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='assignments')
     section = models.ForeignKey(Section, on_delete=models.CASCADE,
                                related_name='assignments', null=True, blank=True)
@@ -146,6 +153,7 @@ class Assignment(BaseModel):
         db_table = 'assignments'
 
 class AssignmentSubmission(BaseModel):
+    """A student's hand-in of an assignment, with its grade and feedback."""
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE,
                                   related_name='submissions')
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,

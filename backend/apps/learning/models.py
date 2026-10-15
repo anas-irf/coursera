@@ -1,4 +1,5 @@
-# learning/models.py (database label: enrollments)
+"""Enrolments with their progress, bookmarks and the daily learning log."""
+
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
@@ -6,6 +7,7 @@ from apps.core.models import BaseModel
 from apps.courses.models import Course, Lecture
 
 class Enrollment(BaseModel):
+    """A student's place in a course, with progress and status (active, completed ...)."""
     STATUS_CHOICES = (
         ('active', 'Active'),
         ('completed', 'Completed'),
@@ -73,6 +75,7 @@ class Enrollment(BaseModel):
         return lecture_progress_list
 
 class LectureProgress(BaseModel):
+    """How far a student is in one lecture: completion, watch position and watch count."""
     enrollment = models.ForeignKey(Enrollment, on_delete=models.CASCADE,
                                   related_name='lecture_progress')
     lecture = models.ForeignKey(Lecture, on_delete=models.CASCADE)
@@ -90,6 +93,7 @@ class LectureProgress(BaseModel):
         unique_together = ['enrollment', 'lecture']
 
 class CourseBookmark(BaseModel):
+    """A course a student bookmarked."""
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                                related_name='bookmarks')
     course = models.ForeignKey(Course, on_delete=models.CASCADE,

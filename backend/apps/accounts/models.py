@@ -1,4 +1,5 @@
-# accounts/models.py
+"""Users (students, instructors, administrators) and the profile each role keeps."""
+
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
@@ -6,6 +7,7 @@ from django.utils import timezone
 import uuid
 
 class User(AbstractUser):
+    """A person who can sign in; ``user_type`` says whether they learn, teach or administer."""
     USER_TYPE_CHOICES = (
         ('student', 'Student'),
         ('instructor', 'Instructor'),
@@ -70,6 +72,7 @@ class User(AbstractUser):
 
 
 class InstructorProfile(models.Model):
+    """What is kept about an instructor besides the account: verification, totals, rating and payout details."""
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='instructor_profile')
     verified_instructor = models.BooleanField(default=False)
     total_students = models.IntegerField(default=0)
@@ -87,6 +90,7 @@ class InstructorProfile(models.Model):
         db_table = 'instructor_profiles'
 
 class StudentProfile(models.Model):
+    """What a student keeps besides the account: interests and the learning totals."""
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='student_profile')
     learning_goals = models.TextField(blank=True)
     interests = models.JSONField(default=list, blank=True)

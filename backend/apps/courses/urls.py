@@ -1,4 +1,5 @@
-# courses/urls.py
+"""Routes of the courses slice, mounted at ``/api/v1/courses/``."""
+
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 

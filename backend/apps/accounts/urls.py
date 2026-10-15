@@ -1,4 +1,5 @@
-# accounts/urls.py
+"""Routes of the accounts slice, mounted at ``/api/v1/auth/``."""
+
 from django.urls import path
 
 from .api import views

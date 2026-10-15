@@ -1,4 +1,5 @@
-# courses/api/curriculum.py - sections and lectures of an instructor's course
+"""HTTP adapters for the sections and lectures of an instructor's course."""
+
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets
 from rest_framework.decorators import api_view, permission_classes
@@ -14,6 +15,7 @@ from .serializers import LectureSerializer, SectionSerializer
 
 
 class SectionViewSet(viewsets.ModelViewSet):
+    """Create, update and delete the sections of an instructor's course."""
     serializer_class = SectionSerializer
     permission_classes = [IsInstructor]
     lookup_field = 'uuid'
@@ -39,6 +41,7 @@ class SectionViewSet(viewsets.ModelViewSet):
 
 
 class LectureViewSet(viewsets.ModelViewSet):
+    """Create, update and delete the lectures of a section."""
     serializer_class = LectureSerializer
     permission_classes = [IsInstructor]
     throttle_classes = [UploadThrottle]  # lectures carry files

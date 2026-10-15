@@ -1,7 +1,10 @@
+"""App configuration of the content slice (registers the lecture content handlers)."""
+
 from django.apps import AppConfig
 
 
 class ContentConfig(AppConfig):
+    """The content slice: the video and reading lecture types."""
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'apps.content'
     verbose_name = 'Lecture content'

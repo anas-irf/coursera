@@ -1,4 +1,5 @@
-# courses/api/instructor.py - the instructor's own courses
+"""HTTP adapters for the instructor's own courses and the lists their form offers."""
+
 from django.shortcuts import get_object_or_404
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes

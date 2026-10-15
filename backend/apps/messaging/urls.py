@@ -1,4 +1,7 @@
-# messaging/urls.py - mounted at /api/messaging/ (the sockets are in routing.py)
+"""Routes of the messaging slice, mounted at ``/api/v1/messaging/`` (the sockets are in
+``routing.py``).
+"""
+
 from django.urls import path
 
 from .api import views

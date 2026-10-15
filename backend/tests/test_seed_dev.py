@@ -287,7 +287,7 @@ def test_hand_ins_are_graded_waiting_or_late(world):
 
 @pytest.mark.django_db
 def test_the_streak_student_has_activity_on_eight_consecutive_days(world):
-    from apps.insights import student as insights
+    from apps.insights.selectors import student as insights
     from apps.learning import selectors as learning
 
     amara = f.User.objects.get(email='amara.okoye@example.com')
@@ -332,7 +332,7 @@ def test_the_headline_students_bell_shows_nine_plus(world):
 
 @pytest.mark.django_db
 def test_the_instructor_screens_are_populated_except_for_the_empty_ones(world):
-    from apps.insights import instructor as insights
+    from apps.insights.selectors import instructor as insights
 
     ravi = f.User.objects.get(email='ravi.shah@example.com')
     dashboard = insights.dashboard(ravi)

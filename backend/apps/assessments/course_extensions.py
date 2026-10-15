@@ -11,6 +11,7 @@ from .services import authoring, quizzes
 
 
 class QuizHandler(LectureContentHandler):
+    """The quiz lecture: how it is authored, shown and graded."""
     content_type = 'quiz'
 
     def create(self, lecture, data, files):
@@ -35,6 +36,7 @@ class QuizHandler(LectureContentHandler):
 
 
 class AssignmentHandler(LectureContentHandler):
+    """The assignment lecture: how it is authored, shown and graded."""
     content_type = 'assignment'
 
     def create(self, lecture, data, files):

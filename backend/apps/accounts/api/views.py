@@ -1,4 +1,5 @@
-# accounts/api/views.py
+"""HTTP adapters of the accounts API: signup, login, token refresh, logout and the profile."""
+
 from django.conf import settings
 from django.contrib.auth import authenticate
 from rest_framework import status
@@ -12,7 +13,7 @@ from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from apps.core.api.throttling import LoginThrottle, RefreshThrottle, SignupThrottle
+from apps.core.api.throttling import LoginThrottle, RefreshThrottle, SignupThrottle, client_ip
 
 from .. import cookies, services
 from ..authentication import Unauthenticated, require_same_site_origin
@@ -59,7 +60,7 @@ def login(request):
         user = authenticate(username=email, password=password)
 
         if user:
-            services.record_login(user, request)
+            services.record_login(user, client_ip(request))
             tokens = services.issue_tokens(user)
 
             body = {

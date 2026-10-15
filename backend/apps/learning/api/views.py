@@ -1,4 +1,5 @@
-# learning/api/views.py
+"""HTTP adapters of learning: the catalogue, enrolling, the player and progress."""
+
 import logging
 
 from django.shortcuts import get_object_or_404

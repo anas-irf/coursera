@@ -1,9 +1,11 @@
-# messaging/models.py
+"""Direct messages between two users."""
+
 from django.db import models
 from django.conf import settings
 from apps.core.models import BaseModel
 
 class DirectMessage(BaseModel):
+    """A message from one user to another; both share a stable ``conversation_id``."""
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                               related_name='sent_messages')
     recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,

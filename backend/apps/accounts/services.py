@@ -1,6 +1,5 @@
 """Identity use-cases: registration, token issuing and login bookkeeping."""
 from django.db import transaction
-from rest_framework.throttling import BaseThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import InstructorProfile, StudentProfile, User
@@ -34,14 +33,8 @@ def issue_tokens(user):
     }
 
 
-def client_ip(request):
-    """The client address as the throttles see it: ``REMOTE_ADDR``, or the right hop of
-    ``X-Forwarded-For`` when ``NUM_PROXIES`` says that proxies sit in front of the app."""
-    return BaseThrottle().get_ident(request)
-
-
-def record_login(user, request):
+def record_login(user, ip_address):
     """Remember where the user logged in from."""
-    user.last_login_ip = client_ip(request)
+    user.last_login_ip = ip_address
     user.save(update_fields=['last_login_ip', 'last_login'])
 

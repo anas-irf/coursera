@@ -13,6 +13,7 @@ from apps.core.utils import sanitize_html
 
 
 class Command(BaseCommand):
+    """Sanitises the HTML of the readings stored before it was sanitised on write."""
     help = 'Remove scripts, event handlers and unsafe URLs from the stored HTML of reading lectures.'
 
     def add_arguments(self, parser):

@@ -1,4 +1,8 @@
-# messaging/consumers.py - authentication, group membership and frames; the rules live in services
+"""The WebSocket consumers: authentication, group membership and frames.
+
+The rules (who may write to whom, how a message is stored) live in ``services``.
+"""
+
 import json
 import logging
 
