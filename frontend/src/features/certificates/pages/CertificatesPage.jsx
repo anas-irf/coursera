@@ -1,29 +1,30 @@
-import React, { useEffect, useState } from 'react';
-import { ExternalLink } from 'lucide-react';
+import React from 'react';
+import { Award, ExternalLink } from 'lucide-react';
 
 import { formatDate } from '../../../shared/lib/time';
+import EmptyState from '../../../shared/ui/EmptyState';
+import ErrorState from '../../../shared/ui/ErrorState';
 import { PageSpinner } from '../../../shared/ui/Spinner';
-import * as certificatesApi from '../api';
+import { useCertificates } from '../hooks/useCertificates';
 
 const CertificatesPage = () => {
-  const [certificates, setCertificates] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const query = useCertificates();
 
-  useEffect(() => {
-    let cancelled = false;
-    certificatesApi
-      .fetchCertificates()
-      .then((rows) => !cancelled && setCertificates(rows))
-      .catch(() => !cancelled && setCertificates([]))
-      .finally(() => !cancelled && setLoading(false));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  if (loading) {
+  if (query.isPending) {
     return <PageSpinner />;
   }
+
+  if (query.isError) {
+    return (
+      <ErrorState
+        title="Your certificates could not be loaded"
+        error={query.error}
+        onRetry={() => query.refetch()}
+      />
+    );
+  }
+
+  const certificates = query.data;
 
   return (
     <div className="space-y-6">
@@ -71,11 +72,9 @@ const CertificatesPage = () => {
       </div>
 
       {certificates.length === 0 && (
-        <div className="text-center py-12">
-          <div className="text-6xl mb-4">🏆</div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No certificates yet</h3>
-          <p className="text-gray-600">Complete courses to earn your first certificate!</p>
-        </div>
+        <EmptyState icon={Award} title="No certificates yet">
+          Complete courses to earn your first certificate!
+        </EmptyState>
       )}
     </div>
   );

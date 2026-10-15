@@ -1,36 +1,28 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 
 import { formatDate } from '../../../shared/lib/time';
+import ErrorState from '../../../shared/ui/ErrorState';
 import { PageSpinner } from '../../../shared/ui/Spinner';
-import * as insightsApi from '../api';
+import { useAchievements } from '../hooks/useInsights';
 
 const AchievementsPage = () => {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const query = useAchievements();
 
-  useEffect(() => {
-    let cancelled = false;
-    insightsApi
-      .fetchAchievements()
-      .then((result) => !cancelled && setData(result))
-      .catch(() => !cancelled && setData(null))
-      .finally(() => !cancelled && setLoading(false));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  if (loading) {
+  if (query.isPending) {
     return <PageSpinner />;
   }
 
-  if (!data) {
+  if (query.isError) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-600">Your achievements could not be loaded. Please try again later.</p>
-      </div>
+      <ErrorState
+        title="Your achievements could not be loaded"
+        error={query.error}
+        onRetry={() => query.refetch()}
+      />
     );
   }
+
+  const data = query.data;
 
   const toNext = data.next_level_points - data.total_points;
 

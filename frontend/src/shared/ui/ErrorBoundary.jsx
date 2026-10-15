@@ -20,6 +20,8 @@ export class ErrorBoundary extends React.Component {
   componentDidCatch(error, info) {
     // leave a trace for the browser console and for whatever monitors it
     // eslint-disable-next-line no-console
+    // the one place a failure is logged: the browser console is where a developer looks for it
+    // eslint-disable-next-line no-console
     console.error('Render error', error, info && info.componentStack);
   }
 

@@ -5,7 +5,7 @@ import { errorCode, errorMessage } from '../../../shared/api/errors';
 import { formatClock } from '../../../shared/lib/time';
 import { useCountdown } from '../../../shared/lib/useCountdown';
 import { useToast } from '../../../shared/ui/Toast';
-import * as assessmentsApi from '../api';
+import { useStartQuiz, useSubmitQuiz } from '../hooks/useAttempts';
 
 const TIME_LIMIT_EXCEEDED = 'time_limit_exceeded';
 const WARNING_SECONDS = 60;
@@ -23,6 +23,8 @@ const WARNING_SECONDS = 60;
  */
 const QuizRunner = ({ lecture, onFinished, onActiveChange }) => {
   const toast = useToast();
+  const startQuiz = useStartQuiz();
+  const submitQuiz = useSubmitQuiz();
   const [mode, setMode] = useState(null); // null | 'taking' | 'results'
   const [quiz, setQuiz] = useState(null);
   const [answers, setAnswers] = useState({});
@@ -47,7 +49,7 @@ const QuizRunner = ({ lecture, onFinished, onActiveChange }) => {
   const start = async () => {
     setBusy(true);
     try {
-      setQuiz(await assessmentsApi.startQuiz(lecture.quiz_id));
+      setQuiz(await startQuiz.mutateAsync(lecture.quiz_id));
       setAnswers({});
       setResults(null);
       setTimeUp(false);
@@ -71,7 +73,11 @@ const QuizRunner = ({ lecture, onFinished, onActiveChange }) => {
     if (!quiz) return;
     setBusy(true);
     try {
-      const data = await assessmentsApi.submitQuiz(quiz.quiz.id, quiz.attempt_id, answersRef.current);
+      const data = await submitQuiz.mutateAsync({
+        quizId: quiz.quiz.id,
+        attemptId: quiz.attempt_id,
+        answers: answersRef.current,
+      });
       setResults(data.results);
       setMode('results');
       if (onFinished) await onFinished();
@@ -87,7 +93,7 @@ const QuizRunner = ({ lecture, onFinished, onActiveChange }) => {
     } finally {
       setBusy(false);
     }
-  }, [quiz, onFinished, exit, toast]);
+  }, [quiz, onFinished, exit, toast, submitQuiz]);
 
   // time is up: the answers given so far are handed in
   useEffect(() => {

@@ -1,6 +1,8 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
+import { createQueryClient } from '../../../shared/query/client';
+import { QueryProvider } from '../../../shared/query/QueryProvider';
 import { ToastProvider } from '../../../shared/ui/Toast';
 import * as assessmentsApi from '../api';
 import QuizRunner from './QuizRunner';
@@ -41,9 +43,11 @@ const results = {
 
 const renderQuiz = (props = {}) =>
   render(
-    <ToastProvider>
-      <QuizRunner lecture={lecture} onFinished={jest.fn()} onActiveChange={jest.fn()} {...props} />
-    </ToastProvider>
+    <QueryProvider client={createQueryClient()}>
+      <ToastProvider>
+        <QuizRunner lecture={lecture} onFinished={jest.fn()} onActiveChange={jest.fn()} {...props} />
+      </ToastProvider>
+    </QueryProvider>
   );
 
 beforeEach(() => {

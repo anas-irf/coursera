@@ -1,33 +1,21 @@
 import React, { useState } from 'react';
 import { FileText } from 'lucide-react';
 
-import { errorMessage } from '../../../shared/api/errors';
-import { saveBlob } from '../../../shared/lib/download';
 import ErrorState from '../../../shared/ui/ErrorState';
 import { PageSpinner } from '../../../shared/ui/Spinner';
-import { useToast } from '../../../shared/ui/Toast';
-import * as assessmentsApi from '../api';
 import AssignmentList from '../components/AssignmentList';
 import GradingModal from '../components/GradingModal';
 import SubmissionList from '../components/SubmissionList';
 import { useAssignmentSubmissions, useInstructorAssignments } from '../hooks/useAssignments';
+import { useSubmissionDownload } from '../hooks/useAttempts';
 
 /** The instructor's assignments, the hand-ins of the chosen one and the dialog to grade them. */
 const InstructorAssignmentsPage = () => {
-  const toast = useToast();
+  const downloadSubmissionFile = useSubmissionDownload();
   const assignments = useInstructorAssignments();
   const [assignmentId, setAssignmentId] = useState(null);
   const [submissionId, setSubmissionId] = useState(null);
   const submissions = useAssignmentSubmissions(assignmentId);
-
-  const downloadSubmissionFile = async (submission) => {
-    try {
-      const blob = await assessmentsApi.downloadSubmission(submission.id);
-      saveBlob(blob, submission.original_filename || 'assignment.pdf');
-    } catch (err) {
-      toast.error(errorMessage(err, 'Error downloading file'), 'Download Failed');
-    }
-  };
 
   if (assignments.isPending) {
     return <PageSpinner color="border-blue-600" />;

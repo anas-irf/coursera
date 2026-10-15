@@ -17,6 +17,8 @@ export function useChat() {
   const [activeId, setActiveId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null); // the conversation list could not be loaded
+  const [messagesError, setMessagesError] = useState(null); // the open conversation could not be
   const [sending, setSending] = useState(false);
   const [typing, setTyping] = useState(false);
   const activeRef = useRef(null);
@@ -27,11 +29,13 @@ export function useChat() {
     activeRef.current = activeId;
   }, [activeId]);
 
-  const reloadConversations = useCallback(async () => {
+  // a refresh in the background keeps what is shown when it fails; `report` is for the first load
+  const reloadConversations = useCallback(async ({ report = false } = {}) => {
     try {
       setConversations(await messagingApi.conversations());
+      if (report) setLoadError(null);
     } catch (error) {
-      // keep what is shown
+      if (report) setLoadError(error);
     }
   }, []);
 
@@ -44,11 +48,13 @@ export function useChat() {
       setActiveId(conversationId);
       activeRef.current = conversationId;
       setTyping(false);
+      setMessagesError(null);
       try {
         setMessages(await messagingApi.messages(conversationId));
         reloadConversations(); // unread counters changed
       } catch (error) {
         setMessages([]);
+        setMessagesError(error);
       }
     },
     [reloadConversations]
@@ -56,7 +62,12 @@ export function useChat() {
 
   // first load
   useEffect(() => {
-    reloadConversations().finally(() => setLoading(false));
+    reloadConversations({ report: true }).finally(() => setLoading(false));
+  }, [reloadConversations]);
+
+  const retry = useCallback(() => {
+    setLoading(true);
+    return reloadConversations({ report: true }).finally(() => setLoading(false));
   }, [reloadConversations]);
 
   const onUserFrame = useCallback(
@@ -150,9 +161,12 @@ export function useChat() {
     activeId,
     messages,
     loading,
+    loadError,
+    messagesError,
     sending,
     typing,
     open,
+    retry,
     send,
     start,
     notifyTyping,
