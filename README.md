@@ -6,7 +6,7 @@ A learning platform with three roles (student, instructor, admin): course author
 
 ```
 backend/    Django 5 + DRF + Channels API         python manage.py ...
-frontend/   React 19 + TypeScript single page app npm start
+frontend/   React 19 + TypeScript single page app pnpm start
 docs/       ARCHITECTURE.md: slices, rules, how to extend
 ```
 
@@ -33,8 +33,9 @@ Frontend:
 ```bash
 cd frontend
 cp .env.example .env               # REACT_APP_API_URL=http://localhost:8000/api/v1
-npm install
-npm start                          # http://localhost:3000
+corepack enable                    # once: pnpm in the version package.json names (or: npm install -g pnpm@10)
+pnpm install
+pnpm start                         # http://localhost:3000
 ```
 
 ### PostgreSQL
@@ -97,12 +98,13 @@ lint-imports                      # slices depend downwards only, no HTTP in the
 python manage.py makemigrations --check --dry-run
 
 cd ../frontend
-npm run lint                      # includes the module boundaries
-npm run test:ci                   # Jest with coverage
-npm run build                     # warnings fail it
+pnpm run lint                     # includes the module boundaries
+pnpm run typecheck                # tsc, the tests included
+pnpm run test:ci                  # Jest with coverage
+pnpm run build                    # warnings fail it
 
 cd ../e2e
-npm test                          # browser specs against the seeded stack (start the API with
+pnpm test                         # browser specs against the seeded stack (start the API with
                                   # THROTTLE_LOGIN=1000/min: they sign in dozens of times a minute), see docs/CI.md
 ```
 
@@ -138,7 +140,7 @@ start** and names every missing variable marked *required* below.
 | `INSTRUCTOR_REVENUE_SHARE_PERCENT` | backend | share of the month's Plus payments that goes to instructors (40) |
 | `SEED_PASSWORD` | backend | password of the users `seed_dev` creates (random when empty) |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | backend | Stripe test secret key (no default) and webhook secret |
-| `REACT_APP_API_URL` | frontend | API base; **required for a production build** (`npm run build` stops without it), `http://localhost:8000/api/v1` in development |
+| `REACT_APP_API_URL` | frontend | API base; **required for a production build** (`pnpm run build` stops without it), `http://localhost:8000/api/v1` in development |
 | `REACT_APP_WS_URL` | frontend | WebSocket base, derived from the API URL by default |
 
 `backend/.env.example` lists the rest.

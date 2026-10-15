@@ -10,7 +10,7 @@ const originOf = (url: string): string => {
 };
 
 // A production build must say where its API is: scripts/require-env.js stops
-// `npm run build` otherwise.  Only development and the tests fall back to a
+// `pnpm run build` otherwise.  Only development and the tests fall back to a
 // local backend.
 const LOCAL_API_URL = 'http://localhost:8000/api/v1';
 const configured = process.env.REACT_APP_API_URL;

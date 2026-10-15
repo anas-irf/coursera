@@ -25,7 +25,7 @@ const TYPES = {
 };
 
 if (!fs.existsSync(path.join(root, 'index.html'))) {
-  console.error(`no build found in ${root}: run "npm run build" in frontend/ first`);
+  console.error(`no build found in ${root}: run "pnpm run build" in frontend/ first`);
   process.exit(1);
 }
 

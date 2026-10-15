@@ -33,6 +33,7 @@ updates:
         patterns: ["pytest*", "import-linter", "ruff", "bandit", "pip-audit", "diff-cover"]
     labels: [dependencies, backend]
 
+  # pnpm projects (they have a pnpm-lock.yaml) are updated by the npm ecosystem
   - package-ecosystem: npm
     directory: "/frontend"
     schedule:

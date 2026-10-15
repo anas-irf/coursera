@@ -120,7 +120,7 @@ shown with `formatMoney`. A control that has no handler does not exist: it is wi
 
 ### Types
 
-TypeScript runs in strict mode (`npm run typecheck`, CI, the tests included).
+TypeScript runs in strict mode (`pnpm run typecheck`, CI, the tests included).
 
 * **The shape of an answer is written once**, in the slice's `types.ts`, and the request returns it
   (`api.get<Course[]>('/...')`). Keep `const BASE = '...';` literal and the URL as the first argument of the

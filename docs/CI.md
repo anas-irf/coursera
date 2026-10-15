@@ -12,7 +12,7 @@ changes ──┬─ backend-lint ────── ruff, import contracts, Dja
           ├─ e2e ──────────────── Playwright specs against the seeded stack
           ├─ workflows ────────── actionlint, zizmor
           ├─ backend-security ─── pip-audit, bandit
-          └─ frontend-security ── npm audit of the packages that ship
+          └─ frontend-security ── pnpm audit of the packages that ship
 secrets ───── gitleaks over the commits of the change
 dependency-review ── what the pull request adds (pull requests only)
 report ────── one test-report comment on the pull request
@@ -31,7 +31,7 @@ Besides `ci.yml`: `codeql.yml` (code scanning, results under *Security*), `secur
 |---|---|---|
 | Backend lint and contracts | ruff finds a bug pattern (`F E9 E7 B UP C4 SIM S`, see `backend/ruff.toml`), a module or class has no docstring (`D100`, `D101`), `django.http` is imported outside the HTTP adapters (`TID251`), a slice imports upwards or the domain imports DRF (`lint-imports`), `manage.py check` fails, a model changed without a migration, `manage.py check --deploy --fail-level WARNING` fails under `config.settings.prod` | `cd backend && ruff check apps config tests && lint-imports && python manage.py makemigrations --check --dry-run` |
 | Backend tests | a test fails (that includes the route table and the OpenAPI contract of v1: `tests/routes.expected.txt`, `tests/openapi.v1.yaml`), coverage drops under 90 % (`backend/.coveragerc`), the lines the pull request changes are covered under 85 % (diff coverage), `seed_dev` / `--reset` break on PostgreSQL 18 | `cd backend && python -m pytest --cov` (`TEST_DB_ENGINE=postgres` for PostgreSQL) |
-| Frontend | `tsc` reports a type error (strict, the tests included), ESLint reports anything (module boundaries, "screens use hooks, not `api.ts`", `no-console`, `any` and `@ts-ignore` included, no warnings allowed), a Jest test fails, coverage drops under the floor in `package.json`, the production build has a warning or `REACT_APP_API_URL` is not set | `cd frontend && npm run typecheck && npm run lint && npm run test:ci && REACT_APP_API_URL=http://localhost:8000/api/v1 npm run build` |
+| Frontend | `tsc` reports a type error (strict, the tests included), ESLint reports anything (module boundaries, "screens use hooks, not `api.ts`", `no-console`, `any` and `@ts-ignore` included, no warnings allowed), a Jest test fails, coverage drops under the floor in `package.json`, the production build has a warning or `REACT_APP_API_URL` is not set | `cd frontend && pnpm run typecheck && pnpm run lint && pnpm run test:ci && REACT_APP_API_URL=http://localhost:8000/api/v1 pnpm run build` |
 | Browser specs | a spec in `e2e/specs` fails twice (one retry; a spec that only passes on the retry is reported as *flaky*) | see below |
 | Workflow lint and security | `actionlint` / shellcheck find an error, `zizmor` finds a medium or worse issue (injection, over-broad permissions, an action not pinned by SHA) | `actionlint` and `zizmor --min-severity medium .` |
 | Secret scan | gitleaks finds a credential in the commits of the change (`.gitleaks.toml`) | `gitleaks git --redact .` |
@@ -109,16 +109,16 @@ comment: the text is in the summary of the *Browser specs* job.
 
 ```bash
 # once
-cd frontend && npm ci && npm run build          # the specs use the production build
-cd ../e2e && npm ci && npx playwright install chromium
+cd frontend && pnpm install --frozen-lockfile && pnpm run build   # the specs use the production build
+cd ../e2e && pnpm install --frozen-lockfile && pnpm exec playwright install chromium
 
 # a freshly seeded database (the specs change data, e.g. approve a course)
 cd ../backend && python manage.py migrate && python manage.py seed_dev --reset
 THROTTLE_LOGIN=1000/min python manage.py runserver 8000   # terminal 1: the specs sign in dozens of
                                                           # times a minute, the default is 10/min (429)
-cd ../e2e && npm run serve                      # terminal 2: serves frontend/build on :3000
-SEED_PASSWORD=<the seeded password> npm test    # terminal 3 (SEED_PASSWORD is in backend/.env)
-npm run report                                  # open the HTML report of the last run
+cd ../e2e && pnpm run serve                     # terminal 2: serves frontend/build on :3000
+SEED_PASSWORD=<the seeded password> pnpm test   # terminal 3 (SEED_PASSWORD is in backend/.env)
+pnpm run report                                 # open the HTML report of the last run
 ```
 
 Rules the specs follow:
@@ -146,7 +146,7 @@ Rules the specs follow:
    has the failing test with its stack trace.
 3. For a browser spec follow the link in the recordings comment (or download `playwright-evidence`
    from the run): the report shows the video and the steps of the failed spec, and
-   `npx playwright show-trace <trace.zip>` in `e2e/` replays its trace.
+   `pnpm exec playwright show-trace <trace.zip>` in `e2e/` replays its trace.
 
 ## Pipeline rules
 

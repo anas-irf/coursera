@@ -211,20 +211,21 @@ jobs:
         uses: ./.github/actions/setup-frontend
 
       # from the repository root, so that the paths in the report are the ones of the checkout
+      # (the compiler of the install itself: `pnpm exec` would change into frontend/ first)
       - name: TypeScript (strict, the tests included)
         run: |
           echo "::add-matcher::.github/matchers/tsc.json"
-          npx --prefix frontend tsc --project frontend --noEmit --pretty false
+          frontend/node_modules/.bin/tsc --project frontend --noEmit --pretty false
 
       - name: ESLint (module boundaries included, no warnings allowed)
         working-directory: frontend
         run: |
           echo "::add-matcher::.github/matchers/eslint.json"
-          npm run lint
+          pnpm run lint
 
       - name: Tests with coverage (fails below the threshold in package.json)
         working-directory: frontend
-        run: npm run test:ci
+        run: pnpm run test:ci
 
       - name: Coverage table in the job summary
         if: success() || failure()
@@ -242,7 +243,7 @@ jobs:
         working-directory: frontend
         env:
           REACT_APP_API_URL: http://localhost:8000/api/v1
-        run: npm run build
+        run: pnpm run build
 
       - name: Upload the test report
         if: success() || failure()
@@ -309,7 +310,7 @@ jobs:
         working-directory: frontend
         env:
           REACT_APP_API_URL: http://localhost:8000/api/v1
-        run: npm run build
+        run: pnpm run build
 
       - name: Migrate and seed the database
         working-directory: backend
@@ -350,7 +351,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package-lock.json') }}
+          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/pnpm-lock.yaml') }}
 
       - name: Install Chromium
         working-directory: e2e
@@ -358,14 +359,14 @@ jobs:
           CACHE_HIT: ${{ steps.browsers.outputs.cache-hit }}
         run: |
           if [ "$CACHE_HIT" = "true" ]; then
-            npx playwright install-deps chromium
+            pnpm exec playwright install-deps chromium
           else
-            npx playwright install --with-deps chromium
+            pnpm exec playwright install --with-deps chromium
           fi
 
       - name: Run the specs
         working-directory: e2e
-        run: npx playwright test
+        run: pnpm exec playwright test
 
       - name: Upload the evidence (report, the video of every spec, traces of failures)
         id: evidence
@@ -741,7 +742,7 @@ jobs:
         run: bandit -r apps config -ll -q -x apps/seeding
 
   frontend-security:
-    name: Frontend security (npm audit of what ships)
+    name: Frontend security (pnpm audit of what ships)
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
