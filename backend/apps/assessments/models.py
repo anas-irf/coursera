@@ -1,12 +1,10 @@
 # assessments/models.py
 from django.db import models
 from django.conf import settings
-from django.core.exceptions import ValidationError
-from django.utils import timezone
 from apps.core.models import BaseModel
 from apps.courses.models import Course, Section, Lecture
 from apps.learning.models import Enrollment
-import os
+
 import uuid
 
 def assignment_upload_path(instance, filename):
@@ -100,32 +98,6 @@ class QuizAttempt(BaseModel):
         db_table = 'quiz_attempts'
         unique_together = ['student', 'quiz', 'attempt_number']
 
-    def clean(self):
-        """Validate quiz attempt rules"""
-        # Check if student is enrolled in the course
-        try:
-            enrollment = Enrollment.objects.get(
-                student=self.student,
-                course=self.quiz.course,
-                status__in=['active', 'completed']
-            )
-            self.enrollment = enrollment
-        except Enrollment.DoesNotExist:
-            raise ValidationError("Must be enrolled in course to attempt quiz") from None
-
-        # Check max attempts (exclude current instance if updating)
-        existing_attempts = QuizAttempt.objects.filter(
-            student=self.student,
-            quiz=self.quiz
-        ).exclude(pk=self.pk).count()
-
-        if existing_attempts >= self.quiz.max_attempts:
-            raise ValidationError(f"Maximum {self.quiz.max_attempts} attempts exceeded")
-
-    def save(self, *args, **kwargs):
-        self.full_clean()
-        super().save(*args, **kwargs)
-
 class QuestionResponse(BaseModel):
     attempt = models.ForeignKey(QuizAttempt, on_delete=models.CASCADE,
                                related_name='responses')
@@ -197,68 +169,3 @@ class AssignmentSubmission(BaseModel):
     class Meta:
         db_table = 'assignment_submissions'
         unique_together = ['assignment', 'student']
-
-    def clean(self):
-        """Validate assignment submission rules"""
-        # Check if student is enrolled in the course
-        try:
-            enrollment = Enrollment.objects.get(
-                student=self.student,
-                course=self.assignment.course,
-                status__in=['active', 'completed']
-            )
-            self.enrollment = enrollment
-        except Enrollment.DoesNotExist:
-            raise ValidationError("Must be enrolled in course to submit assignment") from None
-
-        # Check file size (50MB limit)
-        if self.submission_file and self.submission_file.size > 50 * 1024 * 1024:
-            raise ValidationError("File size cannot exceed 50MB")
-
-        # Enhanced file security validation
-        if self.submission_file:
-            import re
-
-            # Whitelist approach for file extensions
-            allowed_extensions = ['.pdf', '.doc', '.docx', '.txt', '.rtf', '.jpg', '.jpeg', '.png', '.gif', '.pptx', '.xlsx']
-            file_extension = os.path.splitext(self.submission_file.name)[1].lower()
-            if file_extension not in allowed_extensions:
-                raise ValidationError(f"File type {file_extension} not allowed. Allowed types: {', '.join(allowed_extensions)}")
-
-            # Sanitize filename - allow only alphanumeric, dots, hyphens, underscores
-            filename = os.path.basename(self.submission_file.name)
-            if not re.match(r'^[a-zA-Z0-9._-]+$', filename):
-                raise ValidationError("Filename contains invalid characters. Only letters, numbers, dots, hyphens and underscores are allowed.")
-
-            # Additional security: Check for dangerous patterns
-            dangerous_patterns = [
-                '..', '/', '\\', '<script', '<?php', '<?xml',
-                '.exe', '.bat', '.cmd', '.sh', '.dll', '.scr',
-                '.vbs', '.js', '.jar', '.class', '.php', '.asp'
-            ]
-            filename_lower = filename.lower()
-            for pattern in dangerous_patterns:
-                if pattern in filename_lower:
-                    raise ValidationError("Filename contains unsafe patterns.")
-
-            # Check for double extensions (e.g., file.txt.exe)
-            if filename_lower.count('.') > 1:
-                all_extensions = re.findall(r'\.[a-zA-Z0-9]+', filename_lower)
-                for ext in all_extensions[:-1]:  # Check all extensions except the last one
-                    if ext in ['.exe', '.bat', '.cmd', '.sh', '.scr', '.com', '.pif']:
-                        raise ValidationError("File has suspicious double extension.")
-
-        # Check if assignment is still accepting submissions
-        if self.assignment.due_date and timezone.now() > self.assignment.due_date:
-            if not self.assignment.allow_late_submission:
-                raise ValidationError("Assignment deadline has passed")
-            else:
-                self.is_late = True
-
-    def save(self, *args, **kwargs):
-        # Store original filename if file is uploaded
-        if self.submission_file and not self.original_filename:
-            self.original_filename = self.submission_file.name
-
-        self.full_clean()
-        super().save(*args, **kwargs)

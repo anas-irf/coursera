@@ -2,8 +2,9 @@
 import logging
 import math
 import mimetypes
+import os
+import re
 
-from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
 from django.utils import timezone
 
@@ -15,6 +16,40 @@ from apps.learning import services as learning
 from ..models import AssignmentSubmission
 
 logger = logging.getLogger(__name__)
+
+MAX_FILE_BYTES = 50 * 1024 * 1024
+ALLOWED_EXTENSIONS = ('.pdf', '.doc', '.docx', '.txt', '.rtf', '.jpg', '.jpeg', '.png', '.gif',
+                      '.pptx', '.xlsx')
+SAFE_FILENAME = re.compile(r'^[a-zA-Z0-9._-]+$')
+UNSAFE_PATTERNS = ('..', '/', '\\', '<script', '<?php', '<?xml', '.exe', '.bat', '.cmd', '.sh',
+                   '.dll', '.scr', '.vbs', '.js', '.jar', '.class', '.php', '.asp')
+EXECUTABLE_EXTENSIONS = ('.exe', '.bat', '.cmd', '.sh', '.scr', '.com', '.pif')
+
+
+def validate_file(file):
+    """Refuse a hand-in file that is too big, of a type that is not accepted, or named like an attack."""
+    if file.size > MAX_FILE_BYTES:
+        raise ServiceError('File size cannot exceed 50MB')
+
+    extension = os.path.splitext(file.name)[1].lower()
+    if extension not in ALLOWED_EXTENSIONS:
+        raise ServiceError(
+            f"File type {extension} not allowed. Allowed types: {', '.join(ALLOWED_EXTENSIONS)}")
+
+    filename = os.path.basename(file.name)
+    if not SAFE_FILENAME.match(filename):
+        raise ServiceError('Filename contains invalid characters. Only letters, numbers, dots, '
+                           'hyphens and underscores are allowed.')
+
+    lowered = filename.lower()
+    if any(pattern in lowered for pattern in UNSAFE_PATTERNS):
+        raise ServiceError('Filename contains unsafe patterns.')
+
+    # file.txt.exe: every extension but the last one is checked
+    if lowered.count('.') > 1:
+        inner = re.findall(r'\.[a-zA-Z0-9]+', lowered)[:-1]
+        if any(item in EXECUTABLE_EXTENSIONS for item in inner):
+            raise ServiceError('File has suspicious double extension.')
 
 
 def submit(student, assignment, text, file):
@@ -37,20 +72,18 @@ def submit(student, assignment, text, file):
     text = text if isinstance(text, str) else ''
     if not text.strip() and not file:
         raise ServiceError('Please provide either text submission or upload a file')
+    if file:
+        validate_file(file)
 
-    try:
-        submission = AssignmentSubmission.objects.create(
-            assignment=assignment,
-            student=student,
-            enrollment=enrollment,
-            submission_text=text,
-            submission_file=file,
-            original_filename=file.name if file else '',
-            is_late=is_late,
-        )
-    except ValidationError as error:
-        # the model's own rules (file type, size, name) are the student's to fix
-        raise ServiceError('; '.join(error.messages)) from error
+    submission = AssignmentSubmission.objects.create(
+        assignment=assignment,
+        student=student,
+        enrollment=enrollment,
+        submission_text=text,
+        submission_file=file,
+        original_filename=file.name if file else '',
+        is_late=is_late,
+    )
 
     if assignment.lecture:
         learning.complete_lecture_once(enrollment, assignment.lecture)
