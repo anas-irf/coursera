@@ -6,7 +6,7 @@ A learning platform with three roles (student, instructor, admin): course author
 
 ```
 backend/    Django 5 + DRF + Channels API         python manage.py ...
-frontend/   React 19 single page application      npm start
+frontend/   React 19 + TypeScript single page app npm start
 docs/       ARCHITECTURE.md: slices, rules, how to extend
 ```
 
