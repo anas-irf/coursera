@@ -1,0 +1,12 @@
+{
+  "name": "coursera",
+  "private": true,
+  "description": "Starts the backend (:8000) and the frontend (:3000) together. The applications are backend/ and frontend/; this file only runs them.",
+  "packageManager": "pnpm@10.34.6",
+  "scripts": {
+    "dev": "node scripts/dev.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.5"
+  }
+}

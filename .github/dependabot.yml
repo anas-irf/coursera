@@ -68,3 +68,13 @@ updates:
       playwright:
         patterns: ["@playwright/*", "playwright-*"]
     labels: [dependencies, e2e]
+
+  # the root package.json: the launcher of `pnpm dev`, nothing that ships
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    labels: [dependencies]
