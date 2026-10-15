@@ -24,13 +24,34 @@ import openapi_extensions  # noqa: F401  (registers how the authentication class
 SNAPSHOT = Path(__file__).resolve().parent / 'openapi.v1.yaml'
 V1 = '/api/v1/'
 
+# the range of an integer column depends on the database (SQLite stores 64 bits, PostgreSQL's
+# integer is 32): the same code must give the same document on both
+DATABASE_LIMITS = {-2**63, 2**63 - 1, -2**31, 2**31 - 1}
+
+
+def without_database_limits(node):
+    """``node`` without the minimum, maximum and int64 format that come from the column type."""
+    if isinstance(node, dict):
+        if node.get('type') == 'integer':
+            for key in ('minimum', 'maximum'):
+                if node.get(key) in DATABASE_LIMITS:
+                    del node[key]
+            if node.get('format') == 'int64':
+                del node['format']
+        for value in node.values():
+            without_database_limits(value)
+    elif isinstance(node, list):
+        for value in node:
+            without_database_limits(value)
+    return node
+
 
 def current_contract():
     """The schema of the v1 routes as plain, sorted YAML."""
     schema = SchemaGenerator().get_schema(request=None, public=True)
     schema['paths'] = {path: item for path, item in schema['paths'].items() if path.startswith(V1)}
     # plain data (no ordered dicts or lazy strings), keys in a stable order
-    plain = json.loads(json.dumps(schema, default=str))
+    plain = without_database_limits(json.loads(json.dumps(schema, default=str)))
     return yaml.safe_dump(plain, sort_keys=True, default_flow_style=False, allow_unicode=True, width=100)
 
 

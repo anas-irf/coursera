@@ -395,9 +395,6 @@ components:
           maxLength: 200
           type: string
         total_enrolled:
-          format: int64
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
           type: integer
       required:
       - created_at
@@ -433,9 +430,6 @@ components:
           minLength: 1
           type: string
         total_enrolled:
-          format: int64
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
           type: integer
       required:
       - slug
@@ -488,9 +482,6 @@ components:
         is_preview:
           type: boolean
         order:
-          format: int64
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
           type: integer
         questions:
           readOnly: true
@@ -548,9 +539,6 @@ components:
         is_preview:
           type: boolean
         order:
-          format: int64
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
           type: integer
         title:
           maxLength: 200
@@ -667,9 +655,6 @@ components:
           readOnly: true
           type: array
         order:
-          format: int64
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
           type: integer
         title:
           maxLength: 200
@@ -691,9 +676,6 @@ components:
         is_preview:
           type: boolean
         order:
-          format: int64
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
           type: integer
         title:
           maxLength: 200
