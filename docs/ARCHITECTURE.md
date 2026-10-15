@@ -33,9 +33,9 @@ Backend, enforced by `lint-imports` (`backend/.importlinter`, CI):
 seeding                    development tooling: may import anything, nothing imports it
 insights | notifications
 certificates
-assessments
+assessments | messaging
 learning
-billing | messaging | content
+billing | content
 courses
 accounts
 core
@@ -62,6 +62,12 @@ Frontend, enforced by ESLint (`frontend/.eslintrc.js`, `import/no-restricted-pat
 `learning.services` owns the rules. `complete_lecture` (a student ticks off a video or a reading) and `complete_lecture_once` (a quiz taken or an assignment handed in completes its own lecture) mark a lecture done; `refresh_progress` recomputes the percentage and completes the course when every lecture is, exactly once, announcing `course_completed`. A finished course stays open (`selectors.enrollment_for_access`): the player, its lectures and its quizzes keep working, while gradebooks list running enrolments only. A read never writes: the player returns a lecture that has no progress row yet as not started, and the row is created when the student acts.
 
 The player's heartbeat (`POST /learning/courses/<c>/lectures/<l>/progress/`) stores the resume position and credits the time spent, bounded by the distance the position moved, the real time since the previous beat and 60 s per beat. Everything that is about time (hours, streak, ranks, the monthly chart, the date of a badge) is derived from the daily log, `LearningStreak`: one row per student and day, in seconds. `StudentProfile.learning_streak` and `total_learning_hours` are refreshed from it the first time a student is active each day.
+
+## Who may see and write what
+
+**Messaging** sits above `learning`: a user may write to the admins, to the people they already have a conversation with (a reply is always possible), and to the people who share a course with them (a course's instructor and its students, classmates included). Admins may write to every active user. `GET /messaging/users/` lists exactly that set and `services.send_message` enforces the same rule (REST and WebSocket share it), so a user id that is not on the list is a 403. The socket answers a refused or malformed frame with `{"type": "error", "error": ...}` instead of dropping it, a binary frame does not close it, and an account that was deactivated has no socket.
+
+**Reading HTML** is written by instructors and rendered in every learner's browser, so it is cleaned twice: on write (`apps.core.utils.sanitize_html`, `nh3`) and on render (`shared/lib/html.js`, DOMPurify). Formatting, links, images and tables stay; scripts, event handlers, `javascript:` URLs, frames and forms do not. `python manage.py clean_reading_html [--dry-run]` repairs what was stored before.
 
 ## Billing and earnings
 
@@ -171,13 +177,13 @@ What the seed cannot show, because the application cannot (see *Known gaps*): th
 
 * `cd backend && python -m pytest` (SQLite by default; `TEST_DB_ENGINE=postgres` plus the `DB_*` variables runs the same suite on PostgreSQL, which CI does). Uploads go to a temporary `MEDIA_ROOT`.
 * `cd frontend && npm test` (Jest through react-scripts; `package.json` maps axios and react-router for Jest 27).
-* `tests/` pins current behaviour, including known bugs marked `pinned_bug`, so a refactor shows up as a failing test instead of a silent change.
+* `tests/` characterises behaviour at the HTTP level (literal URLs, models only through `factories.py`), so a refactor shows up as a failing test instead of a silent change; a known bug is fixed together with the test that pinned it, not left marked.
 * `e2e/` holds Playwright specs that run against the seeded stack (`seed_dev`); they cover what only a browser proves. The pipeline, its gates and how to run every check locally are in [CI.md](CI.md).
 
 ## Known gaps
 
 Documented, not fixed in the restructuring:
 
-* **Security**: reading HTML is rendered unsanitised; tokens live in `localStorage` and the WebSocket token is in the query string; `/api/messaging/users/` lists every user.
+* **Security**: tokens live in `localStorage` and the WebSocket token is in the query string.
 * **Logic**: payouts to instructors do not exist (earnings are calculated and recorded only).
 * **Product**: instructor analytics, instructor settings, admin revenue / reports / settings have no backend.

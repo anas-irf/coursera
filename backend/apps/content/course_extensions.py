@@ -2,6 +2,7 @@
 import os
 
 from apps.core.api.errors import ServiceError
+from apps.core.utils import sanitize_html
 from apps.courses.extensions import LectureContentHandler, register_content_handler
 
 from .models import Reading, Subtitle, VideoContent
@@ -193,7 +194,7 @@ class ReadingHandler(LectureContentHandler):
 
     def create(self, lecture, data, files):
         """Create reading from lecture data"""
-        content = data.get('article_content', '')
+        content = sanitize_html(data.get('article_content', ''))
         file_to_upload = self._uploaded_file(files)
 
         # Create Reading record (either with content or file or both)
@@ -209,12 +210,14 @@ class ReadingHandler(LectureContentHandler):
         """Update reading for reading lectures"""
         existing_reading = Reading.objects.filter(lecture=lecture).first()
 
-        content = data.get('article_content', '')
+        sent = 'article_content' in data
+        content = sanitize_html(data.get('article_content', ''))
         file_to_upload = self._uploaded_file(files)
 
         if existing_reading:
-            # Update existing reading
-            existing_reading.content = content
+            # Update existing reading (text that was not sent is left as it is)
+            if sent:
+                existing_reading.content = content
             if file_to_upload:
                 existing_reading.file = file_to_upload
             existing_reading.save()

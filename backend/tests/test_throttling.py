@@ -77,9 +77,9 @@ def test_token_refresh_is_throttled(api, rates):
     assert codes[2] == 429
 
 
-def test_sending_messages_is_limited_per_user(auth_client, student, instructor, other_student, rates):
+def test_sending_messages_is_limited_per_user(auth_client, student, admin, other_student, rates):
     rates(messages='2/min')
-    payload = {'recipient_id': instructor.id, 'content': 'hi'}
+    payload = {'recipient_id': admin.id, 'content': 'hi'}   # everybody may write to an admin
 
     assert [auth_client(student).post(SEND, payload, format='json').status_code for _ in range(2)] == [201, 201]
     assert auth_client(student).post(SEND, payload, format='json').status_code == 429

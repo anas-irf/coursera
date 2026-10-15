@@ -1,6 +1,7 @@
 import React from 'react';
 import { Award, BookOpen, CheckCircle, FileText, PlayCircle } from 'lucide-react';
 
+import { safeHtml } from '../../../shared/lib/html';
 import { AssignmentPanel, QuizRunner } from '../../assessments';
 import VideoLecture from './VideoLecture';
 
@@ -79,7 +80,7 @@ const LectureContent = ({ lecture, onComplete, onReload, onQuizActiveChange }) =
               <div
                 key={lecture.id}
                 className="text-gray-800 leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: lecture.content || '<p>Reading content not available</p>' }}
+                dangerouslySetInnerHTML={{ __html: safeHtml(lecture.content) || '<p>Reading content not available</p>' }}
               />
             </div>
           </div>

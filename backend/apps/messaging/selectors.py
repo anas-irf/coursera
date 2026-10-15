@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from django.db.models import Count, Max, OuterRef, Q, Subquery
 
 from apps.accounts.models import User
+from apps.courses.models import Course
+from apps.learning.models import Enrollment
 
 from .models import DirectMessage
 
@@ -77,6 +79,37 @@ def conversations_for(user):
     return summaries
 
 
+def _share_a_course(user):
+    """Users who teach or take a course ``user`` teaches or takes."""
+    if user.user_type == 'instructor':
+        return Q(pk__in=Enrollment.objects.filter(course__instructor=user).values('student'))
+
+    mine = Enrollment.objects.filter(student=user).values('course')
+    return (
+        Q(pk__in=Course.objects.filter(pk__in=mine).values('instructor'))      # the teachers
+        | Q(pk__in=Enrollment.objects.filter(course__in=mine).values('student'))   # the classmates
+    )
+
+
+def _talked_to(user):
+    """Users ``user`` already has a conversation with: a reply is always possible."""
+    return (
+        Q(pk__in=DirectMessage.objects.filter(sender=user).values('recipient'))
+        | Q(pk__in=DirectMessage.objects.filter(recipient=user).values('sender'))
+    )
+
+
 def available_users(user):
-    """Everybody ``user`` may write to (currently every other user)."""
-    return User.objects.exclude(id=user.id)
+    """Everybody ``user`` may write to, as a queryset.
+
+    Admins may write to every active user.  Everybody else may write to the admins, to the
+    people they already talk to, and to the people who share a course with them (a course's
+    instructor and its students).  The list is the same rule that ``send_message`` enforces.
+    """
+    people = User.objects.filter(is_active=True).exclude(pk=user.pk)
+    if user.is_admin:
+        return people.order_by('first_name', 'last_name', 'id')
+
+    return people.filter(
+        Q(pk__in=User.admins().values('pk')) | _talked_to(user) | _share_a_course(user)
+    ).order_by('first_name', 'last_name', 'id')

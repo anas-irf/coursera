@@ -6,9 +6,9 @@ from channels.layers import get_channel_layer
 from django.utils import timezone
 
 from apps.accounts.models import User
-from apps.core.api.errors import NotFound, ServiceError
+from apps.core.api.errors import NotFound, PermissionDenied, ServiceError
 
-from . import payloads
+from . import payloads, selectors
 from .models import DirectMessage
 
 logger = logging.getLogger(__name__)
@@ -34,6 +34,12 @@ def send_message(sender, recipient_id, content):
         recipient = User.objects.get(id=recipient_id)
     except (User.DoesNotExist, TypeError, ValueError):
         raise NotFound('Recipient not found') from None
+
+    if recipient.pk == sender.pk:
+        raise ServiceError('You cannot message yourself')
+    # the REST endpoint and the socket both end up here, so the scope is enforced once
+    if not selectors.available_users(sender).filter(pk=recipient.pk).exists():
+        raise PermissionDenied('You cannot message this user')
 
     message = DirectMessage.objects.create(sender=sender, recipient=recipient, content=content)
     publish(message)

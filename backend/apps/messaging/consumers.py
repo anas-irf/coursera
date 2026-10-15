@@ -48,10 +48,14 @@ class ChatConsumer(_MessageFrames, AsyncWebsocketConsumer):
         if hasattr(self, 'group'):
             await self.channel_layer.group_discard(self.group, self.channel_name)
 
-    async def receive(self, text_data):
+    async def receive(self, text_data=None, bytes_data=None):
+        if text_data is None:
+            # a binary frame is not part of the protocol; it must not take the socket down
+            await self.send(text_data=json.dumps({'type': 'error', 'error': 'Binary frames are not supported'}))
+            return
         try:
             data = json.loads(text_data)
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, TypeError):
             data = None
         if not isinstance(data, dict):
             logger.error('Invalid JSON received from user %s', self.user.id)
@@ -70,8 +74,9 @@ class ChatConsumer(_MessageFrames, AsyncWebsocketConsumer):
                 self.user, data.get('recipient_id'), data.get('message')
             )
         except ServiceError as exc:
-            # same as before: a frame that cannot be stored is dropped silently
-            logger.warning('Chat frame from user %s ignored: %s', self.user.id, exc.message)
+            # the frame was not stored: the sender is told, so their screen does not pretend otherwise
+            logger.warning('Chat frame from user %s refused: %s', self.user.id, exc.message)
+            await self.send(text_data=json.dumps({'type': 'error', 'error': exc.message}))
 
     async def _broadcast_typing(self, data):
         await self.channel_layer.group_send(self.group, {

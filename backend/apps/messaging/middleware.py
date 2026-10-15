@@ -20,7 +20,7 @@ def get_user_from_token(token_string):
         user_id = token['user_id']
         
         # Get the user
-        user = User.objects.get(id=user_id)
+        user = User.objects.get(id=user_id, is_active=True)
         logger.info("WebSocket authentication successful for user id=%s", user.pk)
         return user
     except (InvalidToken, TokenError, User.DoesNotExist) as e:

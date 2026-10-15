@@ -18,12 +18,6 @@ from rest_framework.test import APIClient
 import factories as f
 
 
-def pytest_configure(config):
-    config.addinivalue_line(
-        'markers', 'pinned_bug: asserts a known "current behaviour (bug)" of the application; '
-                   'expected to be flipped or deleted when the bug is fixed (pytest -m pinned_bug)')
-
-
 def _remove_throwaway_media_root():
     """Delete the per-process temp MEDIA_ROOT - and only a temp MEDIA_ROOT."""
     media_root = Path(settings.MEDIA_ROOT).resolve()

@@ -16,9 +16,9 @@ layers =
     apps.seeding
     apps.insights | apps.notifications
     apps.certificates
-    apps.assessments
+    apps.assessments | apps.messaging
     apps.learning
-    apps.billing | apps.messaging | apps.content
+    apps.billing | apps.content
     apps.courses
     apps.accounts
     apps.core
