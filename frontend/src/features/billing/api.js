@@ -11,3 +11,7 @@ export const createCheckoutSession = (planId) =>
 
 export const verifySession = (sessionId) =>
   api.post('/billing/checkout/verify/', { session_id: sessionId }).then((response) => response.data);
+
+/** Stops the renewal (at Stripe too); the member keeps Plus until the end of the paid period. */
+export const cancelSubscription = () =>
+  api.post('/billing/subscription/cancel/').then((response) => response.data);

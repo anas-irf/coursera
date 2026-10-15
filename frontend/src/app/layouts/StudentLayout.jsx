@@ -5,8 +5,13 @@ import {
   Trophy, User, X, Zap,
 } from 'lucide-react';
 
-import { PlusWelcomeDialog, useStripeReturn, useSubscription } from '../../features/billing';
+import {
+  CancelMembershipButton, PlusWelcomeDialog, useStripeReturn, useSubscription,
+} from '../../features/billing';
 import { NotificationDropdown } from '../../features/notifications';
+import { fullName } from '../../shared/lib/names';
+import { formatDate } from '../../shared/lib/time';
+import Avatar from '../../shared/ui/Avatar';
 import { useConfirm } from '../../shared/ui/ConfirmDialog';
 import { useAuth } from '../../shared/auth/AuthProvider';
 
@@ -45,8 +50,7 @@ const StudentLayout = () => {
 
   const { welcome, dismiss } = useStripeReturn({ onActivated: subscription.refresh });
 
-  const name = user ? `${user.first_name} ${user.last_name}` : 'Student';
-  const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=4F46E5&color=fff`;
+  const name = fullName(user, 'Student');
 
   // close the mobile menu on outside clicks and when the viewport grows
   useEffect(() => {
@@ -134,7 +138,7 @@ const StudentLayout = () => {
 
               <div className="relative group">
                 <button className="flex items-center space-x-2 sm:space-x-3 p-1 sm:p-2 rounded-lg hover:bg-gray-50">
-                  <img src={avatar} alt="Profile" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full" />
+                  <Avatar name={name} className="w-7 h-7 sm:w-8 sm:h-8 text-xs" />
                   <div className="hidden md:block text-left">
                     <p className="text-xs sm:text-sm font-medium text-gray-900 truncate max-w-24">{name}</p>
                     <p className="text-xs text-gray-500">Student</p>
@@ -150,6 +154,12 @@ const StudentLayout = () => {
                     <Settings size={16} className="inline mr-2" />
                     Settings (soon)
                   </div>
+                  {subscription.isPlus && !subscription.willRenew && subscription.accessUntil && (
+                    <div className="px-4 py-2 text-xs text-gray-500">
+                      Plus ends {formatDate(subscription.accessUntil)}
+                    </div>
+                  )}
+                  <CancelMembershipButton className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" />
                   <hr className="my-1" />
                   <button
                     onClick={handleLogout}

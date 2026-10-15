@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 
 import { NotificationDropdown } from '../../features/notifications';
+import { fullName } from '../../shared/lib/names';
+import Avatar from '../../shared/ui/Avatar';
 import { useConfirm } from '../../shared/ui/ConfirmDialog';
 import { useAuth } from '../../shared/auth/AuthProvider';
 
@@ -35,8 +37,7 @@ const InstructorLayout = () => {
   const [loggingOut, setLoggingOut] = useState(false);
   const profileRef = useRef(null);
 
-  const name = user ? `${user.first_name} ${user.last_name}` : 'Instructor';
-  const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=4F46E5&color=fff`;
+  const name = fullName(user, 'Instructor');
 
   useEffect(() => {
     const onClickOutside = (event) => {
@@ -131,7 +132,7 @@ const InstructorLayout = () => {
                   onClick={() => setProfileOpen((open) => !open)}
                   className="flex items-center space-x-3 hover:bg-gray-50 rounded-lg p-2 transition-colors"
                 >
-                  <img src={avatar} alt="Profile" className="w-10 h-10 rounded-full" />
+                  <Avatar name={name} className="w-10 h-10 text-sm" />
                   <div className="hidden md:block text-left">
                     <p className="text-sm font-semibold text-gray-900">{name}</p>
                     <p className="text-xs text-gray-500">{user ? user.email : ''}</p>

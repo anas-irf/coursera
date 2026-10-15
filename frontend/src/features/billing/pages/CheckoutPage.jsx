@@ -2,11 +2,15 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Crown, Check, Zap, ChevronRight, Shield } from 'lucide-react';
 
 import { errorMessage } from '../../../shared/api/errors';
+import { formatDate } from '../../../shared/lib/time';
 import { useToast } from '../../../shared/ui/Toast';
 import * as billingApi from '../api';
+import CancelMembershipButton from '../components/CancelMembershipButton';
+import { useSubscription } from '../hooks/useSubscription';
 
 const CheckoutPage = () => {
   const toast = useToast();
+  const membership = useSubscription();
   const [loading, setLoading] = useState(true);
   const [checkoutData, setCheckoutData] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState('yearly'); // Default to yearly for savings
@@ -81,7 +85,15 @@ const CheckoutPage = () => {
           <p className="text-sm text-gray-700">
             <strong>Current Plan:</strong> {checkoutData.subscription.type === 'yearly' ? 'Annual' : 'Monthly'}
           </p>
+          {membership.accessUntil && (
+            <p className="text-sm text-gray-700 mt-2">
+              {membership.willRenew
+                ? `Renews on ${formatDate(membership.accessUntil)}`
+                : `Your membership will not renew. You keep Plus until ${formatDate(membership.accessUntil)}.`}
+            </p>
+          )}
         </div>
+        <CancelMembershipButton className="mt-6 text-sm text-red-600 hover:text-red-800 underline" />
       </div>
     );
   }
