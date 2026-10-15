@@ -5,6 +5,7 @@ from apps.core.api.errors import ServiceError
 from apps.core.utils import sanitize_html
 from apps.courses.extensions import LectureContentHandler, register_content_handler
 
+from .media import video_seconds
 from .models import Reading, Subtitle, VideoContent
 
 READING_EXTENSIONS = ('.pdf', '.md', '.markdown')
@@ -12,7 +13,11 @@ MAX_VIDEO_SECONDS = 24 * 3600
 
 
 def _duration(data):
-    """The length in seconds the upload form read from the video, or ``None`` when it sent none."""
+    """The length in seconds a client says the video has, or ``None`` when it sent none.
+
+    It is only a fallback: the length of an uploaded file is read from the file
+    (``media.video_seconds``).  What a client sent is still validated.
+    """
     raw = data.get('duration')
     if raw in (None, ''):
         return None
@@ -23,6 +28,13 @@ def _duration(data):
     if not 0 <= seconds <= MAX_VIDEO_SECONDS:
         raise ServiceError('duration must be between 0 and 24 hours')
     return seconds
+
+
+def _length(video_file, data):
+    """Seconds of a video being saved: read from the uploaded file, else what the client said."""
+    claimed = _duration(data)  # validates what was sent even when the file is measured instead
+    measured = video_seconds(video_file) if video_file else None
+    return measured if measured is not None else claimed
 
 
 def _file_name(file_field):
@@ -37,6 +49,7 @@ class VideoHandler(LectureContentHandler):
         """Create video content and subtitles for video lectures"""
         video_file = files.get('video_file')
         video_url = data.get('video_url', '')
+        seconds = _length(video_file, data)
 
         # Only create VideoContent if we have video_file or video_url
         if video_file or video_url:
@@ -44,7 +57,7 @@ class VideoHandler(LectureContentHandler):
                 lecture=lecture,
                 video_file=video_file,
                 video_url=video_url,
-                duration=_duration(data) or 0,
+                duration=seconds or 0,
             )
 
             # Handle subtitle file if provided
@@ -69,6 +82,7 @@ class VideoHandler(LectureContentHandler):
         # Get video data
         video_file = files.get('video_file')
         video_url = data.get('video_url', '')
+        seconds = _length(video_file, data)
 
         # Only update/create if we have video data
         if video_file or video_url:
@@ -76,10 +90,11 @@ class VideoHandler(LectureContentHandler):
                 # Update existing video content
                 if video_file:
                     video_content.video_file = video_file
-                video_content.video_url = video_url
-                seconds = _duration(data)
-                if seconds is not None:
+                    # a new file replaces the old length, known or not
+                    video_content.duration = seconds or 0
+                elif seconds is not None:
                     video_content.duration = seconds
+                video_content.video_url = video_url
                 video_content.save()
             else:
                 # Create new video content
@@ -87,7 +102,7 @@ class VideoHandler(LectureContentHandler):
                     lecture=lecture,
                     video_file=video_file,
                     video_url=video_url,
-                    duration=_duration(data) or 0,
+                    duration=seconds or 0,
                 )
 
             # Handle subtitle file if provided
