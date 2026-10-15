@@ -2,8 +2,27 @@ import React, { useEffect, useRef } from 'react';
 
 import { mediaUrl } from '../../../shared/lib/media';
 import { resumePosition } from '../lib/player';
+import type { PlayerVideoLecture, ReportWatch, WatchOptions } from '../types';
 
 export const HEARTBEAT_MS = 15 * 1000;
+
+interface HostedVideoProps {
+  lecture: PlayerVideoLecture;
+  /** Seconds to start from (unless that is the very beginning or nearly the end). */
+  resumeAt?: number;
+  onReport?: ReportWatch;
+}
+
+/** What the video's listeners need to know: one object, kept current on every render. */
+interface HostedVideoState {
+  playing: boolean;
+  /** The last ``currentTime`` the video reported, in seconds. */
+  position: number;
+  /** When the server was last told (``Date.now()``), 0 before the first time. */
+  lastSent: number;
+  report: ReportWatch | undefined;
+  resumeAt: number;
+}
 
 /**
  * An uploaded video file, with its subtitles.
@@ -12,10 +31,10 @@ export const HEARTBEAT_MS = 15 * 1000;
  * plays, when it is paused, when it ends and when the lecture is left.  It starts from
  * ``resumeAt`` (seconds) unless that is the very beginning or nearly the end.
  */
-const HostedVideo = ({ lecture, resumeAt = 0, onReport }) => {
+const HostedVideo = ({ lecture, resumeAt = 0, onReport }: HostedVideoProps) => {
   const subtitles = lecture.subtitles || [];
   // one object for what the listeners need to know, kept current on every render
-  const state = useRef({ playing: false, position: 0, lastSent: 0, report: onReport, resumeAt });
+  const state = useRef<HostedVideoState>({ playing: false, position: 0, lastSent: 0, report: onReport, resumeAt });
 
   useEffect(() => {
     state.current.report = onReport;
@@ -30,7 +49,7 @@ const HostedVideo = ({ lecture, resumeAt = 0, onReport }) => {
     };
   }, []);
 
-  const send = (position, options) => {
+  const send = (position: number, options?: WatchOptions) => {
     state.current.lastSent = Date.now();
     if (state.current.report) state.current.report(position, options);
   };
@@ -44,7 +63,7 @@ const HostedVideo = ({ lecture, resumeAt = 0, onReport }) => {
       poster={mediaUrl(lecture.thumbnail) || undefined}
       preload="metadata"
       onLoadedMetadata={(event) => {
-        const video = event.target;
+        const video = event.currentTarget;
         if (video.textTracks && video.textTracks.length > 0) {
           video.textTracks[0].mode = 'showing';
         }
@@ -56,7 +75,7 @@ const HostedVideo = ({ lecture, resumeAt = 0, onReport }) => {
         state.current.lastSent = Date.now();
       }}
       onTimeUpdate={(event) => {
-        const { currentTime } = event.target;
+        const { currentTime } = event.currentTarget;
         state.current.position = currentTime;
         if (state.current.playing && Date.now() - state.current.lastSent >= HEARTBEAT_MS) {
           send(currentTime);
@@ -64,19 +83,19 @@ const HostedVideo = ({ lecture, resumeAt = 0, onReport }) => {
       }}
       onPause={(event) => {
         state.current.playing = false;
-        if (!event.target.ended) send(event.target.currentTime);
+        if (!event.currentTarget.ended) send(event.currentTarget.currentTime);
       }}
       onEnded={(event) => {
         state.current.playing = false;
-        send(event.target.duration || event.target.currentTime, { finished: true });
+        send(event.currentTarget.duration || event.currentTarget.currentTime, { finished: true });
       }}
     >
-      <source src={mediaUrl(lecture.video_file_url)} type="video/mp4" />
+      <source src={mediaUrl(lecture.video_file_url) ?? undefined} type="video/mp4" />
       {subtitles.map((subtitle, index) => (
         <track
           key={subtitle.language}
           kind="captions"
-          src={mediaUrl(subtitle.url)}
+          src={mediaUrl(subtitle.url) ?? undefined}
           srcLang={subtitle.language}
           label={subtitle.language_name}
           {...(index === 0 ? { default: true } : {})}

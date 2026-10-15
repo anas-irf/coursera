@@ -14,14 +14,21 @@ import {
   useRecommendedCourses,
 } from '../../learning';
 import { useStudentStats, useWeeklyProgress } from '../hooks/useInsights';
+import type { StudentStats } from '../types';
 
 const CONTINUE_COUNT = 3;
 const NOT_LOADED = '–';
 
 /** Hours with one decimal ("0.3", "12.5", "5"): twenty minutes of study must not read as zero. */
-const hours = (value) => Number((value || 0).toFixed(1));
+const hours = (value: number) => Number((value || 0).toFixed(1));
 
-const Figure = ({ label, value }) => (
+interface FigureProps {
+  label: string;
+  /** The number, or the dash of a figure that could not be loaded. */
+  value: number | string;
+}
+
+const Figure = ({ label, value }: FigureProps) => (
   <div role="group" aria-label={label} className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
     <div className="text-2xl font-bold">{value}</div>
     <div className="text-sm text-indigo-100">{label}</div>
@@ -37,7 +44,7 @@ const StudentHomePage = () => {
   const weeklyProgress = useWeeklyProgress();
 
   // a figure that could not be loaded is shown as such, never as a zero
-  const figure = (read) => (stats.isSuccess ? read(stats.data) : NOT_LOADED);
+  const figure = (read: (data: StudentStats) => number) => (stats.isSuccess ? read(stats.data) : NOT_LOADED);
   const showUpgrade = !subscription.loading && !subscription.error && !subscription.isPlus;
   const monthly = weeklyProgress.data ? weeklyProgress.data.monthly_progress || [] : [];
   const hasLearningTime = monthly.some((month) => month.hours > 0);

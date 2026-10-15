@@ -1,4 +1,5 @@
 import React from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -7,10 +8,19 @@ import { createQueryClient } from '../../shared/query/client';
 import { QueryProvider } from '../../shared/query/QueryProvider';
 import { ConfirmProvider } from '../../shared/ui/ConfirmDialog';
 import { ToastProvider } from '../../shared/ui/Toast';
+import type { SubscriptionStatus } from '../billing';
+import type { CatalogCourse, EnrolledCourse } from '../learning';
 import AchievementsPage from './pages/AchievementsPage';
 import InstructorEarningsPage from './pages/InstructorEarningsPage';
 import InstructorOverviewPage from './pages/InstructorOverviewPage';
 import StudentHomePage from './pages/StudentHomePage';
+import type {
+  Achievements,
+  InstructorDashboard,
+  InstructorEarnings,
+  StudentStats,
+  WeeklyProgress,
+} from './types';
 
 // the pages are exercised through their hooks and api modules: only the HTTP client is replaced
 jest.mock('../../shared/api/client', () => ({
@@ -19,9 +29,9 @@ jest.mock('../../shared/api/client', () => ({
 }));
 // the chart needs a layout engine; the page's own states are what these tests are about
 jest.mock('recharts', () => ({
-  BarChart: ({ children }) => <div data-testid="chart">{children}</div>,
+  BarChart: ({ children }: { children?: ReactNode }) => <div data-testid="chart">{children}</div>,
   AreaChart: () => <div data-testid="chart" />,
-  PieChart: ({ children }) => <div data-testid="pie">{children}</div>,
+  PieChart: ({ children }: { children?: ReactNode }) => <div data-testid="pie">{children}</div>,
   Area: () => null,
   Pie: () => null,
   Cell: () => null,
@@ -30,44 +40,99 @@ jest.mock('recharts', () => ({
   YAxis: () => null,
   CartesianGrid: () => null,
   Tooltip: () => null,
-  ResponsiveContainer: ({ children }) => <div>{children}</div>,
+  ResponsiveContainer: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
 
-const serverError = { response: { status: 500, data: { error: 'The server had a problem.' } } };
+const mockedGet = jest.mocked(http.get);
 
-const stats = {
+const serverError = Object.assign(new Error('Request failed with status code 500'), {
+  response: { status: 500, data: { error: 'The server had a problem.' } },
+});
+
+const stats: StudentStats = {
   courses_enrolled: 5,
+  courses_active: 4,
   courses_completed: 1,
   certificates_earned: 1,
-  total_learning_hours: 12.46,
+  total_progress: 40,
+  has_plus_subscription: true,
   learning_streak: 3,
+  total_learning_hours: 12.46,
 };
-const member = { has_subscription: true, can_access_plus_courses: true, is_active: true, auto_renew: true };
-const nonMember = { has_subscription: false, can_access_plus_courses: false, is_active: false };
+const weeklyProgress: WeeklyProgress = { monthly_progress: [{ month: 'Oct', hours: 4 }] };
+const enrolledCourse: EnrolledCourse = {
+  id: 'e-1',
+  course_id: 'c-1',
+  title: 'JavaScript from Scratch',
+  instructor: 'Ada',
+  thumbnail: null,
+  progress: 40,
+  status: 'active',
+  last_accessed: null,
+  next_lesson: 'Variables',
+  total_lessons: 10,
+  completed_lessons: 4,
+  estimated_completion: '2 hours',
+};
+const catalogCourse: CatalogCourse = {
+  id: 'c-9',
+  title: 'React for Beginners',
+  instructor: 'Grace',
+  instructor_id: 'u-9',
+  thumbnail: null,
+  rating: 4.7,
+  students: 5,
+  duration: '3 hours',
+  duration_seconds: 10800,
+  level: 'beginner',
+  category: 'Development',
+  course_type: 'free',
+  modules: 4,
+  description: 'Components, props and state.',
+  is_enrolled: false,
+  is_bookmarked: false,
+  can_enroll: true,
+  enrollment_message: '',
+  progress: 0,
+};
+const member: SubscriptionStatus = {
+  has_subscription: true,
+  status: 'active',
+  subscription_type: 'monthly',
+  is_active: true,
+  can_access_plus_courses: true,
+  start_date: '2026-09-01T09:00:00Z',
+  end_date: '2026-11-01T09:00:00Z',
+  auto_renew: true,
+  next_billing_date: '2026-11-01T09:00:00Z',
+};
+const nonMember: SubscriptionStatus = {
+  has_subscription: false,
+  status: 'none',
+  subscription_type: null,
+  is_active: false,
+  can_access_plus_courses: false,
+  start_date: null,
+  end_date: null,
+  auto_renew: false,
+  next_billing_date: null,
+};
 
-let answers;
+// what each url answers (or fails with, when it holds an error)
+let answers: Record<string, unknown>;
 
 beforeEach(() => {
   jest.clearAllMocks();
   answers = {
     '/insights/student/stats/': stats,
-    '/insights/student/weekly-progress/': { monthly_progress: [{ month: 'Oct', hours: 4 }] },
-    '/learning/enrolled/': [
-      {
-        id: 'e-1', course_id: 'c-1', title: 'JavaScript from Scratch', instructor: 'Ada', thumbnail: null,
-        progress: 40, status: 'active',
-      },
-    ],
-    '/learning/courses/': [{
-      id: 'c-9', title: 'React for Beginners', instructor: 'Grace', thumbnail: null, rating: 4.7, students: 5,
-      duration: '3 hours', level: 'beginner', category: 'Development', course_type: 'free', modules: 4,
-      is_enrolled: false, can_enroll: true,
-    }],
+    '/insights/student/weekly-progress/': weeklyProgress,
+    '/learning/enrolled/': [enrolledCourse],
+    '/learning/courses/': [catalogCourse],
     '/billing/subscription/': member,
   };
-  http.get.mockImplementation(async (url) => {
+  mockedGet.mockImplementation(async (url) => {
     const answer = answers[url];
-    if (answer instanceof Error || (answer && answer.response)) throw answer;
+    if (answer instanceof Error) throw answer;
     return { data: answer, headers: { 'x-total-count': '1' } };
   });
 });
@@ -85,7 +150,7 @@ const renderHome = () =>
     </QueryProvider>
   );
 
-const figure = (label) => within(screen.getByRole('group', { name: label }));
+const figure = (label: string) => within(screen.getByRole('group', { name: label }));
 
 test('shows the figures, the courses to continue and the suggestions', async () => {
   renderHome();
@@ -137,9 +202,10 @@ test('a member whose subscription could not be read is not told to upgrade', asy
 });
 
 test('no recorded learning time shows an empty state instead of a flat chart', async () => {
-  answers['/insights/student/weekly-progress/'] = {
+  const idle: WeeklyProgress = {
     monthly_progress: [{ month: 'Aug', hours: 0 }, { month: 'Sep', hours: 0 }],
   };
+  answers['/insights/student/weekly-progress/'] = idle;
   renderHome();
 
   expect(await screen.findByText('No learning time yet')).toBeInTheDocument();
@@ -147,7 +213,7 @@ test('no recorded learning time shows an empty state instead of a flat chart', a
 });
 
 describe('the instructor pages', () => {
-  const renderPage = (page) =>
+  const renderPage = (page: ReactElement) =>
     render(
       <QueryProvider client={createQueryClient({ retryDelay: 1 })}>
         <ToastProvider>
@@ -156,7 +222,7 @@ describe('the instructor pages', () => {
       </QueryProvider>
     );
 
-  const dashboard = {
+  const dashboard: InstructorDashboard = {
     stats: {
       total_courses: 3, total_students: 40, total_revenue: 1250.5, average_rating: 0,
       published_courses: 2, draft_courses: 1,
@@ -167,7 +233,8 @@ describe('the instructor pages', () => {
     ],
     revenue_chart: [{ date: '2026-10-01', revenue: 10 }],
     top_courses: [
-      { id: 'c-1', title: 'React for Beginners', total_enrolled: 30, average_rating: 0, total_revenue: 900, thumbnail: null },
+      { id: 'c-1', title: 'React for Beginners', course_type: 'coursera_plus', total_enrolled: 30,
+        average_rating: 0, total_revenue: 900, thumbnail: null },
     ],
   };
 
@@ -195,10 +262,11 @@ describe('the instructor pages', () => {
     expect(screen.queryByText('Total Courses')).not.toBeInTheDocument();
   });
 
-  const earnings = {
+  const earnings: InstructorEarnings = {
     summary: { total_earnings: 0, pending_earnings: 412.5, monthly_earnings: 120, platform_fee_rate: 60 },
     monthly_chart: [{ month: 'Sep', earnings: 100 }, { month: 'Oct', earnings: 120 }],
     recent_transactions: [],
+    performance: { monthly_enrollments: 12, monthly_completions: 4, engagement_score: 70 },
     recent_earnings: [
       { id: 'e-1', month: 'October 2026', course: 'React for Beginners', enrollments: 12, completions: 4,
         engagement_score: 70, amount: 120, multiplier: 1, status: 'Pending' },
@@ -249,13 +317,14 @@ describe('achievements', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Your achievements could not be loaded');
 
-    answers['/insights/student/achievements/'] = {
-      total_points: 120, current_level: 2, next_level_points: 200, global_rank: 4,
+    const achievements: Achievements = {
+      total_points: 120, current_level: 2, next_level_points: 200, global_rank: 4, monthly_rank: null,
       achievements: [
-        { id: 'first', title: 'First Steps', icon: '*', description: 'Finish a lecture', earned: true,
-          date: '2026-09-01T00:00:00Z', progress: 100 },
+        { id: 1, title: 'First Steps', icon: '*', description: 'Finish a lecture', earned: true,
+          date: '2026-09-01', progress: 100 },
       ],
     };
+    answers['/insights/student/achievements/'] = achievements;
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
 
     expect(await screen.findByText('First Steps')).toBeInTheDocument();

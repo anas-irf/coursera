@@ -2,13 +2,23 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Heart, Star, Clock, BookOpen, Crown } from 'lucide-react';
 
-import { errorMessage } from '../../../shared/api/errors';
+import { errorMessage, errorStatus } from '../../../shared/api/errors';
+import type { UUID } from '../../../shared/types';
 import CourseThumbnail from '../../../shared/ui/CourseThumbnail';
 import { useConfirm } from '../../../shared/ui/ConfirmDialog';
 import { useToast } from '../../../shared/ui/Toast';
 import { useEnroll, useToggleBookmark } from '../hooks/useLearning';
+import type { CatalogCourse } from '../types';
 
-const CourseCard = ({ course }) => {
+interface CourseCardProps {
+  /**
+   * A catalogue course.  The "Go to Course" button opens ``course_id`` when the record has one and
+   * ``id`` otherwise, as it always did; the catalogue sends no ``course_id``.
+   */
+  course: CatalogCourse & { course_id?: UUID };
+}
+
+const CourseCard = ({ course }: CourseCardProps) => {
   const navigate = useNavigate();
   const [liked, setLiked] = useState(Boolean(course.is_bookmarked));
   const enroll = useEnroll();
@@ -26,7 +36,7 @@ const CourseCard = ({ course }) => {
       await enroll.mutateAsync(course.id);
       toast.success('Successfully enrolled in course!', 'Enrollment Complete');
     } catch (err) {
-      if (err.response && err.response.status === 402) {
+      if (errorStatus(err) === 402) {
         const upgrade = await confirm({
           type: 'info',
           title: 'Coursera Plus Required',

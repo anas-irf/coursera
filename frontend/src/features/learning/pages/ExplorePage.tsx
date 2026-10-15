@@ -7,8 +7,9 @@ import ErrorState from '../../../shared/ui/ErrorState';
 import { PageSpinner } from '../../../shared/ui/Spinner';
 import CourseCard from '../components/CourseCard';
 import { useCatalog } from '../hooks/useLearning';
+import type { CatalogFilters } from '../types';
 
-const DEFAULT_FILTERS = {
+const DEFAULT_FILTERS: CatalogFilters = {
   category: 'all',
   level: 'all',
   type: 'all',
@@ -17,13 +18,13 @@ const DEFAULT_FILTERS = {
 };
 
 const ExplorePage = () => {
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState<CatalogFilters>(DEFAULT_FILTERS);
   // the text is typed into the box at once, the request is sent when the typing pauses
   const search = useDebouncedValue(filters.search, 300);
   const catalog = useCatalog({ ...filters, search });
   const { courses, total } = catalog;
 
-  const handleFilterChange = (key, value) => {
+  const handleFilterChange = (key: keyof CatalogFilters, value: string) => {
     setFilters(prev => ({
       ...prev,
       [key]: value

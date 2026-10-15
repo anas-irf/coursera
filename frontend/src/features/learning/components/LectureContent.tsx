@@ -2,10 +2,17 @@ import React from 'react';
 import { Award, BookOpen, CheckCircle, FileText, PlayCircle } from 'lucide-react';
 
 import { safeHtml } from '../../../shared/lib/html';
+import type { ContentType, UUID } from '../../../shared/types';
 import { AssignmentPanel, QuizRunner } from '../../assessments';
+import type { PlayerLecture } from '../types';
 import VideoLecture from './VideoLecture';
 
-export const LectureIcon = ({ type, size = 16 }) => {
+interface LectureIconProps {
+  type: ContentType;
+  size?: number;
+}
+
+export const LectureIcon = ({ type, size = 16 }: LectureIconProps) => {
   switch (type) {
     case 'video':
       return <PlayCircle size={size} className="text-blue-500" />;
@@ -20,8 +27,27 @@ export const LectureIcon = ({ type, size = 16 }) => {
   }
 };
 
+interface LectureContentProps {
+  courseId: UUID;
+  /** The selected lecture; ``null`` shows the "no lecture selected" message. */
+  lecture: PlayerLecture | null;
+  onComplete: (lectureId: UUID) => void;
+  completing?: boolean;
+  /** Called after a quiz was handed in or an assignment submitted, to reload the progress. */
+  onReload?: () => unknown;
+  /** Called with ``true`` while a quiz attempt is open and with ``false`` when it is not. */
+  onQuizActiveChange?: (active: boolean) => void;
+}
+
 /** The selected lecture: header with completion state and the content of its type. */
-const LectureContent = ({ courseId, lecture, onComplete, completing = false, onReload, onQuizActiveChange }) => {
+const LectureContent = ({
+  courseId,
+  lecture,
+  onComplete,
+  completing = false,
+  onReload,
+  onQuizActiveChange,
+}: LectureContentProps) => {
   if (!lecture) {
     return (
       <div className="flex items-center justify-center h-full">

@@ -4,12 +4,12 @@ import * as insightsApi from '../api';
 
 /** Query keys of the insights (``['insights', audience, resource]``). */
 export const insightsKeys = {
-  all: ['insights'],
-  studentStats: ['insights', 'student', 'stats'],
-  weeklyProgress: ['insights', 'student', 'weekly-progress'],
-  achievements: ['insights', 'student', 'achievements'],
-  instructorDashboard: ['insights', 'instructor', 'dashboard'],
-  instructorEarnings: ['insights', 'instructor', 'earnings'],
+  all: ['insights'] as const,
+  studentStats: ['insights', 'student', 'stats'] as const,
+  weeklyProgress: ['insights', 'student', 'weekly-progress'] as const,
+  achievements: ['insights', 'student', 'achievements'] as const,
+  instructorDashboard: ['insights', 'instructor', 'dashboard'] as const,
+  instructorEarnings: ['insights', 'instructor', 'earnings'] as const,
 };
 
 /** The four figures of the student's home page. */

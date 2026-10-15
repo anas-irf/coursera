@@ -4,7 +4,7 @@ const YOUTUBE_PATTERNS = [
 ];
 
 /** The video id of a YouTube watch, share or embed URL; ``null`` for anything else. */
-export const youTubeVideoId = (url) => {
+export const youTubeVideoId = (url: string | null | undefined): string | null => {
   if (!url) return null;
   for (const pattern of YOUTUBE_PATTERNS) {
     const match = url.match(pattern);
@@ -14,7 +14,7 @@ export const youTubeVideoId = (url) => {
 };
 
 const API_URL = 'https://www.youtube.com/iframe_api';
-let apiPromise = null;
+let apiPromise: Promise<YT.IFrameApi> | null = null;
 
 /**
  * Loads YouTube's IFrame Player API once and resolves with ``window.YT``.
@@ -22,16 +22,17 @@ let apiPromise = null;
  * It is what lets the page know where the student is in an embedded video.  If the script cannot
  * be loaded (offline, blocked) the promise rejects and the embed simply plays without tracking.
  */
-export function loadYouTubeApi() {
+export function loadYouTubeApi(): Promise<YT.IFrameApi> {
   if (typeof window === 'undefined') return Promise.reject(new Error('no window'));
   if (window.YT && window.YT.Player) return Promise.resolve(window.YT);
 
   if (!apiPromise) {
-    apiPromise = new Promise((resolve, reject) => {
+    apiPromise = new Promise<YT.IFrameApi>((resolve, reject) => {
       const previous = window.onYouTubeIframeAPIReady;
       window.onYouTubeIframeAPIReady = () => {
         if (typeof previous === 'function') previous();
-        resolve(window.YT);
+        // the script sets window.YT before it calls this function
+        resolve(window.YT!);
       };
 
       const script = document.createElement('script');

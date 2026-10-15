@@ -1,17 +1,24 @@
 import React from 'react';
 import { PlayCircle } from 'lucide-react';
 
+import type { UUID } from '../../../shared/types';
 import { formatClock } from '../../../shared/lib/time';
 import { useWatchReporter } from '../hooks/usePlayer';
 import { youTubeVideoId } from '../lib/youtube';
+import type { PlayerVideoLecture } from '../types';
 import HostedVideo from './HostedVideo';
 import YouTubeEmbed from './YouTubeEmbed';
+
+interface VideoLectureProps {
+  courseId: UUID;
+  lecture: PlayerVideoLecture;
+}
 
 /**
  * A video lecture: YouTube embed or a hosted file with optional subtitles.  Where the student is
  * in the video is reported to the server (so it resumes and the learning hours are real).
  */
-const VideoLecture = ({ courseId, lecture }) => {
+const VideoLecture = ({ courseId, lecture }: VideoLectureProps) => {
   const subtitles = lecture.subtitles || [];
   const report = useWatchReporter({ courseId, lectureId: lecture.id });
   const youTubeId = lecture.video_type === 'youtube' ? youTubeVideoId(lecture.video_url) : null;

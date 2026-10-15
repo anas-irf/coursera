@@ -7,14 +7,19 @@ import ErrorState from '../../../shared/ui/ErrorState';
 import { PageSpinner } from '../../../shared/ui/Spinner';
 import EnrolledCourseCard from '../components/EnrolledCourseCard';
 import { useMyCourses } from '../hooks/useLearning';
+import type { EnrolledCourse, EnrolledView } from '../types';
 
-const isCompleted = (course) => course.status === 'completed';
+const isCompleted = (course: EnrolledCourse) => course.status === 'completed';
+
+// the value of a select is a string: only the three options are filters
+const isFilter = (value: string): value is EnrolledView =>
+  value === 'active' || value === 'completed' || value === 'all';
 
 const MyLearningPage = () => {
   const navigate = useNavigate();
   // every course of the student comes in one list; the select below only narrows it
   const courses = useMyCourses({ status: 'all' });
-  const [filter, setFilter] = useState('active'); // active (in progress), completed, all
+  const [filter, setFilter] = useState<EnrolledView>('active'); // active (in progress), completed, all
   const [searchTerm, setSearchTerm] = useState('');
 
   if (courses.isPending) {
@@ -68,7 +73,9 @@ const MyLearningPage = () => {
           <select
             aria-label="Show"
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            onChange={(e) => {
+              if (isFilter(e.target.value)) setFilter(e.target.value);
+            }}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           >
             <option value="active">In Progress</option>

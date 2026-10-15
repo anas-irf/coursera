@@ -22,7 +22,7 @@ const InstructorAnalyticsPage = () => {
           <option>All Time</option>
         </select>
       </div>
-      
+
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
         These charts show sample data. Course analytics are not connected to your real figures yet; the
         per-course numbers are available in the course list.
@@ -42,7 +42,7 @@ const InstructorAnalyticsPage = () => {
             </LineChart>
           </ResponsiveContainer>
         </div>
-        
+
         {/* Revenue Trend */}
         <div className="bg-white rounded-xl shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Revenue Trend</h2>
@@ -57,7 +57,7 @@ const InstructorAnalyticsPage = () => {
           </ResponsiveContainer>
         </div>
       </div>
-      
+
       {/* Course Performance Table */}
       <div className="bg-white rounded-xl shadow-sm p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Course Performance</h2>

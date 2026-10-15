@@ -1,6 +1,7 @@
 import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { BookOpen, Users, DollarSign, Star } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 import { formatMoney } from '../../../shared/lib/money';
 import { formatDate } from '../../../shared/lib/time';
@@ -14,7 +15,16 @@ const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EC4899'];
 const NO_RATING = '-';
 
 /** "4.6", or "-" while no course has been rated (reviews do not exist yet, so it is 0). */
-const rating = (value) => (value > 0 ? value.toFixed(1) : NO_RATING);
+const rating = (value: number) => (value > 0 ? value.toFixed(1) : NO_RATING);
+
+/** One of the four figures at the top of the page. */
+interface Tile {
+  title: string;
+  value: string | number;
+  note: string;
+  icon: LucideIcon;
+  color: string;
+}
 
 const InstructorOverviewPage = () => {
   const query = useInstructorDashboard();
@@ -36,7 +46,7 @@ const InstructorOverviewPage = () => {
   const { stats, recent_enrollments: enrollments, revenue_chart: revenue, top_courses: topCourses } = query.data;
 
   // what each figure is about, said by the figure itself: no "+12% from last month" that nothing computed
-  const tiles = [
+  const tiles: Tile[] = [
     {
       title: 'Total Courses',
       value: stats.total_courses,

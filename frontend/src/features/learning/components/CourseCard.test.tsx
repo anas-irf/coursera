@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { QueryClient } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 import { createQueryClient } from '../../../shared/query/client';
@@ -7,22 +8,29 @@ import { QueryProvider } from '../../../shared/query/QueryProvider';
 import { ConfirmProvider } from '../../../shared/ui/ConfirmDialog';
 import { ToastProvider } from '../../../shared/ui/Toast';
 import { enroll, toggleBookmark } from '../api';
+import type { CatalogCourse } from '../types';
 import CourseCard from './CourseCard';
 
 jest.mock('../api');
 
-const course = {
+const mockedEnroll = jest.mocked(enroll);
+const mockedToggleBookmark = jest.mocked(toggleBookmark);
+
+const course: CatalogCourse = {
   id: 'c-1',
   title: 'Intro to Python',
   instructor: 'Ada Lovelace',
+  instructor_id: 'u-1',
   thumbnail: '/media/course_thumbnails/a.png',
   rating: 4.5,
   students: 1200,
   duration: '3 hours',
+  duration_seconds: 10800,
   level: 'beginner',
   category: 'Development',
   course_type: 'free',
   modules: 4,
+  description: 'Learn Python from the first line.',
   is_enrolled: false,
   is_bookmarked: false,
   can_enroll: true,
@@ -30,7 +38,12 @@ const course = {
   progress: 0,
 };
 
-const renderCard = ({ client = createQueryClient(), courseOverrides = {} } = {}) =>
+interface RenderOptions {
+  client?: QueryClient;
+  courseOverrides?: Partial<CatalogCourse>;
+}
+
+const renderCard = ({ client = createQueryClient(), courseOverrides = {} }: RenderOptions = {}) =>
   render(
     <QueryProvider client={client}>
       <ToastProvider>
@@ -68,22 +81,23 @@ test('a course without a picture gets a local placeholder, not a third-party ima
 });
 
 test('enrolling refreshes every list of courses', async () => {
-  enroll.mockResolvedValue({ enrollment_id: 'e-1' });
+  mockedEnroll.mockResolvedValue({ message: 'Successfully enrolled in course', enrollment_id: 'e-1' });
   const client = createQueryClient();
   client.setQueryData(['learning', 'mine', 'active'], []);
   renderCard({ client });
 
   fireEvent.click(screen.getByText('Enroll Now'));
 
-  await waitFor(() => expect(client.getQueryState(['learning', 'mine', 'active']).isInvalidated).toBe(true));
+  await waitFor(() => expect(client.getQueryState(['learning', 'mine', 'active'])?.isInvalidated).toBe(true));
   expect(enroll).toHaveBeenCalledWith('c-1');
   expect(await screen.findByText('Successfully enrolled in course!')).toBeInTheDocument();
 });
 
 test('a Plus course without a subscription offers the checkout', async () => {
-  const error = new Error('payment required');
-  error.response = { status: 402, data: { requires_subscription: true } };
-  enroll.mockRejectedValue(error);
+  const error = Object.assign(new Error('payment required'), {
+    response: { status: 402, data: { requires_subscription: true } },
+  });
+  mockedEnroll.mockRejectedValue(error);
   renderCard();
 
   fireEvent.click(screen.getByText('Enroll Now'));
@@ -93,9 +107,10 @@ test('a Plus course without a subscription offers the checkout', async () => {
 });
 
 test('other enrolment errors are shown with the server message', async () => {
-  const error = new Error('bad request');
-  error.response = { status: 400, data: { error: 'Already enrolled in this course' } };
-  enroll.mockRejectedValue(error);
+  const error = Object.assign(new Error('bad request'), {
+    response: { status: 400, data: { error: 'Already enrolled in this course' } },
+  });
+  mockedEnroll.mockRejectedValue(error);
   renderCard();
 
   fireEvent.click(screen.getByText('Enroll Now'));
@@ -104,7 +119,7 @@ test('other enrolment errors are shown with the server message', async () => {
 });
 
 test('the heart bookmarks through the API', async () => {
-  toggleBookmark.mockResolvedValue({ message: 'Course bookmarked' });
+  mockedToggleBookmark.mockResolvedValue({ message: 'Course bookmarked' });
   renderCard();
 
   fireEvent.click(screen.getByRole('button', { name: 'Bookmark this course' }));
@@ -114,9 +129,10 @@ test('the heart bookmarks through the API', async () => {
 });
 
 test('a bookmark the server refuses is undone and reported', async () => {
-  const error = new Error('boom');
-  error.response = { status: 500, data: { error: 'Could not save' } };
-  toggleBookmark.mockRejectedValue(error);
+  const error = Object.assign(new Error('boom'), {
+    response: { status: 500, data: { error: 'Could not save' } },
+  });
+  mockedToggleBookmark.mockRejectedValue(error);
   renderCard();
 
   fireEvent.click(screen.getByRole('button', { name: 'Bookmark this course' }));

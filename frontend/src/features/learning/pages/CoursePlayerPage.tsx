@@ -2,17 +2,19 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, ChevronDown, ChevronRight, Menu, RefreshCw, X } from 'lucide-react';
 
-import { errorMessage } from '../../../shared/api/errors';
+import { errorMessage, errorStatus } from '../../../shared/api/errors';
+import type { UUID } from '../../../shared/types';
 import { PageSpinner } from '../../../shared/ui/Spinner';
 import { useConfirm } from '../../../shared/ui/ConfirmDialog';
 import { useToast } from '../../../shared/ui/Toast';
 import LectureContent, { LectureIcon } from '../components/LectureContent';
 import { useCompleteLecture, usePlayer, useRefreshProgress } from '../hooks/usePlayer';
 import { allLectures, firstIncomplete } from '../lib/player';
+import type { PlayerLecture } from '../types';
 
-const storageKey = (courseId) => `selectedLecture_${courseId}`;
+const storageKey = (courseId: UUID) => `selectedLecture_${courseId}`;
 
-const readSelection = (courseId) => {
+const readSelection = (courseId: UUID): string | null => {
   try {
     return window.localStorage.getItem(storageKey(courseId));
   } catch (error) {
@@ -20,7 +22,7 @@ const readSelection = (courseId) => {
   }
 };
 
-const writeSelection = (courseId, lectureId) => {
+const writeSelection = (courseId: UUID, lectureId: UUID) => {
   try {
     window.localStorage.setItem(storageKey(courseId), lectureId);
   } catch (error) {
@@ -30,7 +32,8 @@ const writeSelection = (courseId, lectureId) => {
 
 /** The learning interface of one course: outline sidebar and the selected lecture. */
 const CoursePlayerPage = () => {
-  const { courseId } = useParams();
+  // the route is "/courses/:courseId/learn": the parameter is there whenever this page renders
+  const courseId = useParams<{ courseId: string }>().courseId!;
   const navigate = useNavigate();
   const toast = useToast();
   const { confirm } = useConfirm();
@@ -39,13 +42,13 @@ const CoursePlayerPage = () => {
   const completeLecture = useCompleteLecture(courseId);
   const refreshProgress = useRefreshProgress(courseId);
 
-  const [chosenId, setChosenId] = useState(null);
+  const [chosenId, setChosenId] = useState<UUID | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState({});
+  const [collapsed, setCollapsed] = useState<Record<UUID, boolean>>({});
   const quizActive = useRef(false);
 
   const course = player.data || null;
-  const status = player.error && player.error.response ? player.error.response.status : null;
+  const status = errorStatus(player.error) ?? null;
 
   // an enrolment is required: the student is sent home with the reason
   useEffect(() => {
@@ -68,7 +71,7 @@ const CoursePlayerPage = () => {
     );
   }, [course, chosenId, courseId]);
 
-  const select = async (lecture) => {
+  const select = async (lecture: PlayerLecture) => {
     if (quizActive.current) {
       const leave = await confirm({
         type: 'warning',
@@ -86,7 +89,7 @@ const CoursePlayerPage = () => {
     writeSelection(courseId, lecture.id);
   };
 
-  const complete = (lectureId) =>
+  const complete = (lectureId: UUID) =>
     completeLecture.mutate(lectureId, {
       onError: (err) =>
         toast.error(errorMessage(err, 'Failed to mark lecture as complete. Please try again.'), 'Update Failed'),
@@ -99,7 +102,7 @@ const CoursePlayerPage = () => {
     }
   };
 
-  const onQuizActiveChange = useCallback((active) => {
+  const onQuizActiveChange = useCallback((active: boolean) => {
     quizActive.current = active;
   }, []);
 

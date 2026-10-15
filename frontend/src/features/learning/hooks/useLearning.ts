@@ -6,7 +6,9 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 
+import type { UUID } from '../../../shared/types';
 import * as learningApi from '../api';
+import type { CatalogFilters, EnrolledView } from '../types';
 
 /**
  * Query keys of the learning feature (``['learning', resource, params]``).  Enrolling invalidates
@@ -14,19 +16,19 @@ import * as learningApi from '../api';
  * all follow.
  */
 export const learningKeys = {
-  all: ['learning'],
-  mine: (status) => ['learning', 'mine', status],
-  catalog: (filters) => ['learning', 'catalog', filters],
-  recommended: ['learning', 'recommended'],
-  player: (courseId) => ['learning', 'player', courseId],
-  instructorStudents: ['learning', 'instructor-students'],
+  all: ['learning'] as const,
+  mine: (status: EnrolledView) => ['learning', 'mine', status] as const,
+  catalog: (filters: CatalogFilters) => ['learning', 'catalog', filters] as const,
+  recommended: ['learning', 'recommended'] as const,
+  player: (courseId: UUID) => ['learning', 'player', courseId] as const,
+  instructorStudents: ['learning', 'instructor-students'] as const,
 };
 
 export const CATALOG_PAGE_SIZE = 12;
 export const RECOMMENDED_COUNT = 6;
 
 /** The student's courses; ``status`` is "active", "completed" or "all". */
-export function useMyCourses({ status = 'active' } = {}) {
+export function useMyCourses({ status = 'active' }: { status?: EnrolledView } = {}) {
   return useQuery({
     queryKey: learningKeys.mine(status),
     queryFn: () => learningApi.myCourses({ status }),
@@ -37,8 +39,12 @@ export function useMyCourses({ status = 'active' } = {}) {
  * The catalogue in pages: ``fetchNextPage`` loads the next one, ``total`` is how many courses
  * match in all and ``courses`` the ones loaded so far.  While another filter loads, the previous
  * result stays on screen (``isPlaceholderData``).
+ *
+ * A page is a ``CatalogPage`` and the page parameter a page number (from 1): both follow from
+ * ``listCoursesPage`` and ``initialPageParam``, so ``courses`` and ``total`` are typed without
+ * spelling out the query's generics.
  */
-export function useCatalog(filters) {
+export function useCatalog(filters: CatalogFilters) {
   const query = useInfiniteQuery({
     queryKey: learningKeys.catalog(filters),
     initialPageParam: 1,
@@ -72,7 +78,7 @@ export function useRecommendedCourses(count = RECOMMENDED_COUNT) {
 export function useEnroll() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (courseId) => learningApi.enroll(courseId),
+    mutationFn: (courseId: UUID) => learningApi.enroll(courseId),
     onSuccess: () => Promise.all([
       client.invalidateQueries({ queryKey: learningKeys.all }),
       client.invalidateQueries({ queryKey: ['insights'] }),
@@ -87,7 +93,7 @@ export function useEnroll() {
 export function useToggleBookmark() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (courseId) => learningApi.toggleBookmark(courseId),
+    mutationFn: (courseId: UUID) => learningApi.toggleBookmark(courseId),
     onSuccess: () => Promise.all([
       client.invalidateQueries({ queryKey: ['learning', 'catalog'], refetchType: 'none' }),
       client.invalidateQueries({ queryKey: learningKeys.recommended, refetchType: 'none' }),

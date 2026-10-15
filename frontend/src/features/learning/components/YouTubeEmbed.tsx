@@ -3,48 +3,60 @@ import React, { useEffect, useRef } from 'react';
 import { useLatest } from '../../../shared/lib/useLatest';
 import { resumePosition } from '../lib/player';
 import { loadYouTubeApi } from '../lib/youtube';
+import type { PlayerVideoLecture, ReportWatch, WatchOptions } from '../types';
 
 const HEARTBEAT_MS = 15 * 1000;
+
+interface YouTubeEmbedProps {
+  lecture: PlayerVideoLecture;
+  /** The video's id (``youTubeVideoId(lecture.video_url)``). */
+  videoId: string;
+  /** Seconds to start from (unless that is the very beginning or nearly the end). */
+  resumeAt?: number;
+  onReport?: ReportWatch;
+}
 
 /**
  * A YouTube video.  The page renders the iframe; YouTube's player API is attached to it so the
  * position can be reported like that of an uploaded file (``onReport(position, {finished})``).
  * When the API cannot be loaded the video still plays, it is just not tracked.
  */
-const YouTubeEmbed = ({ lecture, videoId, resumeAt = 0, onReport }) => {
-  const iframeRef = useRef(null);
+const YouTubeEmbed = ({ lecture, videoId, resumeAt = 0, onReport }: YouTubeEmbedProps) => {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const report = useLatest(onReport);
   const resume = useLatest(resumeAt);
 
   useEffect(() => {
-    let player = null;
-    let timer = null;
+    let player: YT.Player | null = null;
+    let timer: ReturnType<typeof setInterval> | null = null;
     let playing = false;
     let cancelled = false;
 
     const position = () => (player && typeof player.getCurrentTime === 'function' ? player.getCurrentTime() : null);
-    const send = (options) => {
+    const send = (options?: WatchOptions) => {
       const at = position();
       if (at !== null && report.current) report.current(at, options);
     };
 
     loadYouTubeApi()
-      .then((YT) => {
+      .then((youtube) => {
         if (cancelled || !iframeRef.current) return;
-        player = new YT.Player(iframeRef.current, {
+        player = new youtube.Player(iframeRef.current, {
           events: {
             onReady: () => {
+              // the player calls this once it is built, after the constructor has returned
+              if (!player) return;
               const at = resumePosition(resume.current, player.getDuration && player.getDuration());
               if (at > 0) player.seekTo(at, true);
             },
             onStateChange: (event) => {
-              clearInterval(timer);
-              playing = event.data === YT.PlayerState.PLAYING;
+              if (timer !== null) clearInterval(timer);
+              playing = event.data === youtube.PlayerState.PLAYING;
               if (playing) {
                 timer = setInterval(() => send(), HEARTBEAT_MS);
-              } else if (event.data === YT.PlayerState.PAUSED) {
+              } else if (event.data === youtube.PlayerState.PAUSED) {
                 send();
-              } else if (event.data === YT.PlayerState.ENDED) {
+              } else if (event.data === youtube.PlayerState.ENDED) {
                 send({ finished: true });
               }
             },
@@ -57,7 +69,7 @@ const YouTubeEmbed = ({ lecture, videoId, resumeAt = 0, onReport }) => {
 
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      if (timer !== null) clearInterval(timer);
       if (playing) send();
     };
   }, [lecture.id, videoId, report, resume]);

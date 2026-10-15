@@ -4,12 +4,19 @@ import { PlayCircle, Clock, BookOpen, Award } from 'lucide-react';
 
 import { formatDate } from '../../../shared/lib/time';
 import CourseThumbnail from '../../../shared/ui/CourseThumbnail';
+import type { EnrolledCourse } from '../types';
+
+interface EnrolledCourseCardProps {
+  course: EnrolledCourse;
+  /** Leaves out the lesson count and the last visit. */
+  compact?: boolean;
+}
 
 /**
  * A course the student is enrolled in, with its progress and the button that opens the player.
  * ``compact`` leaves out the lesson count and the last visit (the home page lists three of them).
  */
-const EnrolledCourseCard = ({ course, compact = false }) => {
+const EnrolledCourseCard = ({ course, compact = false }: EnrolledCourseCardProps) => {
   const navigate = useNavigate();
   const completed = course.status === 'completed';
 

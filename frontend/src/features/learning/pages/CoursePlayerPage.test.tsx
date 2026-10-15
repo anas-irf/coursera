@@ -7,6 +7,7 @@ import { createQueryClient } from '../../../shared/query/client';
 import { QueryProvider } from '../../../shared/query/QueryProvider';
 import { ConfirmProvider } from '../../../shared/ui/ConfirmDialog';
 import { ToastProvider } from '../../../shared/ui/Toast';
+import type { PlayerLecture, PlayerPayload } from '../types';
 import CoursePlayerPage from './CoursePlayerPage';
 
 jest.mock('../../../shared/api/client', () => ({
@@ -14,35 +15,72 @@ jest.mock('../../../shared/api/client', () => ({
   default: { get: jest.fn(), post: jest.fn() },
 }));
 
-const lecture = (id, title, type, done = false) => ({
-  id,
-  title,
-  description: '',
-  content_type: type,
-  is_completed: done,
-  video_type: 'upload',
-  video_file_url: '/media/v.mp4',
-  video_url: null,
-  duration: 120,
-  last_watched_position: 0,
-  watch_count: 0,
-  content: '<p>Chapter one</p>',
-  estimated_reading_time: 3,
-});
+const mockedGet = jest.mocked(http.get);
+const mockedPost = jest.mocked(http.post);
 
-const payload = (lectures) => ({
-  course: { id: 'c-1', title: 'JavaScript from Scratch', instructor: 'Ada Lovelace' },
-  enrollment: { status: 'active', progress_percentage: 0 },
-  sections: [{
-    id: 's-1', title: 'Basics', lectures,
-    completed_lectures: lectures.filter((l) => l.is_completed).length, total_lectures: lectures.length,
-  }],
-  progress: {
-    total_lectures: lectures.length,
-    completed_lectures: lectures.filter((l) => l.is_completed).length,
-    progress_percentage: 0,
-  },
-});
+const lecture = (id: string, title: string, type: 'video' | 'reading', done = false): PlayerLecture => {
+  const common = {
+    id,
+    title,
+    description: '',
+    order: 1,
+    is_preview: false,
+    is_downloadable: false,
+    is_completed: done,
+    progress_seconds: 0,
+    last_watched_position: 0,
+    watch_count: 0,
+  };
+  return type === 'video'
+    ? {
+        ...common,
+        content_type: 'video',
+        video_type: 'local',
+        video_file_url: '/media/v.mp4',
+        video_url: null,
+        duration: 120,
+        thumbnail: null,
+        subtitles: [],
+      }
+    : {
+        ...common,
+        content_type: 'reading',
+        content: '<p>Chapter one</p>',
+        estimated_reading_time: 3,
+        file_url: null,
+      };
+};
+
+const payload = (lectures: PlayerLecture[]): PlayerPayload => {
+  const completed = lectures.filter((l) => l.is_completed).length;
+  return {
+    course: {
+      id: 'c-1',
+      title: 'JavaScript from Scratch',
+      description: '',
+      instructor: 'Ada Lovelace',
+      thumbnail: null,
+      level: 'beginner',
+      category: 'Development',
+    },
+    enrollment: {
+      id: 'e-1',
+      enrolled_date: '2026-09-01T09:00:00Z',
+      progress_percentage: 0,
+      last_accessed: null,
+      status: 'active',
+    },
+    sections: [{
+      id: 's-1', title: 'Basics', description: '', order: 1, is_preview: false, lectures,
+      completed_lectures: completed, total_lectures: lectures.length,
+    }],
+    progress: {
+      total_lectures: lectures.length,
+      completed_lectures: completed,
+      progress_percentage: 0,
+    },
+  };
+};
 
 const renderPlayer = () =>
   render(
@@ -66,7 +104,7 @@ beforeEach(() => {
 });
 
 test('opens on the first lecture that is not finished and offers "Mark Complete" for it', async () => {
-  http.get.mockResolvedValue({
+  mockedGet.mockResolvedValue({
     data: payload([lecture('l-1', 'Intro video', 'video', true), lecture('l-2', 'Chapter one', 'reading')]),
   });
   renderPlayer();
@@ -79,8 +117,8 @@ test('opens on the first lecture that is not finished and offers "Mark Complete"
 test('completing a lecture refreshes the outline', async () => {
   const before = payload([lecture('l-1', 'Intro video', 'video')]);
   const after = payload([lecture('l-1', 'Intro video', 'video', true)]);
-  http.get.mockResolvedValueOnce({ data: before }).mockResolvedValue({ data: after });
-  http.post.mockResolvedValue({ data: { message: 'ok' } });
+  mockedGet.mockResolvedValueOnce({ data: before }).mockResolvedValue({ data: after });
+  mockedPost.mockResolvedValue({ data: { message: 'ok' } });
   renderPlayer();
 
   fireEvent.click(await screen.findByRole('button', { name: 'Mark Complete' }));
@@ -92,8 +130,8 @@ test('completing a lecture refreshes the outline', async () => {
 });
 
 test('a failure to complete is reported and the lecture stays open', async () => {
-  http.get.mockResolvedValue({ data: payload([lecture('l-1', 'Intro video', 'video')]) });
-  http.post.mockRejectedValue({ response: { status: 500, data: { error: 'The server had a problem.' } } });
+  mockedGet.mockResolvedValue({ data: payload([lecture('l-1', 'Intro video', 'video')]) });
+  mockedPost.mockRejectedValue({ response: { status: 500, data: { error: 'The server had a problem.' } } });
   renderPlayer();
 
   fireEvent.click(await screen.findByRole('button', { name: 'Mark Complete' }));
@@ -103,7 +141,7 @@ test('a failure to complete is reported and the lecture stays open', async () =>
 });
 
 test('the student remembers the lecture they chose', async () => {
-  http.get.mockResolvedValue({
+  mockedGet.mockResolvedValue({
     data: payload([lecture('l-1', 'Intro video', 'video'), lecture('l-2', 'Chapter one', 'reading')]),
   });
   renderPlayer();
@@ -116,7 +154,7 @@ test('the student remembers the lecture they chose', async () => {
 });
 
 test('without an enrolment the student is sent home with the reason', async () => {
-  http.get.mockRejectedValue({ response: { status: 403, data: { detail: 'No' } } });
+  mockedGet.mockRejectedValue({ response: { status: 403, data: { detail: 'No' } } });
   renderPlayer();
 
   expect(await screen.findByText('student home')).toBeInTheDocument();
@@ -125,8 +163,8 @@ test('without an enrolment the student is sent home with the reason', async () =
 });
 
 test('a course that cannot be loaded offers another try', async () => {
-  http.get.mockRejectedValueOnce({ response: { status: 404, data: { detail: 'Not found.' } } });
-  http.get.mockResolvedValue({ data: payload([lecture('l-1', 'Intro video', 'video')]) });
+  mockedGet.mockRejectedValueOnce({ response: { status: 404, data: { detail: 'Not found.' } } });
+  mockedGet.mockResolvedValue({ data: payload([lecture('l-1', 'Intro video', 'video')]) });
   renderPlayer();
 
   expect(await screen.findByText('Course not found')).toBeInTheDocument();

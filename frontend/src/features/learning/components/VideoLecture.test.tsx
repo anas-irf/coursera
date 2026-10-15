@@ -1,28 +1,40 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { QueryClient } from '@tanstack/react-query';
 
 import { createQueryClient } from '../../../shared/query/client';
 import { QueryProvider } from '../../../shared/query/QueryProvider';
 import * as api from '../api';
 import { learningKeys } from '../hooks/useLearning';
 import { resetYouTubeApiForTests } from '../lib/youtube';
+import type { PlayerPayload, PlayerVideoLecture } from '../types';
 import VideoLecture from './VideoLecture';
 
 jest.mock('../api');
 
-const hosted = {
+const recordWatchProgress = jest.mocked(api.recordWatchProgress);
+
+const hosted: PlayerVideoLecture = {
   id: 'l-1',
   title: 'Values and types',
+  description: '',
   content_type: 'video',
-  video_type: 'upload',
+  order: 1,
+  is_preview: false,
+  is_downloadable: false,
+  is_completed: false,
+  progress_seconds: 0,
+  video_type: 'local',
   video_file_url: '/media/videos/a.mp4',
   video_url: null,
   duration: 600,
+  thumbnail: null,
+  subtitles: [],
   last_watched_position: 120,
   watch_count: 0,
 };
 
-const youtube = {
+const youtube: PlayerVideoLecture = {
   ...hosted,
   id: 'l-2',
   video_type: 'youtube',
@@ -31,13 +43,14 @@ const youtube = {
   last_watched_position: 90,
 };
 
-let client;
+let client: QueryClient;
 
-const renderVideo = (lecture) => {
+const renderVideo = (lecture: PlayerVideoLecture) => {
   client = createQueryClient();
+  // the outline the player has cached: only its lectures matter here
   client.setQueryData(learningKeys.player('c-1'), {
     sections: [{ id: 's', lectures: [{ ...lecture }] }],
-  });
+  } as PlayerPayload);
   return render(
     <QueryProvider client={client}>
       <VideoLecture courseId="c-1" lecture={lecture} />
@@ -45,13 +58,13 @@ const renderVideo = (lecture) => {
   );
 };
 
-const video = () => screen.getByLabelText('Values and types');
-const setTime = (element, seconds) =>
+const video = () => screen.getByLabelText<HTMLVideoElement>('Values and types');
+const setTime = (element: HTMLElement, seconds: number) =>
   Object.defineProperty(element, 'currentTime', { value: seconds, writable: true, configurable: true });
 
 beforeEach(() => {
   jest.clearAllMocks();
-  api.recordWatchProgress.mockResolvedValue({
+  recordWatchProgress.mockResolvedValue({
     last_watched_position: 42, progress_seconds: 42, watch_count: 0, total_time_spent: 42,
   });
 });
@@ -87,8 +100,8 @@ describe('an uploaded video', () => {
 
     expect(api.recordWatchProgress).toHaveBeenCalledWith('c-1', 'l-1', { position: 42, finished: false });
     await waitFor(() => {
-      const cached = client.getQueryData(learningKeys.player('c-1'));
-      expect(cached.sections[0].lectures[0].last_watched_position).toBe(42);
+      const cached = client.getQueryData<PlayerPayload>(learningKeys.player('c-1'));
+      expect(cached?.sections[0].lectures[0].last_watched_position).toBe(42);
     });
   });
 
@@ -141,7 +154,7 @@ describe('an uploaded video', () => {
   });
 
   test('a failed report does not disturb the lecture', async () => {
-    api.recordWatchProgress.mockRejectedValue({ response: { status: 500 } });
+    recordWatchProgress.mockRejectedValue({ response: { status: 500 } });
     renderVideo(hosted);
     const element = video();
 
@@ -156,20 +169,32 @@ describe('an uploaded video', () => {
 });
 
 describe('a YouTube video', () => {
-  let player;
-  let events;
+  // the two listeners the embed hands to the player: the fake player keeps them for the test
+  interface Listeners {
+    onReady: () => void;
+    onStateChange: (event: { data: number }) => void;
+  }
+
+  let player: { getCurrentTime: jest.Mock; getDuration: jest.Mock; seekTo: jest.Mock };
+  let events: Listeners | undefined;
+
+  const listeners = (): Listeners => {
+    if (!events) throw new Error('the player was not created');
+    return events;
+  };
 
   beforeEach(() => {
     events = undefined;
     resetYouTubeApiForTests();
     player = { getCurrentTime: jest.fn(() => 33), getDuration: jest.fn(() => 600), seekTo: jest.fn() };
+    // the API as YouTube's script would leave it on the window, reduced to what the embed reads
     window.YT = {
       PlayerState: { ENDED: 0, PLAYING: 1, PAUSED: 2 },
-      Player: function FakePlayer(element, options) {
+      Player: function FakePlayer(element: HTMLElement, options: { events: Listeners }) {
         events = options.events;
         return player;
       },
-    };
+    } as unknown as YT.IFrameApi;
     jest.useFakeTimers();
   });
 
@@ -194,7 +219,7 @@ describe('a YouTube video', () => {
   test('resumes where the student stopped', async () => {
     await mount();
 
-    events.onReady();
+    listeners().onReady();
 
     expect(player.seekTo).toHaveBeenCalledWith(90, true);
   });
@@ -202,26 +227,26 @@ describe('a YouTube video', () => {
   test('reports while playing, on pause and at the end', async () => {
     await mount();
 
-    events.onStateChange({ data: 1 });
+    listeners().onStateChange({ data: 1 });
     await act(async () => {
       jest.advanceTimersByTime(15 * 1000);
     });
     expect(api.recordWatchProgress).toHaveBeenCalledWith('c-1', 'l-2', { position: 33, finished: false });
 
-    api.recordWatchProgress.mockClear();
-    events.onStateChange({ data: 2 });
+    recordWatchProgress.mockClear();
+    listeners().onStateChange({ data: 2 });
     expect(api.recordWatchProgress).toHaveBeenCalledTimes(1);
 
-    api.recordWatchProgress.mockClear();
-    events.onStateChange({ data: 0 });
+    recordWatchProgress.mockClear();
+    listeners().onStateChange({ data: 0 });
     expect(api.recordWatchProgress).toHaveBeenCalledWith('c-1', 'l-2', { position: 33, finished: true });
   });
 
   test('no heartbeat is sent while it is not playing', async () => {
     await mount();
 
-    events.onStateChange({ data: 2 });
-    api.recordWatchProgress.mockClear();
+    listeners().onStateChange({ data: 2 });
+    recordWatchProgress.mockClear();
     await act(async () => {
       jest.advanceTimersByTime(60 * 1000);
     });
