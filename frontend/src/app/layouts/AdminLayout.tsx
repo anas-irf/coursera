@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import type { NavLinkRenderProps } from 'react-router-dom';
 import { BookCheck, BookOpen, DollarSign, FileText, Home, LogOut, Menu, Settings, Users, X } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 import { NotificationDropdown } from '../../features/notifications';
 import { usePendingCount } from '../../features/admin';
@@ -9,7 +11,16 @@ import Avatar from '../../shared/ui/Avatar';
 import { useConfirm } from '../../shared/ui/ConfirmDialog';
 import { useAuth } from '../../shared/auth/AuthProvider';
 
-const NAV_ITEMS = [
+interface NavItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  end?: boolean;
+  /** Shows the number of courses waiting for review. */
+  badge?: boolean;
+}
+
+const NAV_ITEMS: NavItem[] = [
   { to: '/admin', label: 'Overview', icon: Home, end: true },
   { to: '/admin/courses/approvals', label: 'Course Approvals', icon: BookCheck, badge: true },
   { to: '/admin/users', label: 'User Management', icon: Users },
@@ -19,7 +30,7 @@ const NAV_ITEMS = [
   { to: '/admin/settings', label: 'Platform Settings', icon: Settings },
 ];
 
-const linkClass = ({ isActive }) =>
+const linkClass = ({ isActive }: NavLinkRenderProps): string =>
   `w-full flex items-center justify-between px-4 py-3 mb-2 text-left rounded-lg transition-colors ${
     isActive
       ? 'bg-indigo-50 text-indigo-700 border-r-2 border-indigo-700'

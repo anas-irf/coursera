@@ -3,7 +3,8 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './app/App';
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
+// public/index.html always has the #root element; createRoot says so if it ever does not
+const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
 root.render(
   <React.StrictMode>
     <App />

@@ -4,6 +4,8 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 import { session } from '../shared/lib/session';
 import { AuthProvider } from '../shared/auth/AuthProvider';
+import type { User } from '../shared/auth/types';
+import type { UserType } from '../shared/types';
 import { HomeRedirect, RequireAuth, RequireRole } from './guards';
 
 // the guards are about what the session says, not about the network: the server never answers
@@ -15,7 +17,7 @@ jest.mock('../shared/auth/api', () => ({
   logout: jest.fn(),
 }));
 
-function renderAt(path) {
+function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <AuthProvider>
@@ -36,7 +38,8 @@ function renderAt(path) {
   );
 }
 
-const loginAs = (userType) => session.start({ user: { id: 1, user_type: userType } });
+const userOf = (userType: UserType) => ({ id: 1, user_type: userType }) as User;
+const loginAs = (userType: UserType) => session.start({ user: userOf(userType) });
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -87,7 +90,7 @@ test('while the server is being asked nobody is sent anywhere', () => {
 });
 
 test('an unreachable server is not a signed out user', () => {
-  session.start({ user: { id: 1, user_type: 'student' } });
+  session.start({ user: userOf('student') });
   session.setUnavailable();
 
   renderAt('/student');

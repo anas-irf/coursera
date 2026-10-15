@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import type { NavLinkRenderProps } from 'react-router-dom';
 import {
   BarChart2, BookOpen, ChevronDown, CreditCard, FileText, Home, LogOut, Menu, MessageSquare, Search,
   Settings, Users, X,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 import { NotificationDropdown } from '../../features/notifications';
 import { fullName } from '../../shared/lib/names';
@@ -11,7 +13,14 @@ import Avatar from '../../shared/ui/Avatar';
 import { useConfirm } from '../../shared/ui/ConfirmDialog';
 import { useAuth } from '../../shared/auth/AuthProvider';
 
-const NAV_ITEMS = [
+interface NavItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  end?: boolean;
+}
+
+const NAV_ITEMS: NavItem[] = [
   { to: '/instructor', label: 'Dashboard', icon: Home, end: true },
   { to: '/instructor/courses', label: 'My Courses', icon: BookOpen },
   { to: '/instructor/assignments', label: 'Assignments', icon: FileText },
@@ -22,7 +31,7 @@ const NAV_ITEMS = [
   { to: '/instructor/settings', label: 'Settings', icon: Settings },
 ];
 
-const linkClass = ({ isActive }) =>
+const linkClass = ({ isActive }: NavLinkRenderProps): string =>
   `w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${
     isActive ? 'bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-600 shadow-sm' : 'text-gray-700 hover:bg-gray-50'
   }`;
@@ -35,13 +44,13 @@ const InstructorLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const profileRef = useRef(null);
+  const profileRef = useRef<HTMLDivElement>(null);
 
   const name = fullName(user, 'Instructor');
 
   useEffect(() => {
-    const onClickOutside = (event) => {
-      if (profileRef.current && !profileRef.current.contains(event.target)) setProfileOpen(false);
+    const onClickOutside = (event: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) setProfileOpen(false);
     };
     document.addEventListener('mousedown', onClickOutside);
     return () => document.removeEventListener('mousedown', onClickOutside);

@@ -1,12 +1,14 @@
 import React from 'react';
+import type { ReactNode } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../shared/auth/AuthProvider';
 import { homePathFor } from '../shared/auth/paths';
+import type { UserType } from '../shared/types';
 import { PageSpinner } from '../shared/ui/Spinner';
 
 /** Shown while the server is asked who is signed in, and when it cannot be reached. */
-export function SessionGate({ children }) {
+export function SessionGate({ children }: { children?: ReactNode }) {
   const { status, retry } = useAuth();
 
   if (status === 'unknown') {
@@ -45,7 +47,7 @@ export function RequireAuth() {
 }
 
 /** Renders the nested routes only for ``role``; other roles go to their own home. */
-export function RequireRole({ role }) {
+export function RequireRole({ role }: { role: UserType }) {
   const { userType } = useAuth();
 
   if (userType !== role) {
@@ -65,7 +67,7 @@ export function HomeRedirect() {
 }
 
 /** Redirect keeping the query string, e.g. the Stripe return parameters. */
-export function RedirectKeepingSearch({ to }) {
+export function RedirectKeepingSearch({ to }: { to: string }) {
   const location = useLocation();
   return <Navigate to={{ pathname: to, search: location.search }} replace />;
 }

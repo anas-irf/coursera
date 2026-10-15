@@ -1,4 +1,5 @@
 import React, { Suspense } from 'react';
+import type { ComponentType } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { LoginPage } from '../features/accounts';
@@ -15,8 +16,10 @@ import InstructorLayout from './layouts/InstructorLayout';
 import StudentLayout from './layouts/StudentLayout';
 
 // Every page is its own chunk, loaded when its route is first visited.  A feature is reached
-// through its index (the module boundary), so what loads together is a feature's pages.
-const page = (loader, name) => React.lazy(() => loader().then((module) => ({ default: module[name] })));
+// through its index (the module boundary), so what loads together is a feature's pages.  ``name``
+// is the page's export in that index; the types make a misspelt name a compile error.
+const page = <K extends string, M extends Record<K, ComponentType>>(loader: () => Promise<M>, name: K) =>
+  React.lazy(() => loader().then((module) => ({ default: module[name] })));
 
 const InstructorSettingsPage = page(() => import('../features/accounts'), 'InstructorSettingsPage');
 const ApprovalsPage = page(() => import('../features/admin'), 'ApprovalsPage');
@@ -44,7 +47,7 @@ const MessagesPage = page(() => import('../features/messaging'), 'MessagesPage')
 const NotificationsPage = page(() => import('../features/notifications'), 'NotificationsPage');
 
 /** A route's page: loaded on demand, and a page that breaks does not take the layout with it. */
-function Lazy({ page: Page }) {
+function Lazy({ page: Page }: { page: ComponentType }) {
   const location = useLocation();
   return (
     <ErrorBoundary resetKey={location.pathname}>

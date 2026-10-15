@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import type { NavLinkRenderProps } from 'react-router-dom';
 import {
   Award, Bell, BookOpen, Crown, GraduationCap, Home, LogOut, Menu, MessageSquare, Search, Settings,
   Trophy, User, X, Zap,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 import {
   CancelMembershipButton, PlusWelcomeDialog, useStripeReturn, useSubscription,
@@ -15,7 +17,14 @@ import Avatar from '../../shared/ui/Avatar';
 import { useConfirm } from '../../shared/ui/ConfirmDialog';
 import { useAuth } from '../../shared/auth/AuthProvider';
 
-const NAV_ITEMS = [
+interface NavItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  end?: boolean;
+}
+
+const NAV_ITEMS: NavItem[] = [
   { to: '/student', label: 'Home', icon: Home, end: true },
   { to: '/student/my-learning', label: 'My Learning', icon: BookOpen },
   { to: '/student/explore', label: 'Explore', icon: Search },
@@ -26,12 +35,12 @@ const NAV_ITEMS = [
   { to: '/student/certificates', label: 'Certificates', icon: Award },
 ];
 
-const linkClass = ({ isActive }) =>
+const linkClass = ({ isActive }: NavLinkRenderProps): string =>
   `px-2 xl:px-3 py-2 rounded-lg text-xs xl:text-sm font-medium transition-all duration-200 flex items-center space-x-1 xl:space-x-2 flex-shrink-0 ${
     isActive ? 'bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'
   }`;
 
-const mobileLinkClass = ({ isActive }) =>
+const mobileLinkClass = ({ isActive }: NavLinkRenderProps): string =>
   `w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-3 ${
     isActive
       ? 'bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-600 border border-indigo-200'
@@ -46,7 +55,7 @@ const StudentLayout = () => {
   const subscription = useSubscription();
   const [menuOpen, setMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const headerRef = useRef(null);
+  const headerRef = useRef<HTMLElement>(null);
 
   const { welcome, dismiss } = useStripeReturn({ onActivated: subscription.refresh });
 
@@ -54,8 +63,8 @@ const StudentLayout = () => {
 
   // close the mobile menu on outside clicks and when the viewport grows
   useEffect(() => {
-    const onClickOutside = (event) => {
-      if (headerRef.current && !headerRef.current.contains(event.target)) setMenuOpen(false);
+    const onClickOutside = (event: MouseEvent) => {
+      if (headerRef.current && !headerRef.current.contains(event.target as Node)) setMenuOpen(false);
     };
     const onResize = () => {
       if (window.innerWidth >= 1024) setMenuOpen(false);
