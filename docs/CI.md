@@ -43,6 +43,14 @@ Coverage is a floor, not a goal: the backend sits at ~93 %, the frontend at ~66 
 `fail_under` in `backend/.coveragerc` and `coverageThreshold` in `frontend/package.json` when the
 numbers grow; never lower them to make a pull request pass.
 
+A new advisory fails every branch at once, because nothing in the code changed. One that has no
+fixed release and does not reach the application is ignored **by id** in both `pip-audit` calls
+(`ci.yml` and `security-audit.yml`, `--ignore-vuln`), with the reason written next to it; the ignore
+is removed when a fix ships. Today there is one: `CVE-2026-106454`, a ReDoS in the IMAP server of
+Twisted (`twisted.mail`), which nothing here serves (Daphne uses Twisted for HTTP and WebSockets);
+the fix is in `twisted/twisted#12788` and not released yet. Anything else that appears is fixed by
+upgrading the pinned requirement.
+
 ## The test report
 
 Every test job writes a [CTRF](https://ctrf.io) JSON report (`pytest-json-ctrf`,

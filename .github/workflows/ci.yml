@@ -727,9 +727,14 @@ jobs:
         with:
           requirements: requirements-ci.txt
 
+      # An ignored advisory has no fixed release and does not reach the application; each one is
+      # listed with its reason and is removed when a fix ships (the same list is in security-audit.yml).
+      #   CVE-2026-106454  Twisted, ReDoS in the IMAP server (twisted.mail.imap4). Nothing here serves
+      #                    IMAP: Daphne uses Twisted for HTTP and WebSockets. Fixed upstream in
+      #                    twisted/twisted#12788, not released yet.
       - name: Known vulnerabilities of the pinned requirements
         working-directory: backend
-        run: pip-audit -r requirements.txt --strict --progress-spinner off
+        run: pip-audit -r requirements.txt --strict --progress-spinner off --ignore-vuln CVE-2026-106454
 
       - name: Static security analysis (medium and up)
         working-directory: backend
