@@ -6,7 +6,7 @@ import type { LucideIcon } from 'lucide-react';
 
 import { useAuth } from '../../../shared/auth/AuthProvider';
 import { homePathFor } from '../../../shared/auth/paths';
-import { fieldErrors } from '../../../shared/api/errors';
+import { errorBody, fieldErrors } from '../../../shared/api/errors';
 import { PasswordField, TextField } from '../components/FormFields';
 import {
   passwordChecks,
@@ -42,12 +42,6 @@ const ROLES: Role[] = [
 interface LoginLocationState {
   from?: { pathname?: string };
 }
-
-/** The body of the answer to a failed request (nothing when the request got no answer at all). */
-const answerBody = (error: unknown): unknown =>
-  typeof error === 'object' && error !== null
-    ? (error as { response?: { data?: unknown } | null }).response?.data
-    : undefined;
 
 const Header = () => (
   <header className="bg-white border-b border-gray-200 px-4 py-4">
@@ -123,7 +117,7 @@ const LoginPage = () => {
         setNotice('Account created. Please log in.');
       }
     } catch (error) {
-      const data = answerBody(error);
+      const data = errorBody(error);
       setErrors(
         data ? serverErrors(fieldErrors(error), data) : { general: 'Network error. Please check your connection.' }
       );

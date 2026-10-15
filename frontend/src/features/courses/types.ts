@@ -1,4 +1,6 @@
-import type { ContentType, CourseLevel, CourseStatus, CourseType, ISODateTime, UUID } from '../../shared/types';
+import type {
+  ContentType, CourseLevel, CourseStatus, CourseType, ISODateTime, QuestionType, UUID,
+} from '../../shared/types';
 
 // ---------------------------------------------------------------------------------------------
 // the instructor's courses
@@ -165,12 +167,6 @@ export interface DeleteCourseResponse {
 // ---------------------------------------------------------------------------------------------
 // the curriculum
 // ---------------------------------------------------------------------------------------------
-
-/**
- * The kinds of question a quiz has.  The same union as in assessments, which this slice may not
- * import.
- */
-export type QuestionType = 'multiple_choice' | 'true_false' | 'multiple_select' | 'fill_blank' | 'essay';
 
 export interface QuizOption {
   /** Kept when the question is sent back, so that saving changes the option instead of replacing it. */

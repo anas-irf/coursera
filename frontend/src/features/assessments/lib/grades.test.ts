@@ -1,4 +1,10 @@
-import { filterCourses, gradeBand, gradebookStats } from './grades';
+import { filterCourses, gradeBand, gradebookStats, isGradeFilter } from './grades';
+
+test('a select hands over text: only the filters of the course list are taken', () => {
+  expect(['all', 'passing', 'failing'].every(isGradeFilter)).toBe(true);
+  expect(isGradeFilter('excellent')).toBe(false);
+  expect(isGradeFilter('')).toBe(false);
+});
 
 const courses = [
   { course_id: 'a', final_grade: 91, is_passing: true },

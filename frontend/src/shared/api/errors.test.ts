@@ -1,4 +1,4 @@
-import { errorCode, errorMessage, errorStatus, errorSummary, fieldErrors } from './errors';
+import { errorBody, errorCode, errorMessage, errorStatus, errorSummary, fieldErrors } from './errors';
 
 const failure = (data: unknown, status = 400) => ({ response: { status, data } });
 
@@ -30,6 +30,13 @@ test('the stable code of an error is read when there is one', () => {
   expect(errorCode(failure({ error: 'plain' }))).toBeNull();
   expect(errorCode(failure('<html></html>', 500))).toBeNull();
   expect(errorCode(new Error('offline'))).toBeNull();
+});
+
+test('the body is what the server answered, and nothing when it did not', () => {
+  expect(errorBody(failure({ error: 'x' }))).toEqual({ error: 'x' });
+  expect(errorBody(failure('<html></html>', 502))).toBe('<html></html>');
+  expect(errorBody(new Error('offline'))).toBeUndefined();
+  expect(errorBody(undefined)).toBeUndefined();
 });
 
 test('the status is that of the answer, and nothing when there was none', () => {

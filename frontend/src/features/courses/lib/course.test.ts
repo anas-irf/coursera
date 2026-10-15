@@ -4,6 +4,8 @@ import {
   courseBody,
   courseValues,
   hasRequiredFields,
+  isCourseType,
+  isLevel,
   thumbnailProblem,
 } from './course';
 
@@ -11,6 +13,16 @@ const picture = (overrides: Partial<Pick<File, 'type' | 'size'>> = {}) => ({
   type: 'image/png',
   size: 1024,
   ...overrides,
+});
+
+test('a select hands over text: only the levels and types the form offers are taken', () => {
+  expect(isLevel('beginner')).toBe(true);
+  expect(isLevel('advanced')).toBe(true);
+  expect(isLevel('expert')).toBe(false);
+  expect(isLevel('')).toBe(false);
+  expect(isCourseType('free')).toBe(true);
+  expect(isCourseType('coursera_plus')).toBe(true);
+  expect(isCourseType('paid')).toBe(false);
 });
 
 test('a thumbnail must be a small picture', () => {

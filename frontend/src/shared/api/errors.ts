@@ -78,6 +78,14 @@ export function errorCode(error: unknown): string | null {
   return body && typeof body.code === 'string' ? body.code : null;
 }
 
+/**
+ * The body of an error response as it came (an object, text, ...); ``undefined`` when there was no
+ * answer at all.  For the caller that has to tell "the server answered nothing" from a body.
+ */
+export function errorBody(error: unknown): unknown {
+  return dataOf(error);
+}
+
 /** The HTTP status of an error response; ``undefined`` when there was no answer at all. */
 export function errorStatus(error: unknown): number | undefined {
   return failureOf(error)?.response?.status;

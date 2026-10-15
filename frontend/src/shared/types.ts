@@ -18,6 +18,9 @@ export type CourseLevel = 'beginner' | 'intermediate' | 'advanced' | 'all_levels
 export type ContentType = 'video' | 'reading' | 'quiz' | 'assignment';
 export type EnrollmentStatus = 'active' | 'completed';
 
+/** The kinds of question a quiz has (``essay`` has no answer control in the quiz runner). */
+export type QuestionType = 'multiple_choice' | 'true_false' | 'multiple_select' | 'fill_blank' | 'essay';
+
 /**
  * The body of an error response: ``{error, code?}`` for the domain errors of the backend,
  * ``{detail}`` for DRF and ``{field: [message, ...]}`` for serializers.  Some carry more

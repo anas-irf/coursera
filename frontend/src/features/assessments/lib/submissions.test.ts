@@ -1,4 +1,10 @@
-import { percentOf, submissionStatus, visibleSubmissions } from './submissions';
+import { isSubmissionFilter, percentOf, submissionStatus, visibleSubmissions } from './submissions';
+
+test('a select hands over text: only the filters of the hand-in list are taken', () => {
+  expect(['all', 'pending', 'graded', 'late'].every(isSubmissionFilter)).toBe(true);
+  expect(isSubmissionFilter('open')).toBe(false);
+  expect(isSubmissionFilter('')).toBe(false);
+});
 
 const submissions = [
   { id: 1, student_name: 'Ada Lovelace', grade: 80, is_late: false },

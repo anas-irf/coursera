@@ -1,4 +1,4 @@
-import { visibleCourses } from './courseList';
+import { isSortKey, isStatusFilter, visibleCourses } from './courseList';
 import type { InstructorCourseRow } from '../types';
 
 const row = (overrides: Partial<InstructorCourseRow>): InstructorCourseRow => ({
@@ -36,6 +36,14 @@ test('narrowed by status and by a case-insensitive search', () => {
   expect(ids(visibleCourses(courses, { search: ' REACT ' }))).toEqual(['c-3', 'c-1']);
   expect(ids(visibleCourses(courses, { status: 'published', search: 'react' }))).toEqual(['c-1']);
   expect(visibleCourses(courses, { search: 'nothing like this' })).toEqual([]);
+});
+
+test('a select hands over text: only the orders and filters the list offers are taken', () => {
+  expect(['date', 'revenue', 'students'].every(isSortKey)).toBe(true);
+  expect(isSortKey('rating')).toBe(false);
+  expect(['all', 'published', 'draft', 'pending_review', 'rejected'].every(isStatusFilter)).toBe(true);
+  expect(isStatusFilter('unpublished')).toBe(false);
+  expect(isStatusFilter('')).toBe(false);
 });
 
 test('the list given is not reordered in place', () => {

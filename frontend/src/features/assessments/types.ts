@@ -2,12 +2,9 @@
 //
 // Field names are the API's (snake_case): components read the wire fields directly.  Ids are uuid
 // strings; money and weights are JSON numbers; times are ISO 8601 strings.
-import type { ISODateTime, UUID } from '../../shared/types';
+import type { ISODateTime, QuestionType, UUID } from '../../shared/types';
 
 // --- the quiz a learner takes ---------------------------------------------------
-
-/** How a question is answered.  ``essay`` has no input in the quiz runner. */
-export type QuestionType = 'multiple_choice' | 'true_false' | 'multiple_select' | 'fill_blank' | 'essay';
 
 /**
  * The quiz block of a quiz lecture in the player (``GET learning/courses/<id>/learn/``), which is
