@@ -61,18 +61,26 @@ def _from_row(plan):
         certificate_included=plan.certificate_included, download_enabled=plan.download_enabled)
 
 
+def _sold_row(cycle):
+    """The configured row sold for ``cycle``: the newest active one, ``None`` when there is none."""
+    return SubscriptionPlan.objects.filter(billing_cycle=cycle, is_active=True).order_by('-id').first()
+
+
 def offer(cycle):
     """The plan sold for ``cycle`` ('monthly' | 'yearly'), ``None`` for anything else."""
     if cycle not in CYCLES:
         return None
-    row = SubscriptionPlan.objects.filter(billing_cycle=cycle, is_active=True).order_by('-id').first()
+    row = _sold_row(cycle)
     return _from_row(row) if row is not None else DEFAULTS[cycle]
 
 
 def offers():
-    """What the checkout page lists: every active configured plan, else the two defaults."""
-    rows = SubscriptionPlan.objects.filter(is_active=True)
-    configured = [_from_row(plan) for plan in rows]
+    """What the checkout page lists: the plan sold for every configured cycle, else the two defaults.
+
+    Monthly comes first whatever order the database returns (PostgreSQL moves an updated row to the end).
+    """
+    rows = [_sold_row(cycle) for cycle in CYCLES]
+    configured = [_from_row(row) for row in rows if row is not None]
     return configured or [DEFAULTS[cycle] for cycle in CYCLES]
 
 

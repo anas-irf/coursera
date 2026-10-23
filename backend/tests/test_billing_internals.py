@@ -61,6 +61,17 @@ def test_a_configured_plan_is_what_is_offered_and_charged(db):
     assert plans.offer('weekly') is None
 
 
+def test_the_checkout_lists_the_plan_sold_for_each_cycle_monthly_first(db):
+    f.SubscriptionPlan.objects.create(name='Annual', description='x', price=Decimal('299.88'),
+                                      billing_cycle='yearly')
+    f.SubscriptionPlan.objects.create(name='Old monthly', description='x', price=Decimal('9.00'),
+                                      billing_cycle='monthly')
+    f.SubscriptionPlan.objects.create(name='Monthly', description='x', price=Decimal('19.99'),
+                                      billing_cycle='monthly')
+
+    assert [(offer.cycle, offer.name) for offer in plans.offers()] == [('monthly', 'Monthly'), ('yearly', 'Annual')]
+
+
 def test_the_yearly_savings_follow_the_prices(db):
     amount, percentage = plans.savings()
     assert amount == Decimal('199.89') and percentage == 33
