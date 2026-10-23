@@ -2,34 +2,67 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
-import type { Identity, SignupPayload, SignupResponse } from '../../shared/auth/types';
+import http from '../../shared/api/client';
+import type { DemoAccounts, DemoRole, Identity, SignupPayload, SignupResponse } from '../../shared/auth/types';
+import { createQueryClient } from '../../shared/query/client';
+import { QueryProvider } from '../../shared/query/QueryProvider';
 import LoginPage from './pages/LoginPage';
 
 const mockLogin = jest.fn<Promise<Identity>, [string, string]>();
+const mockLoginAsDemo = jest.fn<Promise<Identity>, [DemoRole]>();
 const mockSignup = jest.fn<Promise<SignupResponse>, [SignupPayload]>();
 
 jest.mock('../../shared/auth/AuthProvider', () => ({
-  useAuth: () => ({ login: mockLogin, signup: mockSignup }),
+  useAuth: () => ({ login: mockLogin, loginAsDemo: mockLoginAsDemo, signup: mockSignup }),
 }));
+
+// the demo accounts are asked for through the one HTTP client
+jest.mock('../../shared/api/client', () => ({
+  __esModule: true,
+  default: { get: jest.fn(), post: jest.fn() },
+}));
+
+const mockedGet = jest.mocked(http.get);
+
+const DEMO: DemoAccounts = {
+  enabled: true,
+  accounts: [
+    { role: 'student', email: 'demo.student@example.com', name: 'Demo Student', headline: 'Courses in progress' },
+    { role: 'instructor', email: 'demo.instructor@example.com', name: 'Demo Instructor', headline: 'Two courses' },
+    { role: 'admin', email: 'demo.admin@example.com', name: 'Demo Admin', headline: 'The approval queue' },
+  ],
+};
+
+let demo: DemoAccounts;
 
 // what the route guard leaves in the location when it sends a visitor to the login
 const renderPage = (state?: { from: { pathname: string } }) =>
   render(
-    <MemoryRouter initialEntries={[{ pathname: '/login', state }]}>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/student" element={<p>student home</p>} />
-        <Route path="/instructor" element={<p>instructor home</p>} />
-        <Route path="/student/grades" element={<p>grades</p>} />
-      </Routes>
-    </MemoryRouter>
+    <QueryProvider client={createQueryClient({ retryDelay: 1 })}>
+      <MemoryRouter initialEntries={[{ pathname: '/login', state }]}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/student" element={<p>student home</p>} />
+          <Route path="/instructor" element={<p>instructor home</p>} />
+          <Route path="/admin" element={<p>admin home</p>} />
+          <Route path="/student/grades" element={<p>grades</p>} />
+        </Routes>
+      </MemoryRouter>
+    </QueryProvider>
   );
 
 const fill = (label: string, value: string) =>
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
 const submit = (name = 'Log in') => fireEvent.click(screen.getByRole('button', { name }));
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  demo = { enabled: false, accounts: [] };
+  mockedGet.mockImplementation(async (url) => {
+    if (url === '/auth/demo/') return { data: demo };
+    throw new Error(`unexpected GET ${url}`);
+  });
+});
 
 describe('logging in', () => {
   test('asks for an address and a password before anything is sent', () => {
@@ -108,6 +141,39 @@ describe('logging in', () => {
   });
 });
 
+describe('the demo', () => {
+  test('offers one click into each role when the server runs in demo mode', async () => {
+    demo = DEMO;
+    mockLoginAsDemo.mockResolvedValue({ user: { user_type: 'instructor' } } as Identity);
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Explore as Instructor' }));
+
+    expect(await screen.findByText('instructor home')).toBeInTheDocument();
+    expect(mockLoginAsDemo).toHaveBeenCalledWith('instructor');
+    expect(mockLogin).not.toHaveBeenCalled();
+  });
+
+  test('says so when a demo account cannot be opened', async () => {
+    demo = DEMO;
+    mockLoginAsDemo.mockRejectedValue({ response: { status: 404, data: { error: 'Demo sign-in is not available.' } } });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Explore as Admin' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Demo sign-in is not available.');
+    expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
+  });
+
+  test('shows nothing of it when the server is not in demo mode', async () => {
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
+    expect(mockedGet).toHaveBeenCalledWith('/auth/demo/');
+    expect(screen.queryByRole('button', { name: /Explore as/ })).not.toBeInTheDocument();
+  });
+});
+
 describe('signing up', () => {
   const open = () => {
     renderPage();
@@ -133,7 +199,7 @@ describe('signing up', () => {
   test('creates the account and returns to the login form with the address filled in', async () => {
     mockSignup.mockResolvedValue({} as SignupResponse);
     open();
-    fireEvent.click(screen.getByRole('button', { name: /Instructor/ }));
+    fireEvent.click(screen.getByRole('radio', { name: /Instructor/ }));
     fill('First name', 'Ada');
     fill('Last name', 'Lovelace');
     fill('Email', 'ada@example.com');

@@ -1,38 +1,71 @@
-import React, { useState } from 'react';
-import { Users, Search, Shield, User, GraduationCap } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { GraduationCap, Presentation, ShieldCheck, Users } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 import { formatDate } from '../../../shared/lib/time';
 import type { UserType } from '../../../shared/types';
 import Avatar from '../../../shared/ui/Avatar';
+import { Badge } from '../../../shared/ui/Badge';
+import { Card } from '../../../shared/ui/Card';
+import EmptyState from '../../../shared/ui/EmptyState';
 import ErrorState from '../../../shared/ui/ErrorState';
+import { SearchInput } from '../../../shared/ui/Input';
+import { PageHeader } from '../../../shared/ui/PageHeader';
 import { PageSpinner } from '../../../shared/ui/Spinner';
+import { Table, TBody, TD, TH, THead, TR } from '../../../shared/ui/Table';
+import { Tabs } from '../../../shared/ui/Tabs';
 import { useAdminUsers } from '../hooks/useAdmin';
+import type { AdminUser } from '../types';
 
 type RoleFilter = 'all' | UserType;
+
+const ROLES: Record<UserType, { label: string; icon: LucideIcon; tone: 'primary' | 'success' | 'plus' }> = {
+  student: { label: 'Student', icon: GraduationCap, tone: 'primary' },
+  instructor: { label: 'Instructor', icon: Presentation, tone: 'success' },
+  admin: { label: 'Admin', icon: ShieldCheck, tone: 'plus' },
+};
+
+/** What a row says about the user's activity, by role. */
+const Activity = ({ user }: { user: AdminUser }) => {
+  if (user.user_type === 'student') {
+    return (
+      <div>
+        <p className="text-fg">{user.courses_enrolled || 0} courses enrolled</p>
+        <p className="text-xs text-fg-subtle">
+          {user.completed_courses || 0} completed, {user.active_courses || 0} active
+        </p>
+      </div>
+    );
+  }
+  if (user.user_type === 'instructor') {
+    return (
+      <div>
+        <p className="text-fg">{user.courses_created || 0} courses created</p>
+        <p className="text-xs text-fg-subtle">
+          {user.published_courses || 0} published, {user.students_taught || 0} students taught
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <p className="text-fg">Administrator</p>
+      <p className="text-xs text-fg-subtle">{user.is_superuser ? 'Superuser' : 'Admin'}</p>
+    </div>
+  );
+};
 
 const UsersPage = () => {
   const query = useAdminUsers();
   const [filter, setFilter] = useState<RoleFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const getUserTypeIcon = (userType: UserType) => {
-    switch (userType) {
-      case 'student': return <User className="text-blue-600" size={20} />;
-      case 'instructor': return <GraduationCap className="text-green-600" size={20} />;
-      case 'admin': return <Shield className="text-purple-600" size={20} />;
-      default: return <User className="text-gray-600" size={20} />;
-    }
-  };
-
-  // the status is whatever the server sent, so it is read as a plain string
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-green-100 text-green-800';
-      case 'inactive': return 'bg-gray-100 text-gray-800';
-      case 'suspended': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+  const users = useMemo(() => query.data || [], [query.data]);
+  const counts = useMemo(() => ({
+    student: users.filter((user) => user.user_type === 'student').length,
+    instructor: users.filter((user) => user.user_type === 'instructor').length,
+    admin: users.filter((user) => user.user_type === 'admin').length,
+  }), [users]);
 
   if (query.isPending) {
     return <PageSpinner />;
@@ -42,159 +75,103 @@ const UsersPage = () => {
     return <ErrorState title="We could not load the users" error={query.error} onRetry={() => query.refetch()} />;
   }
 
-  const users = query.data;
-  const filteredUsers = users.filter(user => {
+  const term = searchQuery.toLowerCase();
+  const filteredUsers = users.filter((user) => {
     const matchesType = filter === 'all' || user.user_type === filter;
-    const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = user.name.toLowerCase().includes(term) || user.email.toLowerCase().includes(term);
     return matchesType && matchesSearch;
   });
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">User Management</h2>
-          <p className="text-gray-600 mt-1">
-            {users.length} total users
-            ({users.filter(u => u.user_type === 'student').length} students, {users.filter(u => u.user_type === 'instructor').length} instructors, {users.filter(u => u.user_type === 'admin').length} admins)
-          </p>
-        </div>
+      <PageHeader
+        title="User Management"
+        description={`${users.length} total users (${counts.student} students, ${counts.instructor} instructors, ${counts.admin} admins)`}
+      />
 
-        <div className="flex items-center space-x-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search users..."
-              aria-label="Search users"
-              className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <select
-            aria-label="Role"
-            value={filter}
-            // the options below are the only values the select can report
-            onChange={(e) => setFilter(e.target.value as RoleFilter)}
-            className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="all">All Users</option>
-            <option value="student">Students</option>
-            <option value="instructor">Instructors</option>
-            <option value="admin">Admins</option>
-          </select>
-        </div>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <Tabs<RoleFilter>
+          label="Role"
+          variant="pills"
+          value={filter}
+          onChange={setFilter}
+          items={[
+            { value: 'all', label: 'All users', count: users.length },
+            { value: 'student', label: 'Students', count: counts.student },
+            { value: 'instructor', label: 'Instructors', count: counts.instructor },
+            { value: 'admin', label: 'Admins', count: counts.admin },
+          ]}
+        />
+        <SearchInput
+          label="Search users"
+          placeholder="Search by name or email..."
+          value={searchQuery}
+          onChange={setSearchQuery}
+          className="w-full lg:w-80"
+        />
       </div>
 
-      {/* Users Table */}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+      <Card className="overflow-hidden">
+        {filteredUsers.length > 0 ? (
+          <Table label="Users">
+            <THead>
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  User
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Activity
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Join Date
-                </th>
+                <TH>User</TH>
+                <TH>Role</TH>
+                <TH>Status</TH>
+                <TH>Activity</TH>
+                <TH>Joined</TH>
               </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <Avatar name={user.name} className="h-10 w-10 text-sm mr-4" />
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                        <div className="text-sm text-gray-500 flex items-center">
-                          {user.email}
-                          {user.email_verified && (
-                            <span className="ml-2 px-1 py-0.5 text-xs bg-green-100 text-green-800 rounded">
-                              Verified
-                            </span>
-                          )}
+            </THead>
+            <TBody>
+              {filteredUsers.map((user) => {
+                const role = ROLES[user.user_type];
+                return (
+                  <TR key={user.id}>
+                    <TD>
+                      <div className="flex items-center gap-3">
+                        <Avatar name={user.name} className="h-9 w-9 text-xs" />
+                        <div className="min-w-0">
+                          <p className="whitespace-nowrap font-medium text-fg">{user.name}</p>
+                          <p className="flex items-center gap-2 whitespace-nowrap text-xs text-fg-subtle">
+                            {user.email}
+                            {user.email_verified && <Badge tone="success">Verified</Badge>}
+                          </p>
                         </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      {getUserTypeIcon(user.user_type)}
-                      <span className="ml-2 text-sm text-gray-900 capitalize">{user.user_type}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(user.status)}`}>
-                      {user.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {user.user_type === 'student' ? (
-                      <div>
-                        <p>{user.courses_enrolled || 0} courses enrolled</p>
-                        <p className="text-xs text-gray-400">
-                          {user.completed_courses || 0} completed, {user.active_courses || 0} active
-                        </p>
-                      </div>
-                    ) : user.user_type === 'instructor' ? (
-                      <div>
-                        <p>{user.courses_created || 0} courses created</p>
-                        <p className="text-xs text-gray-400">
-                          {user.published_courses || 0} published, {user.students_taught || 0} students taught
-                        </p>
-                      </div>
-                    ) : (
-                      <div>
-                        <p>Administrator</p>
-                        <p className="text-xs text-gray-400">
-                          {user.is_superuser ? 'Superuser' : 'Admin'}
-                        </p>
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <div>
-                      <p>{formatDate(user.join_date)}</p>
-                      {user.last_login && (
-                        <p className="text-xs text-gray-400">
-                          Last login: {formatDate(user.last_login)}
-                        </p>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {filteredUsers.length === 0 && (
-          <div className="text-center py-12">
-            <Users size={48} className="mx-auto text-gray-300 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No users found</h3>
-            <p className="text-gray-500">
-              {searchQuery || filter !== 'all'
-                ? 'Try adjusting your search or filter criteria.'
-                : 'No users have been registered yet.'}
-            </p>
-          </div>
+                    </TD>
+                    <TD>
+                      <Badge tone={role.tone} icon={role.icon}>
+                        {role.label}
+                      </Badge>
+                    </TD>
+                    <TD>
+                      <Badge tone={user.status === 'active' ? 'success' : 'neutral'} dot>
+                        {user.status}
+                      </Badge>
+                    </TD>
+                    <TD className="whitespace-nowrap">
+                      <Activity user={user} />
+                    </TD>
+                    <TD className="whitespace-nowrap">
+                      <p className="text-fg">{formatDate(user.join_date)}</p>
+                      <p className="text-xs text-fg-subtle">
+                        {user.last_login ? `Last login ${formatDate(user.last_login)}` : 'Never logged in'}
+                      </p>
+                    </TD>
+                  </TR>
+                );
+              })}
+            </TBody>
+          </Table>
+        ) : (
+          <EmptyState icon={Users} title="No users found">
+            {searchQuery || filter !== 'all'
+              ? 'Try adjusting your search or filter criteria.'
+              : 'No users have been registered yet.'}
+          </EmptyState>
         )}
-      </div>
+      </Card>
     </div>
   );
 };

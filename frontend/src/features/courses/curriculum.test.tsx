@@ -135,12 +135,12 @@ test('a section that could not be created keeps its dialog open with what was ty
 
   fireEvent.click(screen.getByRole('button', { name: 'Add Section' }));
   const dialog = await screen.findByRole('dialog', { name: 'Add New Section' });
-  fireEvent.change(within(dialog).getByLabelText('Section Title *'), { target: { value: 'Advanced' } });
+  fireEvent.change(within(dialog).getByLabelText(/^Section Title/), { target: { value: 'Advanced' } });
   fireEvent.click(within(dialog).getByRole('button', { name: 'Create Section' }));
 
   expect(await screen.findByText('Cannot edit published courses.')).toBeInTheDocument();
   expect(screen.getByRole('dialog', { name: 'Add New Section' })).toBeInTheDocument();
-  expect(within(screen.getByRole('dialog')).getByLabelText('Section Title *')).toHaveValue('Advanced');
+  expect(within(screen.getByRole('dialog')).getByLabelText(/^Section Title/)).toHaveValue('Advanced');
 });
 
 test('a created section closes the dialog and shows up', async () => {
@@ -153,7 +153,7 @@ test('a created section closes the dialog and shows up', async () => {
 
   fireEvent.click(screen.getByRole('button', { name: 'Add Section' }));
   const dialog = await screen.findByRole('dialog', { name: 'Add New Section' });
-  fireEvent.change(within(dialog).getByLabelText('Section Title *'), { target: { value: 'Advanced' } });
+  fireEvent.change(within(dialog).getByLabelText(/^Section Title/), { target: { value: 'Advanced' } });
   fireEvent.click(within(dialog).getByRole('button', { name: 'Create Section' }));
 
   expect(await screen.findByText('Section 2: Advanced')).toBeInTheDocument();

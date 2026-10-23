@@ -1,6 +1,7 @@
 import React from 'react';
 import type { ReactElement } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 
 import http from '../../shared/api/client';
 import { createQueryClient } from '../../shared/query/client';
@@ -69,7 +70,9 @@ const renderWith = (page: ReactElement) =>
   render(
     <QueryProvider client={createQueryClient({ retryDelay: 1 })}>
       <ToastProvider>
-        <ConfirmProvider>{page}</ConfirmProvider>
+        <ConfirmProvider>
+          <MemoryRouter>{page}</MemoryRouter>
+        </ConfirmProvider>
       </ToastProvider>
     </QueryProvider>
   );
@@ -180,8 +183,9 @@ describe('the learner\'s grades', () => {
     httpGet.mockResolvedValue({ data: gradebook });
     renderWith(<GradesPage />);
 
-    expect(await screen.findByText('My Grades')).toBeInTheDocument();
-    expect(screen.getByText('65.5%')).toBeInTheDocument(); // (91 + 40) / 2
+    // the title is there at once, the figures once the gradebook arrived
+    expect(screen.getByRole('heading', { name: 'My Grades' })).toBeInTheDocument();
+    expect(await screen.findByText('65.5%')).toBeInTheDocument(); // (91 + 40) / 2
     expect(screen.getByText('1/2')).toBeInTheDocument();
     // once in the list and once as the title of the breakdown
     expect(screen.getAllByRole('heading', { name: 'Applied Machine Learning' })).toHaveLength(2);

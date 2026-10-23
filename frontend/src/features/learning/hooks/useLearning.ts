@@ -19,10 +19,23 @@ export const learningKeys = {
   all: ['learning'] as const,
   mine: (status: EnrolledView) => ['learning', 'mine', status] as const,
   catalog: (filters: CatalogFilters) => ['learning', 'catalog', filters] as const,
+  categories: ['learning', 'categories'] as const,
   recommended: ['learning', 'recommended'] as const,
   player: (courseId: UUID) => ['learning', 'player', courseId] as const,
   instructorStudents: ['learning', 'instructor-students'] as const,
 };
+
+/**
+ * The categories of the catalogue's filter.  They hardly ever change, so they are kept for a
+ * while; until they arrive (or when they cannot) the filter offers "All Categories" only.
+ */
+export function useCategories() {
+  return useQuery({
+    queryKey: learningKeys.categories,
+    queryFn: learningApi.listCategories,
+    staleTime: 10 * 60 * 1000,
+  });
+}
 
 export const CATALOG_PAGE_SIZE = 12;
 export const RECOMMENDED_COUNT = 6;

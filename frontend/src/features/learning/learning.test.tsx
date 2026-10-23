@@ -19,6 +19,7 @@ jest.mock('./api');
 const myCourses = jest.mocked(api.myCourses);
 const listCoursesPage = jest.mocked(api.listCoursesPage);
 const instructorStudents = jest.mocked(api.instructorStudents);
+const listCategories = jest.mocked(api.listCategories);
 
 const serverError = { response: { status: 500, data: { error: 'The server had a problem.' } } };
 
@@ -90,7 +91,13 @@ const learner = (overrides: Partial<InstructorStudent>): InstructorStudent => ({
   ...overrides,
 });
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  listCategories.mockResolvedValue([
+    { id: 1, name: 'Programming', slug: 'programming' },
+    { id: 2, name: 'Design', slug: 'design' },
+  ]);
+});
 
 describe('My learning', () => {
   const courses = [
@@ -106,7 +113,7 @@ describe('My learning', () => {
     expect(screen.queryByText('Introduction to Python')).not.toBeInTheDocument();
     expect(api.myCourses).toHaveBeenCalledWith({ status: 'all' });
 
-    fireEvent.change(screen.getByLabelText('Show'), { target: { value: 'completed' } });
+    fireEvent.click(screen.getByRole('tab', { name: /^Completed/ }));
 
     expect(screen.getByText('Introduction to Python')).toBeInTheDocument();
     expect(screen.queryByText('JavaScript from Scratch')).not.toBeInTheDocument();
@@ -118,7 +125,7 @@ describe('My learning', () => {
     render_(<MyLearningPage />);
     await screen.findByText('JavaScript from Scratch');
 
-    fireEvent.change(screen.getByLabelText('Show'), { target: { value: 'all' } });
+    fireEvent.click(screen.getByRole('tab', { name: /^All Courses/ }));
 
     expect(screen.getByText('Introduction to Python')).toBeInTheDocument();
     expect(screen.getByText('JavaScript from Scratch')).toBeInTheDocument();
@@ -129,7 +136,27 @@ describe('My learning', () => {
     render_(<MyLearningPage />);
 
     expect(await screen.findByText('No enrolled courses')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Browse Courses' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Browse Courses' })).toHaveAttribute('href', '/student/explore');
+  });
+
+  test('the tabs count their courses and the search narrows the view', async () => {
+    myCourses.mockResolvedValue([...courses, enrolled('3', 'React for Beginners')]);
+    render_(<MyLearningPage />);
+    await screen.findByText('JavaScript from Scratch');
+
+    expect(screen.getByRole('tab', { name: /^In Progress/ })).toHaveTextContent('2');
+    expect(screen.getByRole('tab', { name: /^Completed/ })).toHaveTextContent('1');
+    expect(screen.getByRole('tab', { name: /^All Courses/ })).toHaveTextContent('3');
+    expect(screen.getByRole('tab', { name: /^In Progress/ })).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.change(screen.getByLabelText('Search your courses'), { target: { value: 'react' } });
+
+    expect(screen.getByText('React for Beginners')).toBeInTheDocument();
+    expect(screen.queryByText('JavaScript from Scratch')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Search your courses'), { target: { value: 'nothing like it' } });
+    expect(screen.getByText('No courses found')).toBeInTheDocument();
+    expect(screen.getByText('Try adjusting your search.')).toBeInTheDocument();
   });
 
   test('only finished courses: "In Progress" is empty but not "No enrolled courses"', async () => {
@@ -200,6 +227,43 @@ describe('Explore', () => {
     expect(await screen.findByText('Course 1')).toBeInTheDocument();
   });
 
+  test('the categories come from the server and the chosen one is sent by its slug', async () => {
+    listCoursesPage.mockResolvedValue({ items: catalogue(1, 2), total: 2 });
+    render_(<ExplorePage />);
+    await screen.findByText('2 courses found');
+
+    const category = screen.getByLabelText('Category');
+    expect(await screen.findByRole('option', { name: 'Design' })).toBeInTheDocument();
+    expect(api.listCategories).toHaveBeenCalledTimes(1);
+
+    listCoursesPage.mockResolvedValue({ items: catalogue(3, 3), total: 1 });
+    fireEvent.change(category, { target: { value: 'design' } });
+
+    expect(await screen.findByText('1 course found')).toBeInTheDocument();
+    expect(api.listCoursesPage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ filters: expect.objectContaining({ category: 'design' }) })
+    );
+
+    // a filter is on: it can be cleared in one go
+    listCoursesPage.mockResolvedValue({ items: catalogue(1, 2), total: 2 });
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+
+    expect(await screen.findByText('2 courses found')).toBeInTheDocument();
+    expect(screen.getByLabelText('Category')).toHaveValue('all');
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
+  });
+
+  test('without the categories the filter still offers every course', async () => {
+    listCategories.mockRejectedValue(serverError);
+    listCoursesPage.mockResolvedValue({ items: catalogue(1, 1), total: 1 });
+    render_(<ExplorePage />);
+
+    expect(await screen.findByText('Course 1')).toBeInTheDocument();
+    await waitFor(() => expect(api.listCategories).toHaveBeenCalled());
+    expect(screen.getByRole('option', { name: 'All Categories' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   test('no match is said so', async () => {
     listCoursesPage.mockResolvedValue({ items: [], total: 0 });
     render_(<ExplorePage />);
@@ -222,6 +286,10 @@ describe('Instructor students', () => {
 
     expect(await screen.findByText('Ada Lovelace')).toBeInTheDocument();
     expect(screen.getAllByText('Never')).toHaveLength(2);
+    // the figures over the roster are counted from it: (50 + 10) / 2, nobody active this week
+    expect(screen.getByRole('group', { name: 'Students' })).toHaveTextContent('2');
+    expect(screen.getByRole('group', { name: 'Average progress' })).toHaveTextContent('30%');
+    expect(screen.getByRole('group', { name: 'Active this week' })).toHaveTextContent('0');
 
     fireEvent.change(screen.getByLabelText('Search students'), { target: { value: 'grace' } });
 

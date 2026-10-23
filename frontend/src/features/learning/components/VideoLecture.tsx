@@ -1,8 +1,9 @@
 import React from 'react';
-import { PlayCircle } from 'lucide-react';
+import { Captions, Clock, Eye, PlayCircle, Youtube } from 'lucide-react';
 
 import type { UUID } from '../../../shared/types';
 import { formatClock } from '../../../shared/lib/time';
+import { Badge } from '../../../shared/ui/Badge';
 import { useWatchReporter } from '../hooks/usePlayer';
 import { youTubeVideoId } from '../lib/youtube';
 import type { PlayerVideoLecture } from '../types';
@@ -25,35 +26,38 @@ const VideoLecture = ({ courseId, lecture }: VideoLectureProps) => {
   const resumeAt = lecture.last_watched_position || 0;
 
   return (
-    <div className="p-4 sm:p-6">
-      <div className="aspect-video bg-black rounded-lg overflow-hidden">
+    <div className="space-y-3">
+      <div className="aspect-video overflow-hidden rounded-xl bg-black shadow-card ring-1 ring-line">
         {youTubeId ? (
           <YouTubeEmbed key={lecture.id} lecture={lecture} videoId={youTubeId} resumeAt={resumeAt} onReport={report} />
         ) : lecture.video_file_url ? (
           <HostedVideo key={lecture.id} lecture={lecture} resumeAt={resumeAt} onReport={report} />
         ) : (
-          <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
+          <div className="flex h-full items-center justify-center bg-surface-muted">
             <div className="text-center">
-              <PlayCircle className="mx-auto h-12 w-12 text-gray-400 mb-2" />
-              <p className="text-gray-500">Video content not available</p>
+              <PlayCircle className="mx-auto mb-2 h-12 w-12 text-fg-subtle" aria-hidden="true" />
+              <p className="text-sm text-fg-muted">Video content not available</p>
             </div>
           </div>
         )}
       </div>
 
-      <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
-        <div className="flex items-center space-x-4">
-          {lecture.duration > 0 && <span>Duration: {formatClock(lecture.duration)}</span>}
-          <span className="capitalize">
-            {lecture.video_type === 'youtube' ? 'YouTube Video' : 'Local Video'}
-          </span>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {lecture.duration > 0 && (
+            <Badge icon={Clock}>Duration: {formatClock(lecture.duration)}</Badge>
+          )}
+          <Badge icon={lecture.video_type === 'youtube' ? Youtube : PlayCircle}>
+            {lecture.video_type === 'youtube' ? 'YouTube Video' : 'Hosted Video'}
+          </Badge>
           {subtitles.length > 0 && (
-            <span className="text-blue-600">
+            <Badge icon={Captions} tone="primary">
               Subtitles: {subtitles.map((subtitle) => subtitle.language_name).join(', ')}
-            </span>
+            </Badge>
           )}
         </div>
-        <span>
+        <span className="flex items-center gap-1.5 text-xs text-fg-subtle">
+          <Eye size={14} aria-hidden="true" />
           Watched {lecture.watch_count} time{lecture.watch_count !== 1 ? 's' : ''}
         </span>
       </div>

@@ -20,12 +20,15 @@ export interface InstructorCourseRow {
   created_at: ISODateTime;
   thumbnail: string | null;
   total_revenue: number;
-  /**
-   * The list never sends these three, yet the page draws the rejection box from the last two and
-   * the search reads the first: they are declared because the code reads them, and are absent in
-   * every answer today.
-   */
+  subtitle?: string;
+  /** What the search reads besides the title. */
   description?: string;
+  level?: CourseLevel;
+  /** The name of the category, ``null`` for a course filed under none. */
+  category?: string | null;
+  total_reviews?: number;
+  published_date?: ISODateTime | null;
+  /** Why an admin sent the course back (the rejection box of the card). */
   rejection_reason?: string | null;
   rejection_date?: ISODateTime | null;
 }

@@ -151,3 +151,71 @@ test('another failure keeps the quiz open and reports the message', async () => 
   expect(screen.getByText('What is 2 + 2?')).toBeInTheDocument();
   expect(screen.queryByText('Time is up')).not.toBeInTheDocument();
 });
+
+test('every kind of question is answered and the count of answers follows', async () => {
+  startQuiz.mockResolvedValue(attempt({
+    expires_at: null,
+    questions: [
+      {
+        id: 'q-a', text: 'Pick the even numbers', type: 'multiple_select', points: 2, order: 1,
+        options: [{ id: 'o-a', text: 'Two', order: 1 }, { id: 'o-b', text: 'Three', order: 2 }, { id: 'o-c', text: 'Four', order: 3 }],
+      },
+      { id: 'q-b', text: 'Name the language', type: 'fill_blank', points: 1, order: 2, options: [] },
+    ],
+  }));
+  submitQuiz.mockResolvedValue({ success: true, results: { ...results, passed: false, current_attempt_passed: false, score: 40 } });
+  renderQuiz();
+  fireEvent.click(screen.getByRole('button', { name: 'Start Quiz' }));
+  await screen.findByText('Pick the even numbers');
+
+  expect(screen.getByText('0/2 answered')).toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText('Two'));
+  fireEvent.click(screen.getByLabelText('Four'));
+  fireEvent.click(screen.getByLabelText('Four'));
+  fireEvent.click(screen.getByLabelText('Four'));
+  fireEvent.change(screen.getByLabelText('Answer to question 2'), { target: { value: 'Python' } });
+  expect(screen.getByText('2/2 answered')).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Submit Quiz' }));
+
+  await waitFor(() => expect(assessmentsApi.submitQuiz).toHaveBeenCalledWith('q-1', 'a-1', {
+    'q-a': { selected_options: ['o-a', 'o-c'] },
+    'q-b': { text_answer: 'Python' },
+  }));
+  expect(await screen.findByText('Quiz Not Passed')).toBeInTheDocument();
+  expect(screen.getByText('NOT PASSED')).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Continue Learning' }));
+  expect(screen.getByRole('button', { name: /Start Quiz|Retake Quiz/ })).toBeInTheDocument();
+});
+
+test('a quiz without attempts left cannot be started again', () => {
+  renderQuiz({ lecture: { ...lecture, attempts_taken: 3, can_attempt: false, best_score: 50 } });
+
+  expect(screen.getByRole('button', { name: 'Retake Quiz' })).toBeDisabled();
+  expect(screen.getByText('Maximum attempts reached')).toBeInTheDocument();
+  expect(screen.getByText('3/3')).toBeInTheDocument();
+});
+
+test('leaving a quiz gives the overview back', async () => {
+  startQuiz.mockResolvedValue(attempt({ expires_at: null }));
+  const onActiveChange = jest.fn();
+  renderQuiz({ onActiveChange });
+  await start();
+  expect(onActiveChange).toHaveBeenLastCalledWith(true);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Exit Quiz' }));
+
+  expect(screen.getByRole('button', { name: 'Start Quiz' })).toBeInTheDocument();
+  expect(onActiveChange).toHaveBeenLastCalledWith(false);
+});
+
+test('a quiz that cannot be started says why', async () => {
+  startQuiz.mockRejectedValue({ response: { status: 400, data: { error: 'No attempts left' } } });
+  renderQuiz();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Start Quiz' }));
+
+  expect(await screen.findByText('No attempts left')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Start Quiz' })).toBeInTheDocument();
+});

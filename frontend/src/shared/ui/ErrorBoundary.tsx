@@ -1,5 +1,8 @@
 import React from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
+import { AlertTriangle } from 'lucide-react';
+
+import { Button } from './Button';
 
 interface ErrorBoundaryProps {
   /** Clears the error when it changes (the pathname of the page below, say). */
@@ -44,18 +47,18 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     if (!this.state.error) return this.props.children;
 
     return (
-      <div role="alert" className="flex items-center justify-center min-h-[50vh] p-6">
-        <div className="text-center max-w-md">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">This page could not be shown</h2>
-          <p className="text-gray-500 mb-4">
+      <div role="alert" className="flex min-h-[50vh] items-center justify-center p-6">
+        <div className="max-w-md text-center">
+          <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-danger-soft text-danger-fg">
+            <AlertTriangle size={22} aria-hidden="true" />
+          </span>
+          <h2 className="text-lg font-semibold text-fg">This page could not be shown</h2>
+          <p className="mt-1 text-sm text-fg-muted">
             Something went wrong while drawing it. You can try again, or go to another page.
           </p>
-          <button
-            onClick={() => this.setState({ error: null })}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-          >
+          <Button variant="secondary" onClick={() => this.setState({ error: null })} className="mt-5">
             Try again
-          </button>
+          </Button>
         </div>
       </div>
     );

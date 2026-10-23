@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 import * as insightsApi from '../api';
+import type { AnalyticsMonths } from '../types';
 
 /** Query keys of the insights (``['insights', audience, resource]``). */
 export const insightsKeys = {
@@ -10,6 +11,7 @@ export const insightsKeys = {
   achievements: ['insights', 'student', 'achievements'] as const,
   instructorDashboard: ['insights', 'instructor', 'dashboard'] as const,
   instructorEarnings: ['insights', 'instructor', 'earnings'] as const,
+  instructorAnalytics: (months: AnalyticsMonths) => ['insights', 'instructor', 'analytics', months] as const,
 };
 
 /** The four figures of the student's home page. */
@@ -37,5 +39,17 @@ export function useInstructorEarnings() {
   return useQuery({
     queryKey: insightsKeys.instructorEarnings,
     queryFn: insightsApi.fetchInstructorEarnings,
+  });
+}
+
+/**
+ * The instructor's analytics over the last ``months``.  While another period loads, the one
+ * before stays on screen (``isPlaceholderData``), so the page does not blink.
+ */
+export function useInstructorAnalytics(months: AnalyticsMonths) {
+  return useQuery({
+    queryKey: insightsKeys.instructorAnalytics(months),
+    queryFn: () => insightsApi.fetchInstructorAnalytics(months),
+    placeholderData: keepPreviousData,
   });
 }

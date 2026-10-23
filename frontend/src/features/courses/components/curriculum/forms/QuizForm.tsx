@@ -1,6 +1,12 @@
 import React, { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Award, Dumbbell, ListChecks, Plus, Trash2 } from 'lucide-react';
 
+import { cn } from '../../../../../shared/lib/cn';
+import { Badge } from '../../../../../shared/ui/Badge';
+import { Button, IconButton } from '../../../../../shared/ui/Button';
+import { Field } from '../../../../../shared/ui/Field';
+import { Input, Textarea } from '../../../../../shared/ui/Input';
+import { SegmentedControl } from '../../../../../shared/ui/SegmentedControl';
 import { newQuestion, removeQuestionAt, setOptionField, setQuestionField } from '../../../lib/quiz';
 import type { LectureFormData, QuizOption, QuizQuestion, QuizSettings } from '../../../types';
 
@@ -12,13 +18,15 @@ interface QuizFormProps {
 /** A quiz is practice (ungraded, weight 0) or graded (it carries a share of the final grade). */
 type QuizType = 'practice' | 'graded';
 
+const letter = (index: number): string => String.fromCharCode(65 + index);
+
 const QuizForm = ({ formData, setFormData }: QuizFormProps) => {
   // Determine quiz type based on weight (0 = practice, > 0 = graded)
   const [quizType, setQuizType] = useState<QuizType>(
     formData.quiz_settings?.weight && formData.quiz_settings.weight > 0 ? 'graded' : 'practice'
   );
 
-  const updateQuizSettings = <Field extends keyof QuizSettings>(field: Field, value: QuizSettings[Field]) => {
+  const updateQuizSettings = <K extends keyof QuizSettings>(field: K, value: QuizSettings[K]) => {
     setFormData({
       ...formData,
       quiz_settings: {
@@ -50,19 +58,19 @@ const QuizForm = ({ formData, setFormData }: QuizFormProps) => {
     setFormData({ ...formData, questions: removeQuestionAt(formData.questions, index) });
   };
 
-  const updateQuestion = <Field extends keyof QuizQuestion>(
+  const updateQuestion = <K extends keyof QuizQuestion>(
     questionIndex: number,
-    field: Field,
-    value: QuizQuestion[Field]
+    field: K,
+    value: QuizQuestion[K]
   ) => {
     setFormData({ ...formData, questions: setQuestionField(formData.questions, questionIndex, field, value) });
   };
 
-  const updateOption = <Field extends keyof QuizOption>(
+  const updateOption = <K extends keyof QuizOption>(
     questionIndex: number,
     optionIndex: number,
-    field: Field,
-    value: QuizOption[Field]
+    field: K,
+    value: QuizOption[K]
   ) => {
     setFormData({
       ...formData,
@@ -70,184 +78,155 @@ const QuizForm = ({ formData, setFormData }: QuizFormProps) => {
     });
   };
 
+  const questions = formData.questions || [];
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-3">
-          Quiz Type
-        </label>
-        <div className="flex gap-4">
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              value="practice"
-              checked={quizType === 'practice'}
-              onChange={() => handleQuizTypeChange('practice')}
-              className="text-indigo-600"
-            />
-            <span className="text-sm">Practice Quiz (Ungraded)</span>
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              value="graded"
-              checked={quizType === 'graded'}
-              onChange={() => handleQuizTypeChange('graded')}
-              className="text-indigo-600"
-            />
-            <span className="text-sm">Graded Quiz</span>
-          </label>
-        </div>
+        <p className="mb-1.5 text-sm font-medium text-fg">Quiz type</p>
+        <SegmentedControl
+          label="Quiz type"
+          variant="cards"
+          value={quizType}
+          onChange={handleQuizTypeChange}
+          options={[
+            {
+              value: 'practice',
+              label: 'Practice Quiz (Ungraded)',
+              icon: Dumbbell,
+              description: 'For learners to check themselves; it does not count towards the grade.',
+            },
+            {
+              value: 'graded',
+              label: 'Graded Quiz',
+              icon: Award,
+              description: 'Counts towards the final grade with the weight you give it.',
+            },
+          ]}
+        />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Time Limit (minutes)
-          </label>
-          <input
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Time limit (minutes)" hint="Leave it empty for no limit.">
+          <Input
             type="number"
             min="1"
             value={formData.quiz_settings?.time_limit || ''}
             onChange={(e) => updateQuizSettings('time_limit', parseInt(e.target.value) || null)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             placeholder="30"
           />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Max Attempts
-          </label>
-          <input
+        </Field>
+        <Field label="Max attempts">
+          <Input
             type="number"
             min="1"
             max="10"
             value={formData.quiz_settings?.max_attempts || ''}
             onChange={(e) => updateQuizSettings('max_attempts', parseInt(e.target.value) || 3)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             placeholder="3"
           />
-        </div>
+        </Field>
+        {quizType === 'graded' && (
+          <>
+            <Field label="Passing score (%)">
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                value={formData.quiz_settings?.passing_score || ''}
+                onChange={(e) => updateQuizSettings('passing_score', parseInt(e.target.value) || 60)}
+                placeholder="70"
+              />
+            </Field>
+            <Field label="Weight in grade (%)" hint="From 0.01 to 40.">
+              <Input
+                type="number"
+                min="0.01"
+                max="40"
+                step="0.01"
+                value={formData.quiz_settings?.weight || ''}
+                onChange={(e) => updateQuizSettings('weight', parseFloat(e.target.value) || 0)}
+                placeholder="10.00"
+              />
+            </Field>
+          </>
+        )}
       </div>
 
-      {quizType === 'graded' && (
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Passing Score (%)
-            </label>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              value={formData.quiz_settings?.passing_score || ''}
-              onChange={(e) => updateQuizSettings('passing_score', parseInt(e.target.value) || 60)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="70"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Weight in Grade
-            </label>
-            <input
-              type="number"
-              min="0.01"
-              max="40"
-              step="0.01"
-              value={formData.quiz_settings?.weight || ''}
-              onChange={(e) => updateQuizSettings('weight', parseFloat(e.target.value) || 0)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="10.00"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Range: 0.01% - 40%
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div className="border-t pt-4">
-        <div className="flex justify-between items-center mb-4">
-          <h4 className="text-lg font-medium text-gray-900">Quiz Questions</h4>
-          <button
-            type="button"
-            onClick={addQuestion}
-            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg"
-          >
-            <Plus size={16} />
+      <div className="border-t border-line pt-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h4 className="flex items-center gap-2 text-sm font-semibold text-fg">
+            Quiz Questions
+            <Badge tone="primary">{questions.length}</Badge>
+          </h4>
+          <Button variant="soft" size="sm" icon={Plus} onClick={addQuestion}>
             Add Question
-          </button>
+          </Button>
         </div>
 
-        {!formData.questions?.length && (
-          <div className="text-center py-8 text-gray-500">
-            <p>No questions added yet. Click "Add Question" to get started.</p>
+        {questions.length === 0 && (
+          <div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-line-strong px-6 py-8 text-center">
+            <ListChecks size={22} aria-hidden="true" className="text-fg-subtle" />
+            <p className="text-sm text-fg-muted">No questions added yet. Click "Add Question" to get started.</p>
           </div>
         )}
 
-        {formData.questions?.map((question, questionIndex) => (
-          <div key={questionIndex} className="bg-gray-50 rounded-lg p-4 mb-4">
-            <div className="flex justify-between items-start mb-3">
-              <h5 className="text-md font-medium text-gray-800">
-                Question {questionIndex + 1}
-              </h5>
-              <button
-                type="button"
-                onClick={() => removeQuestion(questionIndex)}
-                className="text-red-500 hover:text-red-700"
-                title="Remove question"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Question Text *
-              </label>
-              <textarea
-                value={question.question_text}
-                onChange={(e) => updateQuestion(questionIndex, 'question_text', e.target.value)}
-                rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="Enter your question here..."
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Answer Options (select the correct one)
-              </label>
-              <div className="space-y-2">
-                {question.options.map((option, optionIndex) => (
-                  <div key={optionIndex} className="flex items-center gap-3">
-                    <input
-                      type="radio"
-                      name={`question-${questionIndex}`}
-                      checked={option.is_correct}
-                      onChange={(e) => updateOption(questionIndex, optionIndex, 'is_correct', e.target.checked)}
-                      className="text-green-600"
-                    />
-                    <input
-                      type="text"
-                      value={option.option_text}
-                      onChange={(e) => updateOption(questionIndex, optionIndex, 'option_text', e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholder={`Option ${optionIndex + 1}`}
-                    />
-                    <span className="text-xs text-gray-500 w-16">
-                      {String.fromCharCode(65 + optionIndex)}
-                    </span>
-                  </div>
-                ))}
+        <div className="space-y-4">
+          {questions.map((question, questionIndex) => (
+            <div key={questionIndex} className="space-y-4 rounded-xl border border-line bg-surface-muted/40 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold text-fg">Question {questionIndex + 1}</span>
+                <IconButton
+                  icon={Trash2}
+                  label={`Remove question ${questionIndex + 1}`}
+                  size="sm"
+                  onClick={() => removeQuestion(questionIndex)}
+                />
               </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Select the radio button next to the correct answer
-              </p>
+
+              <Field label="Question text" required>
+                <Textarea
+                  value={question.question_text}
+                  onChange={(e) => updateQuestion(questionIndex, 'question_text', e.target.value)}
+                  rows={2}
+                  placeholder="Enter your question here..."
+                />
+              </Field>
+
+              <fieldset>
+                <legend className="text-sm font-medium text-fg">Answer options</legend>
+                <p className="text-xs text-fg-subtle">Select the radio button next to the correct answer.</p>
+                <div className="mt-2 space-y-2">
+                  {question.options.map((option, optionIndex) => (
+                    <div
+                      key={optionIndex}
+                      className={cn(
+                        'flex items-center gap-3 rounded-lg border px-3 py-2 transition-colors',
+                        option.is_correct ? 'border-success-fg/40 bg-success-soft' : 'border-line bg-surface'
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name={`question-${questionIndex}`}
+                        checked={option.is_correct}
+                        onChange={(e) => updateOption(questionIndex, optionIndex, 'is_correct', e.target.checked)}
+                        aria-label={`Option ${letter(optionIndex)} is the correct answer`}
+                        className="h-4 w-4 shrink-0 cursor-pointer accent-success"
+                      />
+                      <span className="w-4 shrink-0 text-xs font-semibold text-fg-subtle">{letter(optionIndex)}</span>
+                      <Input
+                        value={option.option_text}
+                        onChange={(e) => updateOption(questionIndex, optionIndex, 'option_text', e.target.value)}
+                        aria-label={`Option ${letter(optionIndex)} of question ${questionIndex + 1}`}
+                        placeholder={`Option ${optionIndex + 1}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </fieldset>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

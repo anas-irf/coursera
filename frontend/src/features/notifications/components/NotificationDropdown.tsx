@@ -1,9 +1,14 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell } from 'lucide-react';
+import { Bell, CheckCheck } from 'lucide-react';
 
+import { cn } from '../../../shared/lib/cn';
 import { timeAgo } from '../../../shared/lib/time';
+import { Button, IconButton } from '../../../shared/ui/Button';
+import { EmptyState } from '../../../shared/ui/EmptyState';
 import { ErrorState } from '../../../shared/ui/ErrorState';
+import { PageSpinner } from '../../../shared/ui/Spinner';
+import { usePopover } from '../../../shared/ui/usePopover';
 import { useMarkRead, useNotificationList, useUnreadCount } from '../hooks/useNotifications';
 import type { AppNotification } from '../types';
 import NotificationIcon from './NotificationIcon';
@@ -24,8 +29,7 @@ interface NotificationDropdownProps {
  */
 const NotificationDropdown = ({ viewAllPath = null, limit = 20 }: NotificationDropdownProps) => {
   const navigate = useNavigate();
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const { open: isOpen, toggle, close, rootRef, triggerRef } = usePopover();
 
   const count = useUnreadCount();
   const list = useNotificationList({ limit, enabled: isOpen });
@@ -34,18 +38,10 @@ const NotificationDropdown = ({ viewAllPath = null, limit = 20 }: NotificationDr
   const unreadCount = count.data || 0;
   const notifications = list.data || [];
 
-  useEffect(() => {
-    const onClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) setIsOpen(false);
-    };
-    document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, []);
-
   const open = (notification: AppNotification) => {
     if (!notification.is_read) markRead.mutate([notification.id]);
     if (!notification.action_url) return;
-    setIsOpen(false);
+    close();
     if (notification.action_url.startsWith('/')) {
       navigate(notification.action_url);
     } else {
@@ -54,91 +50,97 @@ const NotificationDropdown = ({ viewAllPath = null, limit = 20 }: NotificationDr
   };
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      <button
-        onClick={() => setIsOpen((value) => !value)}
-        className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg relative transition-colors"
-        aria-label="Notifications"
-      >
-        <Bell size={20} />
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
-        )}
-      </button>
+    <div className="relative" ref={rootRef}>
+      <IconButton
+        ref={triggerRef}
+        icon={Bell}
+        label="Notifications"
+        onClick={toggle}
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        badge={unreadCount > 0 ? (unreadCount > 9 ? '9+' : unreadCount) : undefined}
+      />
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
+        <div
+          role="dialog"
+          aria-label="Latest notifications"
+          className="absolute right-0 z-50 mt-2 w-[22rem] max-w-[calc(100vw-1.5rem)] origin-top-right overflow-hidden rounded-xl border border-line bg-surface-raised shadow-pop animate-scale-in sm:w-96"
+        >
+          <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
+            <div>
+              <h3 className="text-sm font-semibold text-fg">Notifications</h3>
+              <p className="text-xs text-fg-subtle">
+                {unreadCount > 0 ? `${unreadCount} unread` : 'You are all caught up'}
+              </p>
+            </div>
             {unreadCount > 0 && (
-              <button
-                onClick={() => markRead.mutate(null)}
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-              >
-                Mark all as read
-              </button>
+              <Button variant="ghost" size="xs" icon={CheckCheck} onClick={() => markRead.mutate(null)}>
+                Mark all read
+              </Button>
             )}
           </div>
 
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-[26rem] overflow-y-auto">
             {list.isPending ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-              </div>
+              <PageSpinner className="h-32" />
             ) : list.isError ? (
               <ErrorState
                 error={list.error}
                 title="Could not load notifications"
                 onRetry={list.refetch}
-                className="py-8 px-4"
+                className="px-4 py-8"
               />
             ) : notifications.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <Bell size={48} className="mx-auto text-gray-300 mb-2" />
-                <p>No notifications yet</p>
-              </div>
+              <EmptyState icon={Bell} title="No notifications yet" className="py-10" />
             ) : (
-              <div className="divide-y divide-gray-100">
+              <ul className="divide-y divide-line">
                 {notifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    onClick={() => open(notification)}
-                    className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
-                      !notification.is_read ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
-                    }`}
-                  >
-                    <div className="flex items-start space-x-3">
-                      <div className="flex-shrink-0 mt-1">
-                        <NotificationIcon type={notification.type} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-medium ${!notification.is_read ? 'text-gray-900' : 'text-gray-700'}`}>
+                  <li key={notification.id}>
+                    <button
+                      type="button"
+                      onClick={() => open(notification)}
+                      className={cn(
+                        'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-muted focus-visible:bg-surface-muted focus-visible:outline-none',
+                        !notification.is_read && 'bg-primary-soft/40'
+                      )}
+                    >
+                      <NotificationIcon type={notification.type} size="sm" />
+                      <span className="min-w-0 flex-1">
+                        <span
+                          className={cn(
+                            'block text-sm',
+                            notification.is_read ? 'text-fg-muted' : 'font-semibold text-fg'
+                          )}
+                        >
                           {notification.title}
-                        </p>
-                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{notification.message}</p>
-                        <p className="text-xs text-gray-500 mt-2">{timeAgo(notification.created_at)}</p>
-                      </div>
-                      {!notification.is_read && <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>}
-                    </div>
-                  </div>
+                        </span>
+                        <span className="mt-0.5 line-clamp-2 block text-xs text-fg-muted">{notification.message}</span>
+                        <span className="mt-1 block text-[11px] text-fg-subtle">{timeAgo(notification.created_at)}</span>
+                      </span>
+                      {!notification.is_read && (
+                        <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" aria-label="Unread" />
+                      )}
+                    </button>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
           </div>
 
           {viewAllPath && notifications.length > 0 && (
-            <div className="px-4 py-3 border-t border-gray-100">
-              <button
+            <div className="border-t border-line p-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                block
                 onClick={() => {
-                  setIsOpen(false);
+                  close();
                   navigate(viewAllPath);
                 }}
-                className="w-full text-center text-sm text-blue-600 hover:text-blue-800 font-medium"
               >
                 View all notifications
-              </button>
+              </Button>
             </div>
           )}
         </div>

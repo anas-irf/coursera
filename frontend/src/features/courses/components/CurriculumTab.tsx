@@ -115,7 +115,7 @@ const CurriculumTab = ({ courseId }: CurriculumTabProps) => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <CurriculumHeader onAddSection={() => setShowAddSection(true)} sections={sections} />
 
       {sections.length === 0 && (

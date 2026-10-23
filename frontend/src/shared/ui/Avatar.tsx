@@ -1,8 +1,10 @@
 import React from 'react';
 
+import { cn } from '../lib/cn';
 import { initials } from '../lib/names';
 
-const COLORS = ['bg-indigo-600', 'bg-purple-600', 'bg-blue-600', 'bg-emerald-600', 'bg-rose-600', 'bg-amber-600'];
+// saturated enough for white initials in both themes
+const COLORS = ['bg-brand-600', 'bg-violet-600', 'bg-emerald-600', 'bg-rose-600', 'bg-amber-600', 'bg-cyan-600', 'bg-indigo-600'];
 
 // the same person always gets the same colour
 const colorFor = (name: string): string => {
@@ -17,13 +19,17 @@ interface AvatarProps {
 }
 
 /** A round badge with the initials of ``name`` (drawn locally: nothing is requested from anyone). */
-export function Avatar({ name = '', className = 'w-8 h-8 text-xs' }: AvatarProps) {
+export function Avatar({ name = '', className = 'h-8 w-8 text-xs' }: AvatarProps) {
   const label = name.trim() || 'User';
   return (
     <span
       role="img"
       aria-label={label}
-      className={`inline-flex items-center justify-center rounded-full font-semibold text-white ${colorFor(label)} ${className}`}
+      className={cn(
+        'inline-flex shrink-0 select-none items-center justify-center rounded-full font-semibold text-white',
+        colorFor(label),
+        className
+      )}
     >
       {initials(label)}
     </span>

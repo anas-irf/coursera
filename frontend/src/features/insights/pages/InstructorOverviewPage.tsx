@@ -1,215 +1,285 @@
 import React from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { BookOpen, Users, DollarSign, Star } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import {
+  Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from 'recharts';
+import { ArrowRight, BarChart3, BookOpen, DollarSign, LineChart, PieChart as PieIcon, Star, Trophy, Users } from 'lucide-react';
 
 import { formatMoney } from '../../../shared/lib/money';
 import { formatDate } from '../../../shared/lib/time';
+import Avatar from '../../../shared/ui/Avatar';
+import { ButtonLink } from '../../../shared/ui/Button';
+import { Card, CardBody, CardHeader } from '../../../shared/ui/Card';
+import { ChartLegend, ChartTooltip, axisProps, useChartTheme } from '../../../shared/ui/charts';
 import CourseThumbnail from '../../../shared/ui/CourseThumbnail';
 import EmptyState from '../../../shared/ui/EmptyState';
 import ErrorState from '../../../shared/ui/ErrorState';
+import { PageHeader } from '../../../shared/ui/PageHeader';
 import { PageSpinner } from '../../../shared/ui/Spinner';
-import { useInstructorDashboard } from '../hooks/useInsights';
+import { StatCard } from '../../../shared/ui/StatCard';
+import { ChartFrame } from '../components/ChartFrame';
+import { useInstructorDashboard, useInstructorEarnings } from '../hooks/useInsights';
+import { compactMoney, rating } from '../lib/format';
 
-const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EC4899'];
-const NO_RATING = '-';
-
-/** "4.6", or "-" while no course has been rated (reviews do not exist yet, so it is 0). */
-const rating = (value: number) => (value > 0 ? value.toFixed(1) : NO_RATING);
-
-/** One of the four figures at the top of the page. */
-interface Tile {
-  title: string;
-  value: string | number;
-  note: string;
-  icon: LucideIcon;
-  color: string;
-}
+const header = (
+  <PageHeader
+    title="Dashboard Overview"
+    description="How your courses and learners are doing."
+    actions={
+      <>
+        <ButtonLink to="/instructor/analytics" variant="secondary" icon={BarChart3}>Analytics</ButtonLink>
+        <ButtonLink to="/instructor/courses" icon={BookOpen}>My courses</ButtonLink>
+      </>
+    }
+  />
+);
 
 const InstructorOverviewPage = () => {
   const query = useInstructorDashboard();
+  // earnings are calculated per month: the trend is drawn by month, not by day
+  const earnings = useInstructorEarnings();
+  const chart = useChartTheme();
 
   if (query.isPending) {
-    return <PageSpinner />;
+    return (
+      <div className="space-y-6">
+        {header}
+        <PageSpinner className="h-72" />
+      </div>
+    );
   }
 
   if (query.isError) {
     return (
-      <ErrorState
-        title="Your dashboard could not be loaded"
-        error={query.error}
-        onRetry={() => query.refetch()}
-      />
+      <div className="space-y-6">
+        {header}
+        <Card>
+          <ErrorState
+            title="Your dashboard could not be loaded"
+            error={query.error}
+            onRetry={() => query.refetch()}
+          />
+        </Card>
+      </div>
     );
   }
 
-  const { stats, recent_enrollments: enrollments, revenue_chart: revenue, top_courses: topCourses } = query.data;
+  const { stats, recent_enrollments: enrollments, top_courses: topCourses } = query.data;
+  const months = earnings.data ? earnings.data.monthly_chart : [];
+  const hasEarnings = months.some((point) => point.earnings > 0);
+  const periodTotal = months.reduce((total, point) => total + (Number(point.earnings) || 0), 0);
 
-  // what each figure is about, said by the figure itself: no "+12% from last month" that nothing computed
-  const tiles: Tile[] = [
-    {
-      title: 'Total Courses',
-      value: stats.total_courses,
-      note: `${stats.published_courses} published, ${stats.draft_courses} draft`,
-      icon: BookOpen,
-      color: 'from-blue-500 to-blue-600',
-    },
-    {
-      title: 'Total Students',
-      value: stats.total_students,
-      note: 'learners in your courses',
-      icon: Users,
-      color: 'from-green-500 to-green-600',
-    },
-    {
-      title: 'Revenue',
-      value: formatMoney(stats.total_revenue),
-      note: 'your share, all time',
-      icon: DollarSign,
-      color: 'from-purple-500 to-purple-600',
-    },
-    {
-      title: 'Avg Rating',
-      value: rating(stats.average_rating),
-      note: stats.average_rating > 0 ? 'across your courses' : 'no reviews yet',
-      icon: Star,
-      color: 'from-yellow-500 to-yellow-600',
-    },
-  ];
+  // courses that are neither published nor drafts: in review, rejected or taken offline
+  const other = Math.max(0, stats.total_courses - stats.published_courses - stats.draft_courses);
+  const statuses = [
+    { name: 'Published', value: stats.published_courses, color: chart.success },
+    { name: 'Draft', value: stats.draft_courses, color: chart.axis },
+    { name: 'In review or offline', value: other, color: chart.warning },
+  ].filter((slice) => slice.value > 0);
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
+      {header}
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {tiles.map(({ title, value, note, icon: Icon, color }) => (
-          <div key={title} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">{title}</p>
-                <p className="text-2xl font-bold text-gray-900 mt-2">{value}</p>
-                <p className="text-xs text-gray-500 mt-2">{note}</p>
-              </div>
-              <div className={`p-3 bg-gradient-to-br ${color} rounded-lg text-white`}>
-                <Icon size={24} />
-              </div>
-            </div>
-          </div>
-        ))}
+      {/* what each figure is about, said by the figure itself: no "+12% from last month" that nothing computed */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        <StatCard
+          label="Total Courses"
+          value={stats.total_courses}
+          hint={`${stats.published_courses} published, ${stats.draft_courses} draft`}
+          icon={BookOpen}
+        />
+        <StatCard
+          label="Total Students"
+          value={stats.total_students}
+          hint="learners in your courses"
+          icon={Users}
+          tone="info"
+        />
+        <StatCard
+          label="Revenue"
+          value={formatMoney(stats.total_revenue)}
+          hint="your share, all time"
+          icon={DollarSign}
+          tone="success"
+        />
+        <StatCard
+          label="Avg Rating"
+          value={rating(stats.average_rating)}
+          hint={stats.average_rating > 0 ? 'across your courses' : 'no reviews yet'}
+          icon={Star}
+          tone="warning"
+        />
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue Chart */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Revenue Trend</h2>
-          <p className="text-sm text-gray-500 -mt-3 mb-4">The last 30 days</p>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={revenue || []}>
-              <defs>
-                <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#4F46E5" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip />
-              <Area type="monotone" dataKey="revenue" stroke="#4F46E5" fillOpacity={1} fill="url(#colorRevenue)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader
+            title="Earnings by month"
+            description={hasEarnings ? `The last six months: ${formatMoney(periodTotal)}` : 'The last six months'}
+            icon={LineChart}
+            plain
+            action={
+              <ButtonLink to="/instructor/earnings" variant="ghost" size="sm" iconRight={ArrowRight}>
+                Earnings
+              </ButtonLink>
+            }
+          />
+          <CardBody>
+            {earnings.isPending && <PageSpinner className="h-64" />}
+            {earnings.isError && (
+              <ErrorState
+                className="py-10"
+                title="Your earnings could not be loaded"
+                error={earnings.error}
+                onRetry={() => earnings.refetch()}
+              />
+            )}
+            {earnings.isSuccess && hasEarnings && (
+              <ChartFrame label="Earnings of the last six months" height={260}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={months} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
+                    <XAxis dataKey="month" {...axisProps(chart)} />
+                    <YAxis {...axisProps(chart)} tickFormatter={compactMoney} width={56} />
+                    <Tooltip cursor={{ fill: chart.grid, opacity: 0.4 }} content={<ChartTooltip format={formatMoney} />} />
+                    <Bar dataKey="earnings" name="Earnings" fill={chart.primary} radius={[6, 6, 0, 0]} maxBarSize={48} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartFrame>
+            )}
+            {earnings.isSuccess && !hasEarnings && (
+              <EmptyState icon={LineChart} title="No earnings yet" className="py-10">
+                Plus courses earn a share of the monthly membership revenue once the month is calculated.
+              </EmptyState>
+            )}
+          </CardBody>
+        </Card>
 
-        {/* Course Distribution */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Course Status</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={[
-                  { name: 'Published', value: stats.published_courses },
-                  { name: 'Draft', value: stats.draft_courses },
-                ]}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={(entry) => `${entry.name}: ${entry.value}`}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {[0, 1].map((entry) => (
-                  <Cell key={entry} fill={COLORS[entry % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+        <Card>
+          <CardHeader title="Course Status" description="Where your courses are in publishing" icon={PieIcon} plain />
+          <CardBody>
+            {statuses.length > 0 ? (
+              <>
+                <div className="relative">
+                  <ChartFrame label="Courses by status" height={200}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={statuses}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius={58}
+                          outerRadius={84}
+                          paddingAngle={3}
+                          stroke="none"
+                        >
+                          {statuses.map((slice) => (
+                            <Cell key={slice.name} fill={slice.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip content={<ChartTooltip />} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </ChartFrame>
+                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-2xl font-semibold text-fg tabular-nums">{stats.total_courses}</span>
+                    <span className="text-xs text-fg-subtle">courses</span>
+                  </div>
+                </div>
+                <ChartLegend
+                  className="mt-4 justify-center"
+                  items={statuses.map((slice) => ({ label: slice.name, color: slice.color, value: slice.value }))}
+                />
+              </>
+            ) : (
+              <EmptyState icon={BookOpen} title="No courses yet" className="py-10">
+                Create a course to see it here.
+              </EmptyState>
+            )}
+          </CardBody>
+        </Card>
       </div>
 
-      {/* Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Enrollments */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Enrollments</h2>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader
+            title="Recent Enrollments"
+            description="The newest learners of your courses"
+            icon={Users}
+            action={
+              <ButtonLink to="/instructor/students" variant="ghost" size="sm" iconRight={ArrowRight}>
+                All students
+              </ButtonLink>
+            }
+          />
           {enrollments.length === 0 ? (
-            <EmptyState icon={Users} title="No enrollments yet" className="py-6">
+            <EmptyState icon={Users} title="No enrollments yet" className="py-10">
               Learners who join your courses show up here.
             </EmptyState>
           ) : (
-            <div className="space-y-4">
+            <ul className="divide-y divide-line">
               {enrollments.map((enrollment) => (
-                <div
+                <li
                   key={`${enrollment.student_email}-${enrollment.course_title}-${enrollment.enrolled_date}`}
-                  className="flex items-center justify-between py-3 border-b last:border-0"
+                  className="flex items-center gap-3 px-5 py-3"
                 >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center">
-                      <Users size={16} className="text-indigo-600" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{enrollment.student_name}</p>
-                      <p className="text-sm text-gray-500">{enrollment.course_title}</p>
-                    </div>
+                  <Avatar name={enrollment.student_name} className="h-9 w-9 text-xs" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-fg">{enrollment.student_name}</p>
+                    <p className="truncate text-xs text-fg-subtle">{enrollment.course_title}</p>
                   </div>
-                  <span className="text-sm text-gray-500">{formatDate(enrollment.enrolled_date)}</span>
-                </div>
+                  <span className="shrink-0 text-xs text-fg-subtle">{formatDate(enrollment.enrolled_date)}</span>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
-        </div>
+        </Card>
 
-        {/* Top Courses */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Top Performing Courses</h2>
+        <Card>
+          <CardHeader
+            title="Top Performing Courses"
+            description="By revenue, then by learners"
+            icon={Trophy}
+            action={
+              <ButtonLink to="/instructor/courses" variant="ghost" size="sm" iconRight={ArrowRight}>
+                All courses
+              </ButtonLink>
+            }
+          />
           {topCourses.length === 0 ? (
-            <EmptyState icon={BookOpen} title="No courses yet" className="py-6">
+            <EmptyState icon={BookOpen} title="No courses yet" className="py-10">
               Create a course to see how it performs.
             </EmptyState>
           ) : (
-            <div className="space-y-4">
-              {topCourses.map((course) => (
-                <div key={course.id} className="flex items-center space-x-4">
-                  <CourseThumbnail course={course} className="w-16 h-12 object-cover rounded-lg" />
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">{course.title}</p>
-                    <div className="flex items-center space-x-4 mt-1">
-                      <span className="text-sm text-gray-500">{course.total_enrolled} students</span>
-                      <span className="flex items-center text-sm text-yellow-600">
-                        <Star size={14} className="mr-1" />
+            <ul className="divide-y divide-line">
+              {topCourses.map((course, index) => (
+                <li key={course.id} className="flex items-center gap-3 px-5 py-3">
+                  <span className="w-4 shrink-0 text-center text-sm font-semibold text-fg-subtle tabular-nums">{index + 1}</span>
+                  <CourseThumbnail course={course} className="h-11 w-16 shrink-0 rounded-md" />
+                  <div className="min-w-0 flex-1">
+                    <Link
+                      to="/instructor/courses"
+                      className="block truncate text-sm font-medium text-fg hover:text-primary-fg"
+                    >
+                      {course.title}
+                    </Link>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-fg-subtle">
+                      <span>{course.total_enrolled} students</span>
+                      <span className="inline-flex items-center gap-1">
+                        <Star size={12} aria-hidden="true" className="text-warning-fg" />
                         {rating(course.average_rating)}
                       </span>
-                      <span className="text-sm font-semibold text-green-600">{formatMoney(course.total_revenue)}</span>
                     </div>
                   </div>
-                </div>
+                  <span className="shrink-0 text-sm font-semibold text-success-fg tabular-nums">
+                    {formatMoney(course.total_revenue)}
+                  </span>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );

@@ -1,15 +1,23 @@
 import React, { useState } from 'react';
-import { FileText } from 'lucide-react';
+import { CheckCircle2, ClipboardList, Hourglass, Inbox, MousePointerClick } from 'lucide-react';
 
 import type { UUID } from '../../../shared/types';
+import { Card } from '../../../shared/ui/Card';
+import EmptyState from '../../../shared/ui/EmptyState';
 import ErrorState from '../../../shared/ui/ErrorState';
+import { PageHeader } from '../../../shared/ui/PageHeader';
 import { PageSpinner } from '../../../shared/ui/Spinner';
+import { StatCard } from '../../../shared/ui/StatCard';
 import AssignmentList from '../components/AssignmentList';
 import GradingModal from '../components/GradingModal';
 import SubmissionList from '../components/SubmissionList';
 import { useAssignmentSubmissions, useInstructorAssignments } from '../hooks/useAssignments';
 import { useSubmissionDownload } from '../hooks/useAttempts';
 import type { AssignmentRow } from '../types';
+
+const HEADER = (
+  <PageHeader title="Assignments" description="Review what your students hand in, and grade it with feedback." />
+);
 
 /** The instructor's assignments, the hand-ins of the chosen one and the dialog to grade them. */
 const InstructorAssignmentsPage = () => {
@@ -20,22 +28,40 @@ const InstructorAssignmentsPage = () => {
   const submissions = useAssignmentSubmissions(assignmentId);
 
   if (assignments.isPending) {
-    return <PageSpinner color="border-blue-600" />;
+    return (
+      <div className="space-y-6">
+        {HEADER}
+        <PageSpinner className="h-64" />
+      </div>
+    );
   }
 
   if (assignments.isError) {
     return (
-      <ErrorState
-        title="We could not load your assignments"
-        error={assignments.error}
-        onRetry={() => assignments.refetch()}
-      />
+      <div className="space-y-6">
+        {HEADER}
+        <ErrorState
+          title="We could not load your assignments"
+          error={assignments.error}
+          onRetry={() => assignments.refetch()}
+        />
+      </div>
     );
   }
 
-  const selectedAssignment = assignments.data.find((assignment) => assignment.id === assignmentId) || null;
+  const rows = assignments.data;
+  const selectedAssignment = rows.find((assignment) => assignment.id === assignmentId) || null;
   // the dialog shows the stored hand-in: after a grade it refreshes to "Update Grade"
   const selectedSubmission = (submissions.data || []).find((submission) => submission.id === submissionId) || null;
+
+  const totals = rows.reduce(
+    (sum, row) => ({
+      submissions: sum.submissions + row.total_submissions,
+      graded: sum.graded + row.graded_submissions,
+      pending: sum.pending + row.pending_submissions,
+    }),
+    { submissions: 0, graded: 0, pending: 0 }
+  );
 
   const chooseAssignment = (assignment: AssignmentRow) => {
     setAssignmentId(assignment.id);
@@ -44,19 +70,24 @@ const InstructorAssignmentsPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Assignment Management</h1>
-        <p className="text-gray-600 mt-1">Review and grade student assignment submissions</p>
+      {HEADER}
+
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        <StatCard label="Assignments" value={rows.length} hint="across your courses" icon={ClipboardList} />
+        <StatCard label="Submissions" value={totals.submissions} hint="handed in so far" icon={Inbox} tone="info" />
+        <StatCard
+          label="Waiting for a grade"
+          value={totals.pending}
+          hint={totals.pending > 0 ? 'students are waiting' : 'nothing to grade'}
+          icon={Hourglass}
+          tone="warning"
+        />
+        <StatCard label="Graded" value={totals.graded} hint="with a grade and feedback" icon={CheckCircle2} tone="success" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid items-start gap-6 lg:grid-cols-3">
         <div className="lg:col-span-1">
-          <AssignmentList
-            assignments={assignments.data}
-            selectedId={assignmentId}
-            onSelect={chooseAssignment}
-          />
+          <AssignmentList assignments={rows} selectedId={assignmentId} onSelect={chooseAssignment} />
         </div>
 
         <div className="lg:col-span-2">
@@ -70,13 +101,11 @@ const InstructorAssignmentsPage = () => {
               onDownload={downloadSubmissionFile}
             />
           ) : (
-            <div className="bg-white rounded-lg shadow p-12">
-              <div className="text-center text-gray-500">
-                <FileText size={64} className="mx-auto text-gray-300 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Select an Assignment</h3>
-                <p>Choose an assignment from the left panel to view and grade student submissions.</p>
-              </div>
-            </div>
+            <Card>
+              <EmptyState icon={MousePointerClick} title="Select an Assignment" className="py-16">
+                Choose an assignment from the list to view and grade student submissions.
+              </EmptyState>
+            </Card>
           )}
         </div>
       </div>

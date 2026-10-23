@@ -1,13 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, ChevronDown, ChevronRight, Menu, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, ListTree, RefreshCw } from 'lucide-react';
 
 import { errorMessage, errorStatus } from '../../../shared/api/errors';
+import { cn } from '../../../shared/lib/cn';
 import type { UUID } from '../../../shared/types';
-import { PageSpinner } from '../../../shared/ui/Spinner';
+import { ButtonLink, IconButton } from '../../../shared/ui/Button';
 import { useConfirm } from '../../../shared/ui/ConfirmDialog';
+import { Drawer } from '../../../shared/ui/Drawer';
+import ErrorState from '../../../shared/ui/ErrorState';
+import { ProgressBar } from '../../../shared/ui/ProgressBar';
+import { PageSpinner } from '../../../shared/ui/Spinner';
+import { ThemeToggle } from '../../../shared/ui/ThemeToggle';
 import { useToast } from '../../../shared/ui/Toast';
-import LectureContent, { LectureIcon } from '../components/LectureContent';
+import CourseOutline from '../components/CourseOutline';
+import LectureContent from '../components/LectureContent';
 import { useCompleteLecture, usePlayer, useRefreshProgress } from '../hooks/usePlayer';
 import { allLectures, firstIncomplete } from '../lib/player';
 import type { PlayerLecture } from '../types';
@@ -30,7 +37,10 @@ const writeSelection = (courseId: UUID, lectureId: UUID) => {
   }
 };
 
-/** The learning interface of one course: outline sidebar and the selected lecture. */
+/**
+ * The learning interface of one course, on a page of its own: a top bar (back, title, progress,
+ * theme), the outline on the left (a drawer on a small screen) and the selected lecture.
+ */
 const CoursePlayerPage = () => {
   // the route is "/courses/:courseId/learn": the parameter is there whenever this page renders
   const courseId = useParams<{ courseId: string }>().courseId!;
@@ -43,9 +53,10 @@ const CoursePlayerPage = () => {
   const refreshProgress = useRefreshProgress(courseId);
 
   const [chosenId, setChosenId] = useState<UUID | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [outlineOpen, setOutlineOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<UUID, boolean>>({});
   const quizActive = useRef(false);
+  const mainRef = useRef<HTMLElement>(null);
 
   const course = player.data || null;
   const status = errorStatus(player.error) ?? null;
@@ -60,16 +71,19 @@ const CoursePlayerPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
+  const lectures = useMemo(() => (course ? allLectures(course.sections) : []), [course]);
+
   // the lecture shown: the student's choice, else where they stopped last time, else the first
   // one they have not finished
   const selected = useMemo(() => {
     if (!course) return null;
-    const lectures = allLectures(course.sections);
     const wanted = chosenId || readSelection(courseId);
-    return (
-      lectures.find((lecture) => lecture.id === wanted) || firstIncomplete(course.sections)
-    );
-  }, [course, chosenId, courseId]);
+    return lectures.find((lecture) => lecture.id === wanted) || firstIncomplete(course.sections);
+  }, [course, lectures, chosenId, courseId]);
+
+  const index = selected ? lectures.findIndex((lecture) => lecture.id === selected.id) : -1;
+  const previous = index > 0 ? lectures[index - 1] : null;
+  const next = index >= 0 && index < lectures.length - 1 ? lectures[index + 1] : null;
 
   const select = async (lecture: PlayerLecture) => {
     if (quizActive.current) {
@@ -84,9 +98,10 @@ const CoursePlayerPage = () => {
       if (!leave) return;
     }
 
-    setSidebarOpen(false);
+    setOutlineOpen(false);
     setChosenId(lecture.id);
     writeSelection(courseId, lecture.id);
+    if (mainRef.current && typeof mainRef.current.scrollTo === 'function') mainRef.current.scrollTo({ top: 0 });
   };
 
   const complete = (lectureId: UUID) =>
@@ -106,163 +121,88 @@ const CoursePlayerPage = () => {
     quizActive.current = active;
   }, []);
 
+  const toggleSection = (sectionId: UUID) =>
+    setCollapsed((prev) => ({ ...prev, [sectionId]: !prev[sectionId] }));
+
   if (player.isPending || status === 403) {
-    return <PageSpinner className="min-h-screen" />;
+    return <PageSpinner className="min-h-screen bg-canvas" />;
   }
 
   if (!course) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Course not found</h2>
-          <p className="text-gray-500">
-            The course you're looking for doesn't exist or you don't have access to it.
-          </p>
-          <button
-            onClick={() => player.refetch()}
-            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-          >
-            Try again
-          </button>
+      <main className="flex min-h-screen items-center justify-center bg-canvas p-6">
+        <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-6 shadow-card">
+          <ErrorState
+            className="py-6"
+            title="Course not found"
+            error={player.error}
+            onRetry={() => player.refetch()}
+          />
+          <div className="flex justify-center pb-2">
+            <ButtonLink to="/student/my-learning" variant="ghost" icon={ArrowLeft}>
+              Back to my learning
+            </ButtonLink>
+          </div>
         </div>
-      </div>
+      </main>
     );
   }
 
   const progress = course.progress;
   const refreshing = player.isFetching;
+  const outline = (onClose?: () => void) => (
+    <CourseOutline
+      sections={course.sections}
+      progress={progress}
+      selectedId={selected ? selected.id : null}
+      collapsed={collapsed}
+      onToggleSection={toggleSection}
+      onSelect={select}
+      onClose={onClose}
+    />
+  );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => setSidebarOpen((open) => !open)}
-                className="lg:hidden p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
-                aria-label="Course content"
-              >
-                <Menu size={20} />
-              </button>
-
-              <button
-                onClick={() => navigate('/student/my-learning')}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
-                aria-label="Back to my learning"
-              >
-                <ArrowLeft size={20} />
-              </button>
-              <div className="min-w-0">
-                <h1 className="text-lg font-semibold text-gray-900 truncate">{course.course.title}</h1>
-                <p className="text-sm text-gray-500 hidden sm:block truncate">by {course.course.instructor}</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={handleRefresh}
-                disabled={refreshing}
-                aria-label="Refresh course data"
-                className={`p-2 rounded-lg transition-colors ${
-                  refreshing ? 'text-gray-400 cursor-not-allowed' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                }`}
-                title="Refresh course data"
-              >
-                <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
-              </button>
-              <div className="text-sm text-gray-600 hidden md:block">Progress: {progress.progress_percentage}%</div>
-              <div className="w-16 sm:w-24 md:w-32 bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${progress.progress_percentage}%` }}
-                ></div>
-              </div>
-            </div>
-          </div>
+    <div className="flex h-screen flex-col overflow-hidden bg-canvas supports-[height:100dvh]:h-[100dvh]">
+      <header className="flex h-16 shrink-0 items-center gap-1.5 border-b border-line bg-surface px-2 sm:gap-2 sm:px-4">
+        <IconButton icon={ListTree} label="Course content" onClick={() => setOutlineOpen(true)} className="lg:hidden" />
+        <IconButton icon={ArrowLeft} label="Back to my learning" onClick={() => navigate('/student/my-learning')} />
+        <div className="min-w-0 flex-1 px-1">
+          <h1 className="truncate text-sm font-semibold text-fg sm:text-base">{course.course.title}</h1>
+          <p className="hidden truncate text-xs text-fg-subtle sm:block">by {course.course.instructor}</p>
         </div>
+        <div className="hidden items-center gap-3 md:flex">
+          <span className="text-xs font-medium text-fg-muted tabular-nums">
+            {progress.progress_percentage}% complete
+          </span>
+          <ProgressBar
+            value={progress.progress_percentage}
+            size="sm"
+            tone={progress.progress_percentage >= 100 ? 'success' : 'primary'}
+            label="Course progress"
+            className="w-32"
+          />
+        </div>
+        <IconButton
+          icon={RefreshCw}
+          label="Refresh course data"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className={cn(refreshing && '[&>svg]:animate-spin')}
+        />
+        <ThemeToggle />
       </header>
 
-      <div className="flex h-[calc(100vh-4rem)] relative">
-        {sidebarOpen && (
-          <div className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-50" onClick={() => setSidebarOpen(false)} />
+      <div className="flex min-h-0 flex-1">
+        <aside className="hidden w-80 shrink-0 flex-col border-r border-line bg-surface lg:flex">{outline()}</aside>
+
+        {outlineOpen && (
+          <Drawer label="Course content" onClose={() => setOutlineOpen(false)}>
+            {outline(() => setOutlineOpen(false))}
+          </Drawer>
         )}
 
-        <div
-          className={`
-            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-            fixed lg:static inset-y-0 left-0 z-50 lg:z-auto
-            w-80 bg-white border-r border-gray-200 overflow-y-auto
-            transform transition-transform duration-300 ease-in-out
-            lg:transform-none
-            mt-16 lg:mt-0
-          `}
-        >
-          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-            <div>
-              <h2 className="font-semibold text-gray-900">Course Content</h2>
-              <p className="text-sm text-gray-500 mt-1">
-                {progress.completed_lectures} of {progress.total_lectures} lectures completed
-              </p>
-            </div>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              aria-label="Close course content"
-              className="lg:hidden p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
-            >
-              <X size={20} />
-            </button>
-          </div>
-
-          <div className="divide-y divide-gray-200">
-            {course.sections.map((section) => {
-              const open = !collapsed[section.id];
-              return (
-                <div key={section.id}>
-                  <button
-                    onClick={() => setCollapsed((prev) => ({ ...prev, [section.id]: open }))}
-                    aria-expanded={open}
-                    className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center justify-between"
-                  >
-                    <div>
-                      <h3 className="font-medium text-gray-900">{section.title}</h3>
-                      <p className="text-sm text-gray-500">
-                        {section.completed_lectures}/{section.total_lectures} lectures
-                      </p>
-                    </div>
-                    {open ? (
-                      <ChevronDown size={16} className="text-gray-400" />
-                    ) : (
-                      <ChevronRight size={16} className="text-gray-400" />
-                    )}
-                  </button>
-
-                  {open && (
-                    <div className="bg-gray-50">
-                      {section.lectures.map((lecture) => (
-                        <button
-                          key={lecture.id}
-                          onClick={() => select(lecture)}
-                          className={`w-full px-6 py-3 text-left hover:bg-gray-100 flex items-center space-x-3 ${
-                            selected && selected.id === lecture.id ? 'bg-indigo-50 border-r-2 border-indigo-600' : ''
-                          }`}
-                        >
-                          <LectureIcon type={lecture.content_type} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">{lecture.title}</p>
-                            <p className="text-xs text-gray-500 capitalize">{lecture.content_type}</p>
-                          </div>
-                          {lecture.is_completed && <CheckCircle size={16} className="text-green-500 flex-shrink-0" />}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="flex-1 bg-white lg:ml-0 transition-all duration-300 ease-in-out">
+        <main ref={mainRef} id="main" className="min-w-0 flex-1 overflow-y-auto">
           <LectureContent
             courseId={courseId}
             lecture={selected}
@@ -270,8 +210,11 @@ const CoursePlayerPage = () => {
             completing={completeLecture.isPending}
             onReload={refreshProgress}
             onQuizActiveChange={onQuizActiveChange}
+            previous={previous}
+            next={next}
+            onNavigate={select}
           />
-        </div>
+        </main>
       </div>
     </div>
   );

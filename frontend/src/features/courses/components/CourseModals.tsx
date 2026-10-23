@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
+import { BadgeDollarSign, FileText, ListTree, Save } from 'lucide-react';
 
 import { errorSummary } from '../../../shared/api/errors';
+import { Button } from '../../../shared/ui/Button';
 import ErrorState from '../../../shared/ui/ErrorState';
-import Modal from '../../../shared/ui/Modal';
+import Modal, { ModalFooter } from '../../../shared/ui/Modal';
 import { PageSpinner } from '../../../shared/ui/Spinner';
+import { Tabs } from '../../../shared/ui/Tabs';
+import type { TabItem } from '../../../shared/ui/Tabs';
 import { useToast } from '../../../shared/ui/Toast';
 import {
   useCategories,
@@ -17,10 +21,6 @@ import { blankCourse, courseBody, courseValues, hasRequiredFields } from '../lib
 import type { CourseDetail, InstructorCourseRow } from '../types';
 import { BasicFields, PricingFields, ThumbnailField } from './CourseFields';
 import CurriculumTab from './CurriculumTab';
-
-const PRIMARY_BUTTON =
-  'flex-1 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50';
-const SECONDARY_BUTTON = 'flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50';
 
 /** The choices of the category and language selects. */
 const useFormChoices = () => {
@@ -61,50 +61,32 @@ export const CreateCourseModal = ({ onClose, onSave }: CreateCourseModalProps) =
   };
 
   return (
-    <Modal title="Create New Course" onClose={onClose}>
-      <div className="p-6 space-y-6">
+    <Modal
+      title="Create New Course"
+      description="Start with the basics. You build the curriculum once the course exists."
+      onClose={onClose}
+      size="lg"
+    >
+      <div className="space-y-6 p-5 sm:p-6">
         <BasicFields values={values} onChange={setValues} {...choices} />
         <ThumbnailField thumbnail={thumbnail} required />
         <PricingFields values={values} onChange={setValues} />
-
-        <div className="flex gap-4 pt-4">
-          <button onClick={onClose} className={SECONDARY_BUTTON}>Cancel</button>
-          <button onClick={handleSubmit} disabled={create.isPending} className={PRIMARY_BUTTON}>
-            {create.isPending ? 'Creating...' : 'Create Course'}
-          </button>
-        </div>
       </div>
+      <ModalFooter className="sticky bottom-0 bg-surface-raised">
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button onClick={handleSubmit} loading={create.isPending}>Create Course</Button>
+      </ModalFooter>
     </Modal>
   );
 };
 
-const TABS = ['basic', 'curriculum', 'pricing'] as const;
-type Tab = (typeof TABS)[number];
+type Tab = 'basic' | 'curriculum' | 'pricing';
 
-interface TabBarProps {
-  active: Tab;
-  onChange: (tab: Tab) => void;
-}
-
-const TabBar = ({ active, onChange }: TabBarProps) => (
-  <div className="px-6 flex space-x-8" role="tablist">
-    {TABS.map((tab) => (
-      <button
-        key={tab}
-        role="tab"
-        aria-selected={active === tab}
-        onClick={() => onChange(tab)}
-        className={`pb-3 px-1 border-b-2 font-medium text-sm capitalize ${
-          active === tab
-            ? 'border-indigo-600 text-indigo-600'
-            : 'border-transparent text-gray-500 hover:text-gray-700'
-        }`}
-      >
-        {tab}
-      </button>
-    ))}
-  </div>
-);
+const TABS: TabItem<Tab>[] = [
+  { value: 'basic', label: 'Details', icon: FileText },
+  { value: 'curriculum', label: 'Curriculum', icon: ListTree },
+  { value: 'pricing', label: 'Pricing', icon: BadgeDollarSign },
+];
 
 interface EditCourseFormProps {
   course: InstructorCourseRow;
@@ -139,25 +121,28 @@ const EditCourseForm = ({ course, detail, activeTab, onClose, onSave }: EditCour
   };
 
   return (
-    <div className="p-6">
-      {activeTab === 'basic' && (
-        <div className="space-y-6">
-          <BasicFields values={values} onChange={setValues} {...choices} />
-          <ThumbnailField thumbnail={thumbnail} current={detail.thumbnail || course.thumbnail} />
-        </div>
-      )}
+    <>
+      <div className="p-5 sm:p-6">
+        {activeTab === 'basic' && (
+          <div className="space-y-6">
+            <BasicFields values={values} onChange={setValues} {...choices} />
+            <ThumbnailField thumbnail={thumbnail} current={detail.thumbnail || course.thumbnail} />
+          </div>
+        )}
 
-      {activeTab === 'curriculum' && <CurriculumTab courseId={course.id} />}
+        {activeTab === 'curriculum' && <CurriculumTab courseId={course.id} />}
 
-      {activeTab === 'pricing' && <PricingFields values={values} onChange={setValues} />}
-
-      <div className="flex gap-4 mt-8">
-        <button onClick={onClose} className={SECONDARY_BUTTON}>Cancel</button>
-        <button onClick={handleSave} disabled={update.isPending} className={PRIMARY_BUTTON}>
-          {update.isPending ? 'Saving...' : 'Save Changes'}
-        </button>
+        {activeTab === 'pricing' && <PricingFields values={values} onChange={setValues} />}
       </div>
-    </div>
+
+      <ModalFooter className="sticky bottom-0 bg-surface-raised">
+        {activeTab === 'curriculum' && (
+          <p className="mr-auto hidden text-xs text-fg-subtle sm:block">Changes to sections and lectures are saved as you make them.</p>
+        )}
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button icon={Save} onClick={handleSave} loading={update.isPending}>Save Changes</Button>
+      </ModalFooter>
+    </>
   );
 };
 
@@ -177,7 +162,17 @@ export const EditCourseModal = ({ course, onClose, onSave }: EditCourseModalProp
       title={`Edit Course: ${course.title}`}
       onClose={onClose}
       size="lg"
-      headerExtra={detail.isSuccess ? <TabBar active={activeTab} onChange={setActiveTab} /> : null}
+      headerExtra={
+        detail.isSuccess ? (
+          <Tabs
+            label="Course sections"
+            items={TABS}
+            value={activeTab}
+            onChange={setActiveTab}
+            className="-mb-px px-5 sm:px-6"
+          />
+        ) : null
+      }
     >
       {detail.isPending && (
         <div className="p-6">

@@ -2,6 +2,7 @@ import api from '../../shared/api/client';
 import type { UUID } from '../../shared/types';
 import type {
   BookmarkResponse,
+  CatalogCategory,
   CatalogCourse,
   CatalogFilters,
   CatalogPage,
@@ -35,6 +36,10 @@ export const listCoursesPage = ({ filters = {}, page = 1, pageSize = 12 }: Catal
       items: response.data,
       total: Number(response.headers['x-total-count'] || response.data.length),
     }));
+
+/** The categories the catalogue can be narrowed to (the same list the course form offers). */
+export const listCategories = (): Promise<CatalogCategory[]> =>
+  api.get<CatalogCategory[]>('/courses/categories/').then((response) => response.data);
 
 /** The student's courses: ``status`` is "active" (running, the default), "completed" or "all". */
 export const myCourses = ({ status = 'active' }: { status?: EnrolledView } = {}): Promise<EnrolledCourse[]> =>

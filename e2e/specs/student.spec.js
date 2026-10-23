@@ -10,8 +10,8 @@ test.describe('the headline learner', () => {
     const main = page.locator('main');
 
     await expect(main).toContainText('Welcome back');
-    await expect(main).toContainText(/5\s*Courses Enrolled/);
-    await expect(main).toContainText(/1\s*Certificates/);
+    await expect(main).toContainText(/Courses Enrolled\s*5/);
+    await expect(main).toContainText(/Certificates\s*1/);
     await expect(main.getByText('Continue Learning').first()).toBeVisible();
   });
 
@@ -33,7 +33,7 @@ test.describe('the headline learner', () => {
     const main = page.locator('main');
     await expect(main).toContainText('JavaScript from Scratch');
 
-    await main.getByLabel('Show').selectOption('completed');
+    await main.getByRole('tab', { name: /^Completed/ }).click();
 
     await expect(main).toContainText('Introduction to Python');
     await expect(main).not.toContainText('JavaScript from Scratch');
@@ -63,7 +63,7 @@ test.describe('the headline learner', () => {
     await signIn(DEMO, '/student/achievements');
     const main = page.locator('main');
 
-    await expect(main).toContainText(/\d+\s*Points/);
+    await expect(main).toContainText(/Points\s*\d+/);
     await expect(main).toContainText(/First Steps[\s\S]*Earned/);
   });
 
@@ -113,11 +113,11 @@ test.describe('discovering courses', () => {
     const main = page.locator('main');
     await expect(main).toContainText('Introduction to Python');
 
-    await page.locator('select').first().selectOption('design');
+    await main.getByLabel('Category').selectOption('design');
     await expect(main).toContainText('UX Design Fundamentals');
     await expect(main).not.toContainText('Introduction to Python');
 
-    await page.locator('select').first().selectOption('all');
+    await main.getByLabel('Category').selectOption('all');
     await page.getByPlaceholder(/Search for courses/).fill('python');
     await expect(main).toContainText('Introduction to Python');
     await expect(main).not.toContainText('React for Beginners');
@@ -153,5 +153,49 @@ test.describe('empty states', () => {
 
     await page.goto('/student/my-learning');
     await expect(page.locator('main')).toContainText('No enrolled courses');
+  });
+});
+
+test.describe('certificates and the account', () => {
+  test('anyone with the link can verify a certificate, signed in or not', async ({ page, signIn }) => {
+    await signIn(DEMO, '/student/certificates');
+    const link = page.locator('main').getByRole('link', { name: /Verify Certificate/ }).first();
+    const href = await link.getAttribute('href');
+    expect(href).toMatch(/\/verify\/[^/]+$/);
+
+    // a visitor who never signed in
+    await page.context().clearCookies();
+    await page.evaluate(() => window.localStorage.clear());
+    await page.goto(new URL(href).pathname);
+
+    await expect(page.getByText('Verified').first()).toBeVisible();
+    await expect(page.locator('body')).toContainText('Demo Student');
+    await expect(page.locator('body')).toContainText('Introduction to Python');
+  });
+
+  test('a code nobody was given is said to be unknown', async ({ page }) => {
+    await page.goto('/verify/NOT-A-REAL-CODE');
+
+    await expect(page.locator('body')).toContainText('No certificate has this code');
+  });
+
+  test('a learner edits the profile and it is kept', async ({ page, signIn }) => {
+    await signIn('liam.chen@example.com', '/student/account');
+    const main = page.locator('main');
+
+    await main.getByLabel('City').fill('Kuala Lumpur');
+    await main.getByRole('button', { name: 'Save profile' }).click();
+    await expect(page.getByText('Your profile was saved.')).toBeVisible();
+
+    await page.reload();
+    await expect(page.locator('main').getByLabel('City')).toHaveValue('Kuala Lumpur');
+    await expect(page.locator('main')).toContainText('Kuala Lumpur, Singapore');
+  });
+
+  test('the shared demo account keeps its password', async ({ page, signIn }) => {
+    await signIn(DEMO, '/student/account');
+
+    await expect(page.locator('main')).toContainText('This is a shared demo account');
+    await expect(page.getByRole('button', { name: 'Change password' })).toBeDisabled();
   });
 });

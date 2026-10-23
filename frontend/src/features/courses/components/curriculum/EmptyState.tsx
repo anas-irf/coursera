@@ -1,26 +1,28 @@
 import React from 'react';
-import { FileText } from 'lucide-react';
+import { ListTree, Plus } from 'lucide-react';
+
+import { Button } from '../../../../shared/ui/Button';
+import { EmptyState as Empty } from '../../../../shared/ui/EmptyState';
 
 interface EmptyStateProps {
   onAddSection: () => void;
 }
 
-const EmptyState = ({ onAddSection }: EmptyStateProps) => {
-  return (
-    <div className="text-center py-12 bg-gray-50 rounded-lg">
-      <div className="text-gray-500 mb-4">
-        <FileText size={48} className="mx-auto mb-4 text-gray-400" />
-        <p className="text-lg font-medium">No sections yet</p>
-        <p className="text-sm">Start building your course by adding the first section.</p>
-      </div>
-      <button
-        onClick={onAddSection}
-        className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-      >
-        Add Your First Section
-      </button>
-    </div>
-  );
-};
+/** A course without sections: the way to start its curriculum. */
+const EmptyState = ({ onAddSection }: EmptyStateProps) => (
+  <div className="rounded-xl border-2 border-dashed border-line-strong">
+    <Empty
+      icon={ListTree}
+      title="No sections yet"
+      action={
+        <Button icon={Plus} onClick={onAddSection}>
+          Add Your First Section
+        </Button>
+      }
+    >
+      Start building your course by adding the first section. Lectures, quizzes and assignments go inside it.
+    </Empty>
+  </div>
+);
 
 export default EmptyState;

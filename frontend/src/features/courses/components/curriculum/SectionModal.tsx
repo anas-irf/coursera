@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import type { FormEvent } from 'react';
 
-import Modal from '../../../../shared/ui/Modal';
+import { Button } from '../../../../shared/ui/Button';
+import { Checkbox } from '../../../../shared/ui/Checkbox';
+import { Field } from '../../../../shared/ui/Field';
+import { Input, Textarea } from '../../../../shared/ui/Input';
+import Modal, { ModalFooter } from '../../../../shared/ui/Modal';
 import { useToast } from '../../../../shared/ui/Toast';
 import type { CurriculumSection, SectionFormData } from '../../types';
 
@@ -45,62 +49,37 @@ const SectionModal = ({ section, onClose, onSave, title }: SectionModalProps) =>
 
   return (
     <Modal title={title} onClose={onClose} size="sm">
-      <form onSubmit={handleSubmit} className="p-6 space-y-4">
-        <div>
-          <label htmlFor="section-title" className="block text-sm font-medium text-gray-700 mb-2">
-            Section Title *
-          </label>
-          <input
-            id="section-title"
-            type="text"
-            data-autofocus
-            value={formData.title}
-            onChange={(e) => setFormData({...formData, title: e.target.value})}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            placeholder="e.g., Introduction to React"
-            required
-          />
-        </div>
-        <div>
-          <label htmlFor="section-description" className="block text-sm font-medium text-gray-700 mb-2">
-            Description
-          </label>
-          <textarea
-            id="section-description"
-            value={formData.description}
-            onChange={(e) => setFormData({...formData, description: e.target.value})}
-            rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            placeholder="Brief description of this section"
-          />
-        </div>
-        <div>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={formData.is_preview}
-              onChange={(e) => setFormData({...formData, is_preview: e.target.checked})}
-              className="rounded border-gray-300"
+      <form onSubmit={handleSubmit} noValidate>
+        <div className="space-y-4 p-5 sm:p-6">
+          <Field label="Section Title" required>
+            <Input
+              data-autofocus
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              placeholder="e.g. Introduction to React"
             />
-            <span className="text-sm text-gray-700">Allow free preview of this section</span>
-          </label>
+          </Field>
+          <Field label="Description">
+            <Textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              rows={3}
+              placeholder="What this section covers"
+            />
+          </Field>
+          <Checkbox
+            checked={formData.is_preview}
+            onChange={(e) => setFormData({ ...formData, is_preview: e.target.checked })}
+            label="Allow free preview of this section"
+            description="Visitors can open its lectures before they enrol."
+          />
         </div>
-        <div className="flex gap-3 pt-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-          >
-            {saving ? 'Saving...' : `${section ? 'Update' : 'Create'} Section`}
-          </button>
-        </div>
+        <ModalFooter>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" loading={saving}>
+            {section ? 'Update Section' : 'Create Section'}
+          </Button>
+        </ModalFooter>
       </form>
     </Modal>
   );

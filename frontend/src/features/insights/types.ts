@@ -3,7 +3,7 @@
 //
 // Field names are the API's (snake_case): pages read the wire fields directly.  Ids of courses
 // are uuid strings; money is a JSON number in dollars; a rating of 0 means "no reviews yet".
-import type { CourseType, ISODate, ISODateTime, UUID } from '../../shared/types';
+import type { CourseStatus, CourseType, ISODate, ISODateTime, UUID } from '../../shared/types';
 
 // --- the student's home page and achievements -----------------------------------
 
@@ -178,4 +178,82 @@ export interface InstructorEarnings {
   /** The twelve newest rows. */
   recent_earnings: EarningRow[];
   earnings_model: EarningsModel;
+}
+
+// --- the instructor's analytics -------------------------------------------------
+
+/** The periods the analytics page offers, in months. */
+export type AnalyticsMonths = 3 | 6 | 12;
+
+/** The figures over all the instructor's courses; a rate or an average is ``null`` when nothing was there to compute it from. */
+export interface AnalyticsTotals {
+  courses: number;
+  published_courses: number;
+  /** Distinct learners. */
+  students: number;
+  enrollments: number;
+  /** Distinct learners active in the last seven days. */
+  active_learners: number;
+  completions: number;
+  /** Percent, one decimal. */
+  completion_rate: number | null;
+  average_progress: number | null;
+  /** Finished attempts of the quizzes of the courses. */
+  quiz_attempts: number;
+  average_quiz_score: number | null;
+  quiz_pass_rate: number | null;
+  /** Hand-ins of the assignments of the courses. */
+  submissions: number;
+  pending_submissions: number;
+  /** The instructor's earning rows, all time. */
+  earnings: number;
+  average_rating: number | null;
+}
+
+/** One calendar month of the period, oldest first. */
+export interface AnalyticsMonth {
+  /** "2026-05". */
+  month: string;
+  /** "May". */
+  label: string;
+  enrollments: number;
+  completions: number;
+  earnings: number;
+}
+
+export type ProgressBucketKey = 'not_started' | 'under_half' | 'over_half' | 'completed';
+
+/** How many learners are at a stage of their course. */
+export interface ProgressBucket {
+  key: ProgressBucketKey;
+  label: string;
+  count: number;
+}
+
+/** One course of the instructor, any status. */
+export interface CourseAnalytics {
+  id: UUID;
+  title: string;
+  status: CourseStatus;
+  course_type: CourseType;
+  thumbnail: string | null;
+  enrollments: number;
+  active_learners: number;
+  completions: number;
+  completion_rate: number | null;
+  average_progress: number | null;
+  average_quiz_score: number | null;
+  average_rating: number | null;
+  total_reviews: number;
+  revenue: number;
+}
+
+/** ``GET /insights/instructor/analytics/?months=3|6|12``. */
+export interface InstructorAnalytics {
+  months: AnalyticsMonths;
+  totals: AnalyticsTotals;
+  monthly: AnalyticsMonth[];
+  progress_distribution: ProgressBucket[];
+  /** Most enrollments first. */
+  courses: CourseAnalytics[];
 }

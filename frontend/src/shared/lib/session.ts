@@ -99,6 +99,12 @@ export const session = {
     set({ status: STATUS.authenticated, user, profile: profile || null });
   },
 
+  /** The signed-in user changed their own details (the profile form): same session, new record. */
+  update({ user, profile }: { user: User; profile?: Profile | null }): void {
+    if (state.status !== STATUS.authenticated) return;
+    set({ user, profile: profile === undefined ? state.profile : profile });
+  },
+
   /** Nobody is signed in (logout, an expired session, another tab signed out). */
   setAnonymous(): void {
     write(HINT_KEY, null);

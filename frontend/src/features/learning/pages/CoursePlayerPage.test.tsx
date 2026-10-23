@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 import http from '../../../shared/api/client';
@@ -171,4 +171,62 @@ test('a course that cannot be loaded offers another try', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
 
   expect(await screen.findByRole('heading', { name: 'Intro video' })).toBeInTheDocument();
+});
+
+test('the next and previous buttons walk through the outline', async () => {
+  mockedGet.mockResolvedValue({
+    data: payload([lecture('l-1', 'Intro video', 'video'), lecture('l-2', 'Chapter one', 'reading')]),
+  });
+  renderPlayer();
+  await screen.findByRole('heading', { name: 'Intro video' });
+  expect(screen.queryByRole('button', { name: 'Previous lecture' })).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Next lecture' }));
+
+  expect(await screen.findByRole('heading', { name: 'Chapter one' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Next lecture' })).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Previous lecture' }));
+
+  expect(await screen.findByRole('heading', { name: 'Intro video' })).toBeInTheDocument();
+});
+
+test('on a small screen the outline is a drawer that closes once a lecture is chosen', async () => {
+  mockedGet.mockResolvedValue({
+    data: payload([lecture('l-1', 'Intro video', 'video'), lecture('l-2', 'Chapter one', 'reading')]),
+  });
+  renderPlayer();
+  await screen.findByRole('heading', { name: 'Intro video' });
+
+  fireEvent.click(screen.getByRole('button', { name: 'Course content' }));
+  const drawer = screen.getByRole('dialog', { name: 'Course content' });
+  fireEvent.click(within(drawer).getByRole('button', { name: /Chapter one/ }));
+
+  expect(await screen.findByRole('heading', { name: 'Chapter one' })).toBeInTheDocument();
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+test('a section of the outline folds away', async () => {
+  mockedGet.mockResolvedValue({ data: payload([lecture('l-1', 'Intro video', 'video')]) });
+  renderPlayer();
+  await screen.findByRole('heading', { name: 'Intro video' });
+  const section = screen.getByRole('button', { name: /Basics/ });
+  expect(section).toHaveAttribute('aria-expanded', 'true');
+
+  fireEvent.click(section);
+
+  expect(section).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.queryByRole('button', { name: /Intro video/ })).not.toBeInTheDocument();
+});
+
+test('a reading that comes with a document links to the file', async () => {
+  const reading = { ...lecture('l-1', 'Chapter one', 'reading'), file_url: '/media/readings/notes.pdf' } as PlayerLecture;
+  mockedGet.mockResolvedValue({ data: payload([reading]) });
+  renderPlayer();
+
+  expect(await screen.findByRole('link', { name: 'Open the document' })).toHaveAttribute(
+    'href',
+    'http://localhost:8000/media/readings/notes.pdf'
+  );
+  expect(screen.getByText('Chapter one', { selector: 'p' })).toBeInTheDocument();
 });
