@@ -1,4 +1,4 @@
-# Secret scanning (CI job "Secret scan"). The default rules plus two allowances.
+# Secret scanning (CI job "Secret scan"). The default rules plus three allowances.
 [extend]
 useDefault = true
 
@@ -15,3 +15,12 @@ description = "Made-up password of a registration test (not a credential)"
 condition = "AND"
 paths = ['''backend/tests/test_input_handling\.py$''']
 regexes = ['''Str0ng-Passw0rd-xyz''']
+
+# The new password of the password-change tests.  It has to be a literal that Django's
+# validators accept (long, mixed, not a common password), which is exactly what the generic
+# rule takes for a secret; it is made up and is no credential anywhere.
+[[allowlists]]
+description = "Made-up new password of the account settings tests (not a credential)"
+condition = "AND"
+paths = ['''backend/tests/test_account_settings\.py$''']
+regexes = ['''An0ther-Str0ng-Passw0rd''']
