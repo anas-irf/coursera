@@ -39,7 +39,7 @@ Besides `ci.yml`: `codeql.yml` (code scanning, results under *Security*), `secur
 | Frontend security | a package that ships to the browser has a high or critical advisory (the build toolchain is summarised, not gated) | `cd frontend && node ../.github/scripts/audit-runtime-dependencies.mjs` |
 | Dependency review | the pull request adds a dependency with a high advisory | – |
 
-Coverage is a floor, not a goal: the backend sits at ~93 %, the frontend at ~66 %. Raise
+Coverage is a floor, not a goal: the backend sits at ~96 %, the frontend at ~85 %. Raise
 `fail_under` in `backend/.coveragerc` and `coverageThreshold` in `frontend/package.json` when the
 numbers grow; never lower them to make a pull request pass.
 

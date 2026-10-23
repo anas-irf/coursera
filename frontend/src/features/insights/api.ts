@@ -1,6 +1,8 @@
 import api from '../../shared/api/client';
 import type {
   Achievements,
+  AnalyticsMonths,
+  InstructorAnalytics,
   InstructorDashboard,
   InstructorEarnings,
   StudentStats,
@@ -23,3 +25,9 @@ export const fetchInstructorDashboard = (): Promise<InstructorDashboard> =>
 
 export const fetchInstructorEarnings = (): Promise<InstructorEarnings> =>
   api.get<InstructorEarnings>('/insights/instructor/earnings/').then((response) => response.data);
+
+/** Learners, completions, quizzes and earnings of the instructor's courses over the last ``months``. */
+export const fetchInstructorAnalytics = (months: AnalyticsMonths): Promise<InstructorAnalytics> =>
+  api
+    .get<InstructorAnalytics>('/insights/instructor/analytics/', { params: { months } })
+    .then((response) => response.data);

@@ -61,6 +61,24 @@ def test_a_column_that_only_holds_its_default_is_dropped(state, editor, student)
     assert editor.remove_field.call_count == 2
 
 
+def test_a_file_column_without_files_is_dropped(state, editor, instructor):
+    # a FileField saves '' when it has no file, even when it allows NULL: that is not data
+    f.make_video(f.make_section(f.make_course(instructor)))
+
+    GuardedRemoveField('videocontent', 'video_file').database_forwards('content', editor, state, state)
+
+    editor.remove_field.assert_called_once()
+
+
+def test_a_file_column_holding_a_file_is_not_dropped(state, editor, instructor):
+    f.make_video(f.make_section(f.make_course(instructor)), video_file='lectures/videos/intro.mp4')
+
+    with pytest.raises(DataStillPresent, match=r'videocontent\.video_file holds a value in 1 row'):
+        GuardedRemoveField('videocontent', 'video_file').database_forwards('content', editor, state, state)
+
+    editor.remove_field.assert_not_called()
+
+
 def test_migrations_that_drop_things_use_the_guards():
     """A migration called ``*_drop_*`` must not contain a plain DeleteModel or RemoveField."""
     plain = (migrations.DeleteModel, migrations.RemoveField)

@@ -35,7 +35,8 @@ except ImproperlyConfigured as error:
     sys.exit(0)
 names = ['DEBUG', 'SECRET_KEY', 'ALLOWED_HOSTS', 'CORS_ALLOWED_ORIGINS', 'FRONTEND_URL',
          'SECURE_SSL_REDIRECT', 'SECURE_PROXY_SSL_HEADER', 'SECURE_HSTS_SECONDS',
-         'SESSION_COOKIE_SECURE', 'CSRF_COOKIE_SECURE', 'AUTH_COOKIE_SECURE']
+         'SESSION_COOKIE_SECURE', 'CSRF_COOKIE_SECURE', 'AUTH_COOKIE_SECURE',
+         'DEMO_MODE', 'SERVE_MEDIA', 'INSTALLED_APPS']
 print(json.dumps({name: getattr(module, name, None) for name in names}))
 """
 
@@ -122,3 +123,21 @@ def test_development_needs_no_configuration(package):
     assert settings['ALLOWED_HOSTS'] == ['localhost', '127.0.0.1']
     assert 'http://localhost:3000' in settings['CORS_ALLOWED_ORIGINS']
     assert settings['SESSION_COOKIE_SECURE'] is None  # Django's own default: off
+
+
+def test_production_is_no_demo_unless_asked_and_then_can_be_seeded(package):
+    plain = load(package, **VALID)
+
+    assert plain['DEMO_MODE'] is False and plain['SERVE_MEDIA'] is False
+    assert 'apps.seeding' not in plain['INSTALLED_APPS']
+
+    demo = load(package, **VALID, DEMO_MODE='True', SERVE_MEDIA='True')
+
+    assert demo['DEMO_MODE'] is True and demo['SERVE_MEDIA'] is True
+    assert demo['INSTALLED_APPS'][-1] == 'apps.seeding'
+    assert demo['SECURE_SSL_REDIRECT'] is True            # a demo is still served over HTTPS only
+
+
+def test_development_runs_as_a_demo_unless_told_otherwise(package):
+    assert load(package, module='config.settings.dev')['DEMO_MODE'] is True
+    assert load(package, module='config.settings.dev', DEMO_MODE='False')['DEMO_MODE'] is False

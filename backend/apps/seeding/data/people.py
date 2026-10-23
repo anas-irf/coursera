@@ -39,7 +39,7 @@ ADMINS = (
     Person('demo.admin@example.com', 'admin', 'Demo', 'Admin', superuser=True, joined=170, login=0,
            country='United Kingdom', city='London',
            bio='Runs the platform: reviews course submissions and looks after the accounts.',
-           story='Superuser: approves and rejects courses, sees every list and the sample reports'),
+           story='Superuser: approves and rejects courses, sees every list, the revenue and the reports'),
     Person('priya.nair@example.com', 'admin', 'Priya', 'Nair', joined=120, login=2,
            country='India', city='Bengaluru',
            bio='Content moderator. Reviews new courses against the publishing guidelines.',

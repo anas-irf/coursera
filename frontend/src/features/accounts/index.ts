@@ -1,2 +1,3 @@
 export { default as LoginPage } from './pages/LoginPage';
-export { default as InstructorSettingsPage } from './pages/InstructorSettingsPage';
+export { default as AccountPage } from './pages/AccountPage';
+export { default as DemoSwitcher } from './components/DemoSwitcher';

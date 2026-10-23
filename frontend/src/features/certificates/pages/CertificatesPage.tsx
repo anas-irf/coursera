@@ -1,26 +1,112 @@
 import React from 'react';
-import { Award, ExternalLink } from 'lucide-react';
+import { Award, BookOpen, Copy, ExternalLink } from 'lucide-react';
 
 import { formatDate } from '../../../shared/lib/time';
+import { Button, ButtonAnchor, ButtonLink } from '../../../shared/ui/Button';
+import { Card } from '../../../shared/ui/Card';
 import EmptyState from '../../../shared/ui/EmptyState';
 import ErrorState from '../../../shared/ui/ErrorState';
+import { PageHeader } from '../../../shared/ui/PageHeader';
 import { PageSpinner } from '../../../shared/ui/Spinner';
+import { useToast } from '../../../shared/ui/Toast';
 import { useCertificates } from '../hooks/useCertificates';
+import type { Certificate } from '../types';
+
+const HEADER = (
+  <PageHeader
+    title="My Certificates"
+    description="Credentials you earned by completing and passing courses. Anyone with the link can verify them."
+  />
+);
+
+/** One certificate, drawn like one: the course, the grade, the credential and its public link. */
+const CertificateCard = ({ certificate }: { certificate: Certificate }) => {
+  const toast = useToast();
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(certificate.verification_url);
+      toast.success('Anyone can open it to check the certificate.', 'Link copied');
+    } catch (error) {
+      toast.error('The link could not be copied. Open the certificate and copy its address instead.', 'Not copied');
+    }
+  };
+
+  return (
+    <Card as="article" aria-label={certificate.course_title} className="flex flex-col overflow-hidden">
+      <div className="relative h-24 shrink-0 overflow-hidden bg-gradient-to-br from-brand-600 to-brand-900">
+        <div className="bg-dots absolute inset-0 opacity-60" aria-hidden="true" />
+        <div className="absolute -right-8 -top-12 h-36 w-36 rounded-full bg-white/10" aria-hidden="true" />
+        <p className="relative px-5 pt-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-100">
+          Certificate of completion
+        </p>
+        <span className="absolute bottom-3 right-5 flex h-12 w-12 items-center justify-center rounded-full bg-surface text-warning-fg shadow-card ring-4 ring-white/20">
+          <Award size={24} aria-hidden="true" />
+        </span>
+      </div>
+
+      <div className="flex flex-1 flex-col p-5">
+        <h3 className="text-lg font-semibold leading-snug text-fg">{certificate.course_title}</h3>
+        <p className="mt-0.5 text-sm text-fg-muted">by {certificate.instructor}</p>
+
+        <dl className="mt-4 space-y-2 border-t border-line pt-4 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <dt className="text-fg-muted">Issued</dt>
+            <dd className="font-medium text-fg">{formatDate(certificate.issue_date)}</dd>
+          </div>
+          {certificate.grade !== null && (
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-fg-muted">Grade</dt>
+              <dd className="font-semibold text-success-fg tabular-nums">{certificate.grade}%</dd>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-3">
+            <dt className="text-fg-muted">Credential ID</dt>
+            <dd className="truncate font-mono text-xs text-fg">{certificate.certificate_id}</dd>
+          </div>
+        </dl>
+
+        <div className="mt-auto flex flex-col gap-2 pt-5 sm:flex-row">
+          <ButtonAnchor
+            href={certificate.verification_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            icon={ExternalLink}
+            className="flex-1"
+          >
+            Verify Certificate
+          </ButtonAnchor>
+          <Button variant="secondary" icon={Copy} onClick={copyLink}>
+            Copy link
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+};
 
 const CertificatesPage = () => {
   const query = useCertificates();
 
   if (query.isPending) {
-    return <PageSpinner />;
+    return (
+      <div className="space-y-6">
+        {HEADER}
+        <PageSpinner className="h-64" />
+      </div>
+    );
   }
 
   if (query.isError) {
     return (
-      <ErrorState
-        title="Your certificates could not be loaded"
-        error={query.error}
-        onRetry={() => query.refetch()}
-      />
+      <div className="space-y-6">
+        {HEADER}
+        <ErrorState
+          title="Your certificates could not be loaded"
+          error={query.error}
+          onRetry={() => query.refetch()}
+        />
+      </div>
     );
   }
 
@@ -28,51 +114,25 @@ const CertificatesPage = () => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 text-white">
-        <h1 className="text-2xl font-bold mb-2">My Certificates</h1>
-        <p className="text-indigo-100">Your earned certificates and credentials</p>
-      </div>
+      {HEADER}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {certificates.map((cert) => (
-          <div key={cert.id} className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">{cert.course_title}</h3>
-              <p className="text-sm text-gray-600">by {cert.instructor}</p>
-            </div>
-
-            <div className="space-y-2 mb-4">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Issued:</span>
-                <span className="font-medium">{formatDate(cert.issue_date)}</span>
-              </div>
-              {cert.grade !== null && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Grade:</span>
-                  <span className="font-medium text-green-600">{cert.grade}%</span>
-                </div>
-              )}
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Credential ID:</span>
-                <span className="font-mono text-xs">{cert.certificate_id}</span>
-              </div>
-            </div>
-
-            <a
-              href={cert.verification_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center"
-            >
-              <ExternalLink size={16} className="mr-2" />
-              Verify Certificate
-            </a>
-          </div>
-        ))}
-      </div>
-
-      {certificates.length === 0 && (
-        <EmptyState icon={Award} title="No certificates yet">
+      {certificates.length > 0 ? (
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {certificates.map((certificate) => (
+            <CertificateCard key={certificate.id} certificate={certificate} />
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon={Award}
+          title="No certificates yet"
+          className="rounded-xl border border-dashed border-line-strong py-16"
+          action={
+            <ButtonLink to="/student/my-learning" variant="secondary" icon={BookOpen}>
+              Go to My Learning
+            </ButtonLink>
+          }
+        >
           Complete courses to earn your first certificate!
         </EmptyState>
       )}

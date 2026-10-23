@@ -1,7 +1,9 @@
 import React from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, RotateCw } from 'lucide-react';
 
 import { errorMessage } from '../api/errors';
+import { cn } from '../lib/cn';
+import { Button } from './Button';
 
 interface ErrorStateProps {
   /** The failure (an axios error, a query's ``error``); only its message is shown. */
@@ -21,17 +23,16 @@ interface ErrorStateProps {
  */
 export function ErrorState({ error, title = 'Something went wrong', onRetry, className = 'py-12' }: ErrorStateProps) {
   return (
-    <div role="alert" className={`text-center ${className}`}>
-      <AlertTriangle size={40} className="mx-auto text-red-400 mb-3" />
-      <h3 className="text-lg font-medium text-gray-900 mb-1">{title}</h3>
-      <p className="text-gray-500 mb-4">{errorMessage(error, 'Please try again in a moment.')}</p>
+    <div role="alert" className={cn('flex flex-col items-center justify-center px-6 text-center', className)}>
+      <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-danger-soft text-danger-fg ring-8 ring-danger-soft/40">
+        <AlertTriangle size={22} aria-hidden="true" />
+      </span>
+      <h3 className="text-base font-semibold text-fg">{title}</h3>
+      <p className="mt-1 max-w-md text-sm text-fg-muted">{errorMessage(error, 'Please try again in a moment.')}</p>
       {onRetry && (
-        <button
-          onClick={onRetry}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-        >
+        <Button variant="secondary" size="sm" icon={RotateCw} onClick={onRetry} className="mt-5">
           Try again
-        </button>
+        </Button>
       )}
     </div>
   );

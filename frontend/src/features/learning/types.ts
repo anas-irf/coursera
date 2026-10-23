@@ -42,6 +42,13 @@ export interface CatalogCourse {
   progress: number;
 }
 
+/** A category the catalogue can be filtered by (``GET /courses/categories/``); the filter sends ``slug``. */
+export interface CatalogCategory {
+  id: number;
+  name: string;
+  slug: string;
+}
+
 /** A page of the catalogue with how many courses match in all: built here from ``X-Total-Count``. */
 export interface CatalogPage {
   items: CatalogCourse[];

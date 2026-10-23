@@ -1,30 +1,28 @@
 import React, { useState } from 'react';
 import type { UseQueryResult } from '@tanstack/react-query';
-import {
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  Download,
-  Eye,
-  FileText,
-  GraduationCap,
-  Search,
-  Star,
-  Users,
-} from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronRight, Clock, Download, FileText, Star, Users } from 'lucide-react';
 
+import { cn } from '../../../shared/lib/cn';
 import { formatDateTime } from '../../../shared/lib/time';
 import type { UUID } from '../../../shared/types';
+import Avatar from '../../../shared/ui/Avatar';
+import { Badge } from '../../../shared/ui/Badge';
+import type { Tone } from '../../../shared/ui/Badge';
+import { IconButton } from '../../../shared/ui/Button';
+import { Card } from '../../../shared/ui/Card';
+import EmptyState from '../../../shared/ui/EmptyState';
 import ErrorState from '../../../shared/ui/ErrorState';
+import { SearchInput, Select } from '../../../shared/ui/Input';
 import { PageSpinner } from '../../../shared/ui/Spinner';
 import { isSubmissionFilter, submissionStatus, visibleSubmissions } from '../lib/submissions';
 import type { SubmissionFilter, SubmissionTone } from '../lib/submissions';
 import type { AssignmentRow, InstructorSubmission } from '../types';
 
-const TONES: Record<SubmissionTone, string> = {
-  graded: 'bg-green-100 text-green-800',
-  late: 'bg-red-100 text-red-800',
-  pending: 'bg-yellow-100 text-yellow-800',
+/** The badge tone of each state of a hand-in. */
+export const SUBMISSION_TONES: Record<SubmissionTone, Tone> = {
+  graded: 'success',
+  late: 'danger',
+  pending: 'warning',
 };
 
 interface SubmissionListProps {
@@ -45,140 +43,121 @@ const SubmissionList = ({ assignment, query, selectedId, onSelect, onDownload }:
 
   const submissions = query.data || [];
   const shown = visibleSubmissions(submissions, { status, search });
+  const graded = submissions.filter((submission) => submission.grade !== null).length;
 
   return (
-    <div className="bg-white rounded-lg shadow">
-      <div className="p-4 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">{assignment.title}</h2>
-            <p className="text-sm text-gray-600">{assignment.course_title}</p>
+    <Card className="overflow-hidden">
+      <div className="border-b border-line px-5 py-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-fg">{assignment.title}</h2>
+            <p className="mt-0.5 text-sm text-fg-muted">{assignment.course_title}</p>
           </div>
-          <div className="flex items-center space-x-4 text-sm">
-            <span className="flex items-center text-blue-600">
-              <Users size={16} className="mr-1" />
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+            <Badge tone="primary" icon={Users}>
               {submissions.length} submissions
-            </span>
-            <span className="flex items-center text-green-600">
-              <CheckCircle size={16} className="mr-1" />
-              {submissions.filter((submission) => submission.grade !== null).length} graded
-            </span>
+            </Badge>
+            <Badge tone="success" icon={CheckCircle2}>
+              {graded} graded
+            </Badge>
           </div>
         </div>
 
-        {/* Filters and Search */}
-        <div className="flex flex-col sm:flex-row gap-4 mt-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search students..."
-                aria-label="Search students"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-          <select
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <SearchInput
+            label="Search students"
+            placeholder="Search students..."
+            value={search}
+            onChange={setSearch}
+            className="flex-1"
+          />
+          <Select
             aria-label="Show"
             value={status}
             onChange={(e) => {
               const chosen = e.target.value;
               if (isSubmissionFilter(chosen)) setStatus(chosen);
             }}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="sm:w-52"
           >
             <option value="all">All Submissions</option>
             <option value="pending">Pending Review</option>
             <option value="graded">Graded</option>
             <option value="late">Late Submissions</option>
-          </select>
+          </Select>
         </div>
       </div>
 
-      {query.isPending && <PageSpinner className="py-12" color="border-blue-600" />}
+      {query.isPending && <PageSpinner className="h-48" />}
 
       {query.isError && (
-        <ErrorState
-          title="We could not load the submissions"
-          error={query.error}
-          onRetry={() => query.refetch()}
-        />
+        <ErrorState title="We could not load the submissions" error={query.error} onRetry={() => query.refetch()} />
       )}
 
       {query.isSuccess && shown.length === 0 && (
-        <div className="p-12 text-center text-gray-500">
-          <FileText size={48} className="mx-auto text-gray-300 mb-4" />
-          <p>No submissions found</p>
-          <p className="text-sm mt-1">
-            {search ? 'Try adjusting your search' : 'No students have submitted this assignment yet.'}
-          </p>
-        </div>
+        <EmptyState icon={FileText} title="No submissions found" className="py-12">
+          {search ? 'Try adjusting your search' : 'No students have submitted this assignment yet.'}
+        </EmptyState>
       )}
 
       {query.isSuccess && shown.length > 0 && (
-        <div className="divide-y divide-gray-200">
+        <ul className="divide-y divide-line">
           {shown.map((submission) => {
             const { label, tone } = submissionStatus(submission);
+            const selected = selectedId === submission.id;
             return (
-              <div
+              <li
                 key={submission.id}
-                className={`flex items-center justify-between hover:bg-gray-50 transition-colors ${
-                  selectedId === submission.id ? 'bg-blue-50 border-r-4 border-r-blue-500' : ''
-                }`}
+                className={cn('flex items-center gap-2 pr-3 transition-colors', selected ? 'bg-primary-soft/60' : 'hover:bg-surface-muted/60')}
               >
                 <button
+                  type="button"
                   onClick={() => onSelect(submission)}
-                  className="flex-1 flex items-center space-x-4 p-4 text-left"
+                  className="flex min-w-0 flex-1 items-center gap-3 py-3.5 pl-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                   aria-label={`Open the submission of ${submission.student_name}`}
                 >
-                  <div className="flex-shrink-0">
-                    <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                      <GraduationCap size={20} className="text-gray-600" />
+                  <Avatar name={submission.student_name} className="h-9 w-9 text-xs" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="truncate text-sm font-medium text-fg">{submission.student_name}</h3>
+                      <Badge tone={SUBMISSION_TONES[tone]} dot>
+                        {label}
+                      </Badge>
+                      {submission.is_late && tone !== 'late' && (
+                        <AlertTriangle size={14} aria-label="Handed in late" role="img" className="text-danger-fg" />
+                      )}
                     </div>
-                  </div>
-
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2">
-                      <h3 className="font-medium text-gray-900">{submission.student_name}</h3>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${TONES[tone]}`}>{label}</span>
-                      {submission.is_late && <AlertTriangle size={16} className="text-red-500" />}
-                    </div>
-
-                    <div className="flex items-center space-x-4 mt-1 text-sm text-gray-600">
-                      <span className="flex items-center">
-                        <Clock size={12} className="mr-1" />
+                    <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fg-subtle">
+                      <span className="flex items-center gap-1">
+                        <Clock size={12} aria-hidden="true" />
                         {formatDateTime(submission.submitted_at)}
                       </span>
                       {submission.grade !== null && (
-                        <span className="flex items-center text-green-600">
-                          <Star size={12} className="mr-1" />
+                        <span className="flex items-center gap-1 font-medium text-success-fg">
+                          <Star size={12} aria-hidden="true" />
                           {submission.grade}/{assignment.max_points} pts
                         </span>
                       )}
                     </div>
                   </div>
-                  <Eye size={16} className="text-gray-400" />
+                  <ChevronRight size={16} aria-hidden="true" className="shrink-0 text-fg-subtle" />
                 </button>
 
                 {submission.has_file && (
-                  <button
-                    onClick={() => onDownload(submission)}
-                    className="p-2 mr-4 text-blue-600 hover:bg-blue-100 rounded-full transition-colors"
+                  <IconButton
+                    icon={Download}
+                    size="sm"
+                    label={`Download the file of ${submission.student_name}`}
                     title="Download submission file"
-                    aria-label={`Download the file of ${submission.student_name}`}
-                  >
-                    <Download size={16} />
-                  </button>
+                    onClick={() => onDownload(submission)}
+                  />
                 )}
-              </div>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
-    </div>
+    </Card>
   );
 };
 

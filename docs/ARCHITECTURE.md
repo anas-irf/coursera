@@ -22,7 +22,7 @@ docs/       this file
 | Engagement | `messaging`, `notifications` | `discussions`, `notifications` | direct messages (REST and WebSocket), notifications | `features/messaging`, `features/notifications` |
 | Recognition | `certificates` | `certificates` | certificates (listing) | `features/certificates` |
 | Insight | `insights` | `analytics` | read models across slices: dashboards, earnings, student statistics, achievements, admin user directory | `features/insights`, `features/admin` |
-| Tooling | `seeding` | `seeding` | no models: `seed_demo`, `seed_dev` (development data), `create_dev_database`; installed by the dev and test settings only | |
+| Tooling | `seeding` | `seeding` | no models: `seed_demo`, `seed_dev` (development data), `create_dev_database`; installed by the dev and test settings, and by the production settings only in demo mode | |
 
 The database app labels are pinned in each `AppConfig.label`: the packages were renamed after the slices, the tables and migrations were not. `db_table` is set on every model.
 
@@ -77,9 +77,11 @@ The player's heartbeat (`POST /learning/courses/<c>/lectures/<l>/progress/`) sto
 
 The browser's JWT pair lives in two `HttpOnly` cookies (`AUTH_COOKIE_*`): the access token at path `/` (the WebSocket needs it) and the refresh token at `/api/`. Login sets them; token refresh rotates them (a browser gets `204` and never sees a token); logout is authenticated by the refresh token, blacklists it and always clears both cookies. Because a browser attaches cookies to requests made by any page, a request that **changes data** and is authenticated by the cookie must come from our own front end: it carries `X-Requested-With` and an `Origin` that is in `CORS_ALLOWED_ORIGINS` (a bearer header, which a page has to know, needs neither). The app and the API must be on one site (`localhost` for both in development, `app.` and `api.` of one domain in production). Scripts and mobile clients keep using `Authorization: Bearer` and may ask for tokens in the body with `X-Auth-Transport: bearer`; while `AUTH_LEGACY_TOKEN_TRANSPORT` is on (the default) login answers also carry the token pair and the refresh endpoint accepts it in the body, which is how the release before cookies moves its session over. Turn it off once nothing of that is left.
 
+**Changing the password** (`POST /auth/password/`) needs the current one, blacklists every refresh token the user holds and hands the browser that asked a fresh pair, so every other session ends when its access token runs out. **Demo mode** (`DEMO_MODE`, a portfolio demo of the seeded world) adds a one-click sign-in: `GET /auth/demo/` lists the accounts of `DEMO_ACCOUNTS` that exist and are active, `POST /auth/demo/login/` signs a visitor in to one of them exactly like the login endpoint, and those accounts refuse a password change (403, `code: demo_account`) so that every visitor can use them. Outside demo mode the list is empty and the sign-in is a 404.
+
 ## Billing and earnings
 
-**Plans.** `billing/plans.py` is where a Coursera Plus plan is written down: the active `SubscriptionPlan` row of a cycle (`monthly` / `yearly`) is what the checkout page lists and what Stripe is asked to charge, and until a row exists the built-in default of the cycle is used. Nothing else holds a price.
+**Plans.** `billing/plans.py` is where a Coursera Plus plan is written down: the active `SubscriptionPlan` row of a cycle (`monthly` / `yearly`) is what the checkout page lists and what Stripe is asked to charge, and until a row exists the built-in default of the cycle is used. Nothing else holds a price. An administrator changes a plan's name, wording and price through `PUT /billing/admin/plans/<cycle>/` (`services/pricing.py`); the first change writes both built-in plans down, so the other cycle stays on sale, and a new price applies to new checkouts only (Stripe keeps charging an existing subscription what it was sold for).
 
 **Webhook.** `/api/payments/stripe/webhook/` accepts nothing it cannot verify: without `STRIPE_WEBHOOK_SECRET` it answers 503 and never parses the body. Subscribe the endpoint to `checkout.session.completed`, `invoice.payment_succeeded`, `invoice.payment_failed`, `customer.subscription.updated` and `customer.subscription.deleted`. Handlers are atomic and idempotent (a payment is recorded once per Stripe transaction: the payment intent, the checkout session, or `<invoice>:<attempt>` for a failed attempt) and a failure answers 5xx so that Stripe delivers the event again. A renewal moves `end_date` to the period end Stripe reports (else one plan period); the first payment of a subscription is the checkout's, not a renewal.
 
@@ -90,6 +92,8 @@ The browser's JWT pair lives in two `HttpOnly` cookies (`AUTH_COOKIE_*`): the ac
 ## Certificates
 
 `certificates` sits above `assessments` (it needs the weighted grade). A certificate is issued by the application when the enrollment is **completed** and the weighted grade reaches `COURSE_PASSING_GRADE`; hand-ins still waiting for the instructor's grade postpone the decision, and a course with nothing graded certifies on completion. Because the course usually completes before the last grade arrives, three events ask the same idempotent question (`services.issue_if_eligible`): the course completed, an assignment graded, a quiz attempt finished (a retake can lift the grade). One enrollment has at most one certificate and its number never changes; numbers and verification codes are random (`secrets`). `python manage.py issue_certificates [--dry-run] [--notify]` issues the ones earned before this existed (silently unless asked).
+
+A certificate's `verification_url` is the page `/verify/<code>` of the React app (`FRONTEND_URL`), which reads `GET /certificates/verify/<code>/`: the one public route of the slice, answering the learner's name, the course, the instructor, the date and the grade to anybody who holds the code (80 random bits, so it cannot be guessed from a student or a course).
 
 ## Assessments
 
@@ -118,13 +122,18 @@ secure cookies. `tests/test_settings_prod.py` imports it in a subprocess on a co
 `manage.py check --deploy` against it. The frontend's `pnpm run build` stops without `REACT_APP_API_URL`
 (`frontend/scripts/require-env.js`).
 
+`DEMO_MODE` (on in `dev.py`, off unless set in production) runs the instance as a portfolio demo (see
+*Sessions*); in production it also installs the seeding tools, so the demo database is filled once with
+`seed_dev --force`. `SERVE_MEDIA` lets Django serve `/media/` with `DEBUG` off (`config/urls.py`), for a demo
+that runs as one process; a real deployment serves the uploads from its proxy or object storage.
+
 ## HTTP and WebSocket surface
 
 Every slice is mounted at `/api/v1/<slice>/`: `auth`, `courses`, `learning`, `assessments`, `billing`, `insights`, `certificates`, `messaging`, `notifications`. The unversioned `/api/<slice>/` paths of the first release stay as aliases while `API_LEGACY_ALIASES` is on: they reach the same views and answer with `Deprecation` and `Link` headers (and `Sunset` when `API_LEGACY_SUNSET` is set), and every use is logged so the day to switch them off is chosen from data. **v1 is frozen**: paths, methods, JSON keys and value types, the `{error}` / `{detail}` / field-map error shapes and the status codes of working flows do not change inside it; endpoints, keys and optional parameters may be added. The one path outside the scheme is Stripe's webhook, `/api/payments/stripe/webhook/`, which is configured in the Stripe dashboard and is neither versioned nor aliased.
 
 **What every endpoint inherits** (`REST_FRAMEWORK` in `config/settings/base.py`):
 
-* **Closed by default.** `DEFAULT_PERMISSION_CLASSES` is `IsAuthenticated`, so a view that forgets to declare its permissions is closed. The anonymous routes are exactly the five in `tests/test_public_surface.py` (login, signup, logout, token refresh, the public catalogue and Stripe's webhook); opening another is a change to that list. Role checks are permission classes (`IsStudent`, `IsInstructor`, `IsAdmin`), not `if user.user_type` lines in a view.
+* **Closed by default.** `DEFAULT_PERMISSION_CLASSES` is `IsAuthenticated`, so a view that forgets to declare its permissions is closed. The anonymous routes are exactly the ones in `tests/test_public_surface.py` (login, signup, logout, token refresh, the demo accounts and the demo sign-in, the public catalogue, certificate verification and Stripe's webhook); opening another is a change to that list. Role checks are permission classes (`IsStudent`, `IsInstructor`, `IsAdmin`), not `if user.user_type` lines in a view.
 * **Throttled.** Scoped DRF throttles on a shared cache (Redis when `REDIS_URL` is set): `login`, `signup` and `refresh` per client address, `messages` and `uploads` per user, plus broad `anon` / `user` rates, all from `THROTTLE_*` variables. `NUM_PROXIES` says how many reverse proxies sit in front, so the client address is the right hop of `X-Forwarded-For`. A scope ignores the path, so `/api/v1/` and its alias share one bucket; a throttled call is a 429 with `Retry-After`.
 * **One error contract.** A service raises `ServiceError` (`NotFound` and `PermissionDenied` are its subclasses) and the handler in `apps/core/api/errors.py` answers `{"error": ...}`; DRF's own exceptions keep their `{"detail": ...}` and field-map shapes. Anything else is a bug: the traceback is logged and the client gets `{"error": "Something went wrong on our side. ...", "code": "server_error"}` with status 500, never the exception text. Views therefore do not wrap themselves in `except Exception`; one that must translate a specific failure catches that one (`StripeError`). Bad input is a 400, not a 500: `int_param()` and `object_body()` (`apps/core/api/params.py`) read query parameters and JSON bodies defensively.
 * **Pagination is opt-in.** The bare array is the v1 contract, so `?page=2&page_size=20` (at most 100) selects a page and nothing else changes. Every list answers `X-Total-Count`; a paged answer carries `Link` with `rel="next"` / `"prev"`; both are exposed to browsers through `CORS_EXPOSE_HEADERS`. The public catalogue has always answered its first 20 courses, so that is its default page (`apps/core/api/pagination.py`).
@@ -137,18 +146,33 @@ WebSockets: `/ws/user/` (everything addressed to the user) and `/ws/chat/<conver
 
 ```
 src/
-  app/        App.tsx (providers, route table, lazy routes), guards, layouts (student / instructor / admin)
-  shared/     api/ (the one HTTP client, error helpers), auth/, query/ (the cache), lib/ (session, media,
-              time, money, grade weights, hooks), ui/ (Modal, Toast, ConfirmDialog, ErrorState, EmptyState,
-              Avatar, CourseThumbnail, StatusBadge, Spinner)
+  app/        App.tsx (providers, route table, lazy routes), guards, layouts (AppShell: the frame of every
+              signed-in page; student / instructor / admin are its navigation), pages/ (screens made of
+              two features)
+  shared/     api/ (the one HTTP client, error helpers), auth/ (session, demo sign-in), query/ (the cache),
+              theme/ (light / dark / system), lib/ (session, media, time, money, grade weights, hooks),
+              ui/ (the component kit: docs/DESIGN.md), brand.ts (the product's name, in one place)
   features/<slice>/
               api.ts  types.ts  hooks/  lib/  pages/  components/  index.ts
 ```
 
+* **One look.** Every colour is a design token (CSS variables in `src/index.css`, mapped to class names in
+  `tailwind.config.js`), with one set of values for the light theme and one for the dark theme; pages are built
+  from the kit in `shared/ui` and use no raw palette colours. [DESIGN.md](DESIGN.md) is the guide: tokens,
+  components, page anatomy, responsive rules. The theme is the user's choice (light, dark or the system's),
+  kept in `localStorage` and applied before the first paint by a script in `public/index.html`.
+* **One shell.** `app/layouts/AppShell.tsx` draws the navigation (a sidebar from `lg`, a drawer below), the
+  top bar (breadcrumb, demo role switch, theme, notifications, account menu) and the page. The three role
+  layouts only pass their navigation and extras (the Plus card of a student, the approval count of an admin).
+* **Demo mode in the browser.** The login page asks `GET /auth/demo/` and, when the server runs in demo mode,
+  offers one click into each role; a demo account can switch roles from the top bar. The query cache belongs
+  to whoever is signed in: `QueryProvider` empties it when the user changes, so a role switch never shows the
+  previous account's data.
+
 * **One client.** `shared/api/client.ts` sends the session cookies (`withCredentials`) and `X-Requested-With`, refreshes the session once on a 401 (concurrent requests, across tabs through `navigator.locks`, share the refresh) and replays the request. If the refresh fails it asks for the profile once, because another tab may have refreshed, and only then ends the session; `AuthProvider` sends the user to the login page.
 * **One session.** `shared/lib/session.ts` holds who is signed in and the status (`unknown` while the server is asked, `authenticated`, `anonymous`, `unavailable` when it cannot be reached) in memory; the tokens are HttpOnly cookies the page cannot read. Only a *hint* that this browser has a session is stored, which also tells other tabs about a login or a logout. Guards show a spinner while the status is `unknown` and never treat `unavailable` as signed out. A session left in `localStorage` by the release before cookies is exchanged once and removed.
 * **Real URLs.** `/student/...`, `/instructor/...`, `/admin/...` and `/courses/:id/learn`. The backend's notification links (`/instructor/courses`, `/admin/courses/approvals`, ...) are routes; `/student/dashboard`, `/instructor/dashboard`, `/admin/dashboard` and `/admindashboard` redirect.
-* **Media** is loaded from the API host through `mediaUrl()`; the WebSocket base comes from `REACT_APP_WS_URL` or the API URL.
+* **Media** is loaded from the API host through `mediaUrl()`; the WebSocket base comes from `REACT_APP_WS_URL` or the API URL. `REACT_APP_API_URL` may be a path (`/api/v1`) when the app and the API are served by one origin: requests, media and WebSockets then go to the page's own host.
 
 * **Server state is one cache** (`shared/query`, TanStack Query). A key is `[feature, resource, params]`; a hook per resource lives in `features/<slice>/hooks`; a mutation invalidates by prefix, so every screen showing the thing changes together (enrolling refreshes my courses, the catalogue and the home page; approving a course updates the approval queue and the sidebar badge, which are one entry). A failed query is retried once (not on a 4xx) and then **reported**: every screen has a loading, an error (`ErrorState`, with a retry) and an empty state (`EmptyState`), and a figure that could not be loaded is shown as "-", never as 0. The auth session is not server state and stays in `shared/lib/session.ts`.
 * **Lists are paged where they can grow**: the catalogue loads twelve courses at a time ("Load more", `X-Total-Count`); My courses fetches the student's courses once and filters ("In Progress", "Completed", "All").
@@ -157,7 +181,7 @@ src/
 * **Dialogs are one component** (`shared/ui/Modal`): a named `role="dialog"`, Escape closes the top-most, Tab stays inside, focus returns to the opener, the page behind does not scroll.
 * **TypeScript, strict** (`pnpm run typecheck`, in CI, the tests included). The shapes the API answers are written down once per slice in `features/<slice>/types.ts` (taken from the serializers and views: the OpenAPI document has response schemas only for course authoring) and the `api.ts` modules return them through `api.get<T>(...)`; what several slices share (`UserType`, `CourseStatus`, the error body) is in `shared/types.ts`. A failed request is an axios error with the `{error}` / `{detail}` / field-map body, so `error.response?.status` is typed in hooks and callbacks, and a `catch` variable is `unknown`, read through `shared/api/errors`. `any` and `@ts-ignore` are lint errors.
 
-Screens without a backend (instructor analytics, instructor settings, admin revenue / reports / platform settings) say so on the page; their sample data lives in `features/admin/sampleData.ts`.
+Every screen reads the API: there is no sample data in the front end. Instructor analytics, the account settings of every role, the admin's revenue, reports (CSV files built on request) and platform settings (the Plus plans, editable; the rules, read only) have their endpoints, and certificates are verified on the public page `/verify/:code`.
 
 ## Adding a feature
 
@@ -188,12 +212,12 @@ Rules the seed follows:
 
 To add a person, a course or a story edit the data files and run `seed_dev`; to add an activity that has a service, call it from a step.
 
-What the seed cannot show, because the application cannot (see *Known gaps*): the rejection reason on the instructor's course card, instructor analytics and the admin revenue / reports / settings screens (static sample data). Hours, streaks, ranks and the monthly chart come from the learning log, which the seed fills through the same service the player's heartbeat uses (and tops up to each student's story hours).
+Every screen reads what the seed wrote: the instructor's analytics (`insights/instructor/analytics/`), the admin's revenue page (the monthly revenue pools are its ledger), the CSV reports, the plan settings and the platform overview included; the rejection reason reaches the instructor's course list. The demo instructor's Plus course has learners besides the demo student, so the one-click demo shows a lively instructor. Hours, streaks, ranks and the monthly chart come from the learning log, which the seed fills through the same service the player's heartbeat uses (and tops up to each student's story hours).
 
 ## Testing
 
 * `cd backend && python -m pytest` (SQLite by default; `TEST_DB_ENGINE=postgres` plus the `DB_*` variables runs the same suite on PostgreSQL, which CI does). Uploads go to a temporary `MEDIA_ROOT`.
-* `cd frontend && pnpm test` (Jest through react-scripts; `package.json` maps axios and react-router for Jest 27). Rules are unit-tested in `lib/`; screens are tested through their hooks and api modules with only the HTTP client replaced, so a test also proves the query keys and the invalidation. The coverage floor is 60 / 48 / 52 / 61 % (statements / branches / functions / lines).
+* `cd frontend && pnpm test` (Jest through react-scripts; `package.json` maps axios and react-router for Jest 27). Rules are unit-tested in `lib/`; screens are tested through their hooks and api modules with only the HTTP client replaced, so a test also proves the query keys and the invalidation. The coverage floor is 80 / 72 / 75 / 82 % (statements / branches / functions / lines).
 * `tests/` characterises behaviour at the HTTP level (literal URLs, models only through `factories.py`), so a refactor shows up as a failing test instead of a silent change; a known bug is fixed together with the test that pinned it, not left marked.
 * `e2e/` holds Playwright specs that run against the seeded stack (`seed_dev`); they cover what only a browser proves. The pipeline, its gates and how to run every check locally are in [CI.md](CI.md).
 
@@ -202,5 +226,5 @@ What the seed cannot show, because the application cannot (see *Known gaps*): th
 Documented, not fixed in the restructuring:
 
 * **Logic**: payouts to instructors do not exist (earnings are calculated and recorded only); `messaging/payloads.py` (the wire format of a message) is still imported by `services.publish` because the event must be serialisable.
-* **Product**: instructor analytics, instructor settings, admin revenue / reports / settings have no backend (their screens are samples and say so); reviews and ratings do not exist, so ratings show "-" or 0; the seeded earnings of past months are narrative rows that do not come from the calculation.
+* **Product**: reviews and ratings do not exist, so ratings show "-" or 0 unless the seed wrote them; the seeded earnings of past months (and the revenue pools the admin's revenue page reads for them) are narrative rows that do not come from the calculation; the platform rules (revenue share, passing grade, token lifetimes) are settings, shown read-only to the administrator.
 * **Migration to finish**: `AUTH_LEGACY_TOKEN_TRANSPORT` is still on (turn it off, and delete the code behind it, at least a week after the cookie release); the unversioned `/api/<slice>/` aliases still answer (choose the day from the `Deprecation` log); the API still sends `ui-avatars.com` URLs in a few v1 payloads (`avatar` of the user directory, the roster and messages), which the front end no longer requests; they change in v2.

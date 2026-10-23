@@ -2,6 +2,8 @@ import React from 'react';
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 
+import { cn } from '../lib/cn';
+
 interface EmptyStateProps {
   icon?: LucideIcon;
   title: string;
@@ -13,11 +15,15 @@ interface EmptyStateProps {
 /** "Nothing here yet": an icon, a title, a line of help and, optionally, the way to fill it. */
 export function EmptyState({ icon: Icon, title, children, action, className = 'py-12' }: EmptyStateProps) {
   return (
-    <div className={`text-center ${className}`}>
-      {Icon && <Icon size={48} className="mx-auto text-gray-300 mb-4" />}
-      <h3 className="text-lg font-medium text-gray-900 mb-2">{title}</h3>
-      {children && <p className="text-gray-500">{children}</p>}
-      {action && <div className="mt-4">{action}</div>}
+    <div className={cn('flex flex-col items-center justify-center px-6 text-center', className)}>
+      {Icon && (
+        <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-surface-muted text-fg-subtle ring-8 ring-surface-muted/40">
+          <Icon size={22} aria-hidden="true" />
+        </span>
+      )}
+      <h3 className="text-base font-semibold text-fg">{title}</h3>
+      {children && <p className="mt-1 max-w-md text-sm text-fg-muted">{children}</p>}
+      {action && <div className="mt-5 flex flex-wrap justify-center gap-2">{action}</div>}
     </div>
   );
 }

@@ -17,7 +17,7 @@ tests/          HTTP-level tests, the route table and the OpenAPI contract of v1
 |---|---|---|
 | `config.settings.base` | everything | the shared configuration; no development convenience, no secrets |
 | `config.settings.dev` | `manage.py` | safe local defaults (a development key, localhost origins), `DEBUG` on, installs `daphne` and the seeding tools |
-| `config.settings.prod` | `wsgi.py`, `asgi.py` | what a deployment must supply; refuses to start and names every missing variable |
+| `config.settings.prod` | `wsgi.py`, `asgi.py` | what a deployment must supply; refuses to start and names every missing variable; installs the seeding tools only in demo mode |
 | `config.settings.test` | pytest | SQLite by default, throttles off, fake secrets, a throw-away `MEDIA_ROOT`, the schema generator |
 
 Variables are read through `config/settings/env.py` and documented in [`.env.example`](.env.example)
@@ -34,6 +34,22 @@ python manage.py migrate
 python manage.py seed_dev                                    # a cast, a catalogue and months of activity
 python manage.py runserver                                   # HTTP and WebSockets on :8000
 ```
+
+### A portfolio demo
+
+`DEMO_MODE` (on by default in development, off in production) turns the login page into a demo: it offers a
+one-click sign-in to `demo.student@`, `demo.instructor@` and `demo.admin@example.com`
+(`GET /api/v1/auth/demo/`, `POST /api/v1/auth/demo/login/`), and those three accounts keep their password so
+that every visitor can use them. A demo deployment sets `DEMO_MODE=True`, which also installs the seeding
+tools, and fills its database once:
+
+```bash
+DJANGO_SETTINGS_MODULE=config.settings.prod python manage.py migrate
+DJANGO_SETTINGS_MODULE=config.settings.prod python manage.py seed_dev --force   # --reset --force to start over
+```
+
+`SERVE_MEDIA=True` lets Django serve `/media/` (the course pictures the seed draws) with `DEBUG` off, for a
+demo that runs as a single process; a real deployment serves that folder from its proxy or object storage.
 
 Management commands worth knowing:
 
@@ -76,5 +92,8 @@ shrink or change type.
   (`course_extensions.py`).
 * **Sessions**: `apps/accounts/authentication.py` and `cookies.py`; WebSocket authentication in
   `apps/messaging/middleware.py`.
-* **Money**: `apps/billing/plans.py` (prices), `services/subscriptions.py` (webhook handlers),
-  `services/earnings.py` (the pool), `apps/insights/services/earnings.py` (the monthly calculation).
+* **Money**: `apps/billing/plans.py` (prices), `services/pricing.py` (the administrator changes them),
+  `services/subscriptions.py` (webhook handlers), `services/earnings.py` (the pool),
+  `apps/insights/services/earnings.py` (the monthly calculation).
+* **Dashboards**: `apps/insights/selectors/` (`student`, `instructor` and `analytics` for the two learning
+  roles; `finance`, `reports`, `platform` and `directory` for the administrator).

@@ -43,15 +43,13 @@ def thumbnail(title, category_slug=None, size=THUMBNAIL_SIZE):
 
     draw = ImageDraw.Draw(image)
     font = ImageFont.load_default(size=54)
-    small = ImageFont.load_default(size=26)
 
+    # the title sits low; the top left stays empty for the badges the app lays over it
     lines = _wrap(draw, title, font, max_width=width - 120)[:3]
     line_height = 66
     top = height - 70 - line_height * len(lines)
     for index, line in enumerate(lines):
         draw.text((60, top + index * line_height), line, font=font, fill=(255, 255, 255))
-    draw.text((60, 48), (category_slug or 'course').replace('-', ' ').upper(), font=small,
-              fill=(255, 255, 255))
 
     buffer = io.BytesIO()
     image.save(buffer, format='PNG', optimize=True)

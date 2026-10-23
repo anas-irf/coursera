@@ -1,7 +1,7 @@
-// What the admin area reads from the API, and the shapes of its screens that have no backend yet
-// (the sample data).  Courses and users are listed by two other slices (courses, insights); the
+// What the admin area reads from the API.  Courses and users are listed by two other slices
+// (courses, insights), revenue, reports and the platform by insights, the plans by billing; the
 // shapes are the rows those views build for the administrator.
-import type { CourseStatus, CourseType, ISODate, ISODateTime, UserType, UUID } from '../../shared/types';
+import type { CourseStatus, CourseType, ISODateTime, UserType, UUID } from '../../shared/types';
 
 /** The instructor of a course, as the review lists name them. */
 export interface CourseInstructor {
@@ -98,77 +98,173 @@ export interface RejectResult {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Screens without a backend (see sampleData.ts)
+// Revenue (``GET /insights/admin/revenue/``)
 // ---------------------------------------------------------------------------------------------
 
-/** The figures and series of the revenue screen. */
-export interface RevenueSample {
-  stats: {
-    total_revenue: number;
-    monthly_growth: number;
-    total_subscriptions: number;
-    avg_revenue_per_user: number;
-  };
-  revenue_chart: { month: string; revenue: number; subscriptions: number; courses_sold: number }[];
-  top_courses: { name: string; revenue: number; enrollments: number }[];
+/** How many months the revenue screen covers. */
+export type RevenueMonths = 6 | 12;
+
+/** Where a month's figures come from: its revenue pool (the ledger) or its live payments. */
+export type RevenueSource = 'ledger' | 'live';
+
+export interface RevenueSummary {
+  /** Over the months shown. */
+  gross_revenue: number;
+  instructor_share: number;
+  platform_share: number;
+  /** Completed Plus payments since the first of this month. */
+  this_month: number;
+  /** Students with Plus access now. */
+  members: number;
+  /** Members whose Plus renews. */
+  renewing_members: number;
+  /** Monthly recurring revenue of the renewing members. */
+  mrr: number;
+  failed_payments: number;
+  earnings_paid: number;
+  earnings_pending: number;
 }
 
-export type ReportType =
-  | 'user_activity'
-  | 'course_performance'
-  | 'financial'
-  | 'instructor_performance'
-  | 'platform_usage'
-  | 'content_quality';
+export interface RevenueMonth {
+  /** "2026-05". */
+  month: string;
+  /** "May". */
+  label: string;
+  gross: number;
+  instructor_share: number;
+  platform_share: number;
+  payments: number;
+  new_members: number;
+  source: RevenueSource;
+}
 
-export type ReportFormat = 'PDF' | 'Excel' | 'CSV';
+export interface SubscriptionCounts {
+  active: number;
+  cancelled: number;
+  lapsed: number;
+  monthly: number;
+  yearly: number;
+}
 
-/** One report of the reports screen. */
-export interface ReportRow {
-  id: number;
+export interface PlanMembers {
+  cycle: 'monthly' | 'yearly';
+  name: string;
+  price: number;
+  members: number;
+}
+
+export interface RevenueCourse {
+  id: UUID;
+  title: string;
+  instructor: string;
+  course_type: CourseType;
+  earnings: number;
+  enrollments: number;
+}
+
+export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
+
+export interface RecentPayment {
+  id: UUID;
+  student: string;
+  email: string;
+  plan: 'monthly' | 'yearly';
+  amount: number;
+  status: PaymentStatus;
+  date: ISODateTime;
+}
+
+export interface Revenue {
+  currency: string;
+  months: number;
+  revenue_share_percent: number;
+  summary: RevenueSummary;
+  monthly: RevenueMonth[];
+  subscriptions: SubscriptionCounts;
+  plans: PlanMembers[];
+  top_courses: RevenueCourse[];
+  recent_payments: RecentPayment[];
+}
+
+// ---------------------------------------------------------------------------------------------
+// Reports (``GET /insights/admin/reports/``, ``GET /insights/admin/reports/<id>/`` is a CSV file)
+// ---------------------------------------------------------------------------------------------
+
+export type ReportId = 'users' | 'courses' | 'enrollments' | 'payments' | 'earnings' | 'certificates';
+
+export interface ReportInfo {
+  id: ReportId;
   name: string;
   description: string;
-  type: ReportType;
-  /** A date: "2024-01-15". */
-  last_generated: ISODate;
-  /** "2.4 MB". */
-  file_size: string;
-  format: ReportFormat;
+  /** How many rows the file has right now. */
+  rows: number;
 }
 
-export interface ReportsSample {
-  available_reports: ReportRow[];
+/** A downloaded report: the file and the name the server gave it. */
+export interface ReportFile {
+  blob: Blob;
+  filename: string;
 }
 
-/** The settings form of the platform: held in the page only, there is no endpoint to store them. */
-export interface PlatformSettings {
-  // general
-  platform_name: string;
-  platform_description: string;
-  maintenance_mode: boolean;
-  allow_registrations: boolean;
-  // security
-  require_email_verification: boolean;
-  password_min_length: number;
-  session_timeout: number;
-  two_factor_auth: boolean;
-  // notifications
-  email_notifications: boolean;
-  push_notifications: boolean;
-  marketing_emails: boolean;
-  system_alerts: boolean;
-  // courses
-  auto_approve_courses: boolean;
-  require_instructor_approval: boolean;
-  max_course_duration: number;
-  min_course_price: number;
-  max_course_price: number;
-  // payments
-  commission_rate: number;
-  minimum_payout: number;
-  payment_methods: string[];
-  // content
-  max_video_size: number;
-  allowed_file_types: string[];
-  content_moderation: boolean;
+// ---------------------------------------------------------------------------------------------
+// Platform settings (``GET /insights/admin/platform/``, ``GET|PUT /billing/admin/plans/``)
+// ---------------------------------------------------------------------------------------------
+
+export interface PlatformRules {
+  revenue_share_percent: number;
+  course_passing_grade: number;
+  quiz_submit_grace_seconds: number;
+  access_token_minutes: number;
+  refresh_token_days: number;
+}
+
+export interface PlatformCategory {
+  id: number;
+  name: string;
+  slug: string;
+  courses: number;
+  published: number;
+}
+
+export interface PlatformLanguage {
+  id: number;
+  code: string;
+  name: string;
+  courses: number;
+}
+
+export interface PlatformEnvironment {
+  demo_mode: boolean;
+  debug: boolean;
+  database: string;
+  realtime: string;
+  stripe: boolean;
+  api_version: string;
+}
+
+export interface Platform {
+  rules: PlatformRules;
+  categories: PlatformCategory[];
+  languages: PlatformLanguage[];
+  environment: PlatformEnvironment;
+}
+
+export type PlanCycle = 'monthly' | 'yearly';
+
+/** A plan as the administrator edits it. */
+export interface AdminPlan {
+  cycle: PlanCycle;
+  name: string;
+  description: string;
+  price: number;
+  /** False while the built-in default of the cycle is what is sold. */
+  configured: boolean;
+  members: number;
+}
+
+/** ``PUT /billing/admin/plans/<cycle>/``. */
+export interface PlanChanges {
+  name: string;
+  description: string;
+  price: number;
 }

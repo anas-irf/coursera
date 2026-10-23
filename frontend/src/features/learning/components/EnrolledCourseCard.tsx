@@ -1,86 +1,95 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlayCircle, Clock, BookOpen, Award } from 'lucide-react';
+import { Award, Clock, ListChecks, PlayCircle, RotateCcw } from 'lucide-react';
 
-import { formatDate } from '../../../shared/lib/time';
+import { timeAgo } from '../../../shared/lib/time';
+import { Button } from '../../../shared/ui/Button';
+import { Card } from '../../../shared/ui/Card';
 import CourseThumbnail from '../../../shared/ui/CourseThumbnail';
+import { ProgressBar } from '../../../shared/ui/ProgressBar';
 import type { EnrolledCourse } from '../types';
 
 interface EnrolledCourseCardProps {
   course: EnrolledCourse;
-  /** Leaves out the lesson count and the last visit. */
+  /** Leaves out the next lesson and the last visit. */
   compact?: boolean;
 }
 
 /**
  * A course the student is enrolled in, with its progress and the button that opens the player.
- * ``compact`` leaves out the lesson count and the last visit (the home page lists three of them).
+ * ``compact`` leaves out the next lesson and the last visit (the home page lists three of them).
  */
 const EnrolledCourseCard = ({ course, compact = false }: EnrolledCourseCardProps) => {
   const navigate = useNavigate();
   const completed = course.status === 'completed';
+  const progress = Math.round(course.progress || 0);
+  // the server words it ("3 hours", "2 days"); less than an hour reads "0 hours" and is left out
+  const remaining = course.estimated_completion;
+  const left = !completed && remaining && !remaining.startsWith('0 ') ? ` · about ${remaining} left` : '';
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
+    <Card className="group flex flex-col overflow-hidden" interactive>
       <div className="relative">
-        <CourseThumbnail course={course} className="w-full h-40 object-cover" />
-        <div className="absolute top-4 right-4">
-          <PlayCircle className="text-white drop-shadow-lg" size={32} />
-        </div>
+        <CourseThumbnail course={course} className="aspect-video w-full" />
         {completed && (
-          <div className="absolute top-4 left-4 bg-green-500 text-white px-2 py-1 rounded-full text-xs font-semibold flex items-center">
-            <Award size={12} className="mr-1" />
+          <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-success px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow-sm">
+            <Award size={12} aria-hidden="true" />
             Completed
-          </div>
+          </span>
         )}
       </div>
 
-      <div className="p-6">
-        <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">{course.title}</h3>
-        <p className="text-sm text-gray-600 mb-4">{course.instructor}</p>
+      <div className="flex flex-1 flex-col p-4">
+        <h3 className="line-clamp-2 font-semibold leading-snug text-fg">{course.title}</h3>
+        <p className="mt-1 truncate text-sm text-fg-muted">{course.instructor}</p>
 
-        <div className="mb-4">
-          <div className="flex justify-between text-sm text-gray-600 mb-2">
-            <span>Progress</span>
-            <span>{Math.round(course.progress || 0)}%</span>
+        <div className="mt-4">
+          <div className="mb-1.5 flex items-center justify-between text-xs">
+            <span className="text-fg-muted">
+              {course.completed_lessons || 0} of {course.total_lessons || 0} lessons
+            </span>
+            <span className="font-semibold text-fg tabular-nums">{progress}%</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div
-              className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${course.progress || 0}%` }}
-            ></div>
-          </div>
+          <ProgressBar
+            value={progress}
+            size="sm"
+            tone={completed ? 'success' : 'primary'}
+            label={`Progress in ${course.title}`}
+          />
         </div>
 
         {!compact && (
-          <>
-            <div className="flex justify-between text-xs text-gray-500 mb-4">
-              <span className="flex items-center">
-                <Clock size={12} className="mr-1" />
-                {course.estimated_completion || 'N/A'}
-              </span>
-              <span className="flex items-center">
-                <BookOpen size={12} className="mr-1" />
-                {course.total_lessons || 0} lessons
-              </span>
-            </div>
-
-            {course.last_accessed && (
-              <p className="text-xs text-gray-500 mb-4">
-                Last accessed: {formatDate(course.last_accessed)}
-              </p>
+          <ul className="mt-4 space-y-1.5 text-xs text-fg-muted">
+            {!completed && course.next_lesson && (
+              <li className="flex items-center gap-1.5">
+                <ListChecks size={14} aria-hidden="true" className="shrink-0 text-fg-subtle" />
+                <span className="truncate">Next: {course.next_lesson}</span>
+              </li>
             )}
-          </>
+            {(course.last_accessed || left) && (
+              <li className="flex items-center gap-1.5">
+                <Clock size={14} aria-hidden="true" className="shrink-0 text-fg-subtle" />
+                <span className="truncate">
+                  {course.last_accessed ? `Last visited ${timeAgo(course.last_accessed)}` : 'Not visited yet'}
+                  {left}
+                </span>
+              </li>
+            )}
+          </ul>
         )}
 
-        <button
-          onClick={() => navigate(`/courses/${course.course_id}/learn`)}
-          className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors"
-        >
-          {completed ? 'Review Course' : 'Continue Learning'}
-        </button>
+        <div className="mt-auto pt-4">
+          <Button
+            block
+            variant={completed ? 'secondary' : 'primary'}
+            icon={completed ? RotateCcw : PlayCircle}
+            onClick={() => navigate(`/courses/${course.course_id}/learn`)}
+          >
+            {completed ? 'Review Course' : 'Continue Learning'}
+          </Button>
+        </div>
       </div>
-    </div>
+    </Card>
   );
 };
 

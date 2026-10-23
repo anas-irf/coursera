@@ -219,6 +219,14 @@ def test_a_deactivated_account_cannot_refresh(api, student):
     assert api.post(REFRESH, **OUR_PAGE).status_code == 401
 
 
+def test_a_deleted_account_cannot_refresh(api, student):
+    """Browsers keep the cookie of an account that is gone, e.g. after the demo was seeded again."""
+    sign_in(api, student)
+    f.User.objects.filter(pk=student.pk).delete()
+
+    assert api.post(REFRESH, **OUR_PAGE).status_code == 401
+
+
 # --------------------------------------------------------------------------- #
 # logout
 # --------------------------------------------------------------------------- #

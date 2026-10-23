@@ -1,13 +1,23 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, Search, Star, Edit2, Eye, EyeOff, Trash2, AlertCircle, BookOpen } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { BookOpen, Crown, Eye, EyeOff, Gift, Pencil, Plus, Search, Send, Star, Trash2 } from 'lucide-react';
 
 import { useAuth } from '../../../shared/auth/AuthProvider';
 import { errorMessage } from '../../../shared/api/errors';
+import { BRAND } from '../../../shared/brand';
 import { formatMoney } from '../../../shared/lib/money';
 import { formatDate } from '../../../shared/lib/time';
+import type { CourseLevel } from '../../../shared/types';
+import { Badge } from '../../../shared/ui/Badge';
+import { Button } from '../../../shared/ui/Button';
+import type { ButtonVariant } from '../../../shared/ui/Button';
+import { Callout } from '../../../shared/ui/Callout';
+import { Card } from '../../../shared/ui/Card';
 import CourseThumbnail from '../../../shared/ui/CourseThumbnail';
 import EmptyState from '../../../shared/ui/EmptyState';
 import ErrorState from '../../../shared/ui/ErrorState';
+import { SearchInput, Select } from '../../../shared/ui/Input';
+import { PageHeader } from '../../../shared/ui/PageHeader';
 import { PageSpinner } from '../../../shared/ui/Spinner';
 import StatusBadge from '../../../shared/ui/StatusBadge';
 import { useToast } from '../../../shared/ui/Toast';
@@ -19,17 +29,142 @@ import {
   useSubmitForReview,
   useUnpublishCourse,
 } from '../hooks/useCourses';
+import { LEVELS } from '../lib/course';
 import { isSortKey, isStatusFilter, visibleCourses } from '../lib/courseList';
 import type { SortKey, StatusFilter } from '../lib/courseList';
 import { LOCKED_DELETE_HINT, LOCKED_EDIT_HINT, isLocked, publishAction } from '../lib/publishing';
 import type { PublishTone } from '../lib/publishing';
 import type { InstructorCourseRow } from '../types';
 
-const TONES: Record<PublishTone, string> = {
-  success: 'bg-green-100 text-green-700 hover:bg-green-200',
-  info: 'bg-blue-100 text-blue-700 hover:bg-blue-200',
-  danger: 'bg-red-100 text-red-700 hover:bg-red-200',
-  waiting: 'bg-yellow-100 text-yellow-700 cursor-not-allowed',
+// the button of each step of the publishing workflow
+const PUBLISH_VARIANTS: Record<PublishTone, ButtonVariant> = {
+  success: 'success',
+  info: 'primary',
+  danger: 'danger-soft',
+  waiting: 'secondary',
+};
+
+/** "Beginner", "All levels" ... (the form offers three levels, a course may have the fourth). */
+const levelLabel = (level: CourseLevel | undefined): string | null => {
+  if (!level) return null;
+  if (level === 'all_levels') return 'All levels';
+  const known = LEVELS.find((option) => option.value === level);
+  return known ? known.label : null;
+};
+
+/** A figure of a course card: its name over the number (the specs read "Revenue $12.00"). */
+const Figure = ({ label, children }: { label: string; children: ReactNode }) => (
+  <div className="min-w-0">
+    <dt className="text-xs text-fg-subtle">{label}</dt>
+    <dd className="mt-0.5 truncate text-sm font-semibold text-fg tabular-nums">{children}</dd>
+  </div>
+);
+
+interface CourseCardProps {
+  course: InstructorCourseRow;
+  onEdit: () => void;
+  onPublish: () => void;
+  onDelete: () => void;
+  publishing: boolean;
+}
+
+/** One course of the instructor: its state, its figures and what can be done with it. */
+const CourseCard = ({ course, onEdit, onPublish, onDelete, publishing }: CourseCardProps) => {
+  const action = publishAction(course.status);
+  const locked = isLocked(course.status);
+  const plus = course.course_type === 'coursera_plus';
+  const rating = Number(course.average_rating) || 0;
+
+  return (
+    <Card as="article" aria-label={course.title} className="flex flex-col overflow-hidden">
+      <CourseThumbnail course={course} className="aspect-video w-full" />
+
+      <div className="flex flex-1 flex-col p-5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <StatusBadge status={course.status} />
+          <Badge tone={plus ? 'plus' : 'neutral'} icon={plus ? Crown : Gift}>
+            {plus ? 'Plus' : 'Free'}
+          </Badge>
+        </div>
+
+        <h3 className="mt-3 line-clamp-2 text-base font-semibold text-fg">{course.title}</h3>
+        {course.subtitle && <p className="mt-1 line-clamp-2 text-sm text-fg-muted">{course.subtitle}</p>}
+        <p className="mt-2 text-xs text-fg-subtle">
+          {[
+            course.category,
+            levelLabel(course.level),
+            course.published_date
+              ? `Published ${formatDate(course.published_date)}`
+              : course.created_at
+                ? `Created ${formatDate(course.created_at)}`
+                : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </p>
+
+        <dl className="mt-4 grid grid-cols-3 gap-3 rounded-lg border border-line bg-surface-muted/50 px-3 py-2.5">
+          <Figure label="Students">{course.total_enrolled}</Figure>
+          <Figure label="Rating">
+            {rating > 0 ? (
+              <span className="inline-flex items-center gap-1">
+                <Star size={13} aria-hidden="true" className="fill-warning-fg text-warning-fg" />
+                {rating.toFixed(1)}
+              </span>
+            ) : (
+              '-'
+            )}
+          </Figure>
+          <Figure label="Revenue">{formatMoney(course.total_revenue)}</Figure>
+        </dl>
+
+        {course.status === 'rejected' && course.rejection_reason && (
+          <Callout tone="danger" title="Course Rejected" className="mt-4">
+            <p>{course.rejection_reason}</p>
+            {course.rejection_date && (
+              <p className="mt-1 text-xs text-fg-subtle">Rejected on {formatDate(course.rejection_date)}</p>
+            )}
+          </Callout>
+        )}
+
+        <div className="mt-auto space-y-2 pt-5">
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={Pencil}
+              onClick={onEdit}
+              disabled={locked}
+              title={locked ? LOCKED_EDIT_HINT : 'Edit course'}
+            >
+              Edit
+            </Button>
+            <Button
+              variant={PUBLISH_VARIANTS[action.tone]}
+              size="sm"
+              icon={action.kind === 'unpublish' ? EyeOff : action.kind === 'submit' ? Send : Eye}
+              onClick={onPublish}
+              disabled={action.disabled}
+              loading={publishing}
+            >
+              {action.label}
+            </Button>
+          </div>
+          <Button
+            variant="danger-soft"
+            size="sm"
+            block
+            icon={Trash2}
+            onClick={onDelete}
+            disabled={locked}
+            title={locked ? LOCKED_DELETE_HINT : 'Delete course'}
+          >
+            Delete Course
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
 };
 
 const CoursesPage = () => {
@@ -46,6 +181,8 @@ const CoursesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [sortOption, setSortOption] = useState<SortKey>('date');
+  // the course whose publish button was pressed, while the request runs
+  const [publishingId, setPublishingId] = useState<string | null>(null);
 
   const all = useMemo(() => courses.data || [], [courses.data]);
   const shown = useMemo(
@@ -55,8 +192,10 @@ const CoursesPage = () => {
 
   const handlePublish = (course: InstructorCourseRow) => {
     const action = publishAction(course.status);
+    const done = () => setPublishingId(null);
 
     if (action.kind === 'submit') {
+      setPublishingId(course.id);
       submitForReview.mutate(course.id, {
         onSuccess: (data) => toast.success(data.message || 'Course submitted for review!', 'Submit for Review'),
         onError: (err) => {
@@ -72,8 +211,10 @@ const CoursesPage = () => {
             );
           }
         },
+        onSettled: done,
       });
     } else if (action.kind === 'unpublish') {
+      setPublishingId(course.id);
       unpublish.mutate(course.id, {
         onSuccess: (data) =>
           toast.success(
@@ -82,6 +223,7 @@ const CoursesPage = () => {
           ),
         onError: (err) =>
           toast.error(errorMessage(err, 'Failed to unpublish course. Please try again.'), 'Unpublish Failed'),
+        onSettled: done,
       });
     }
   };
@@ -100,220 +242,140 @@ const CoursesPage = () => {
     setSortOption('date');
   };
 
+  const published = all.filter((course) => course.status === 'published').length;
+  const waiting = all.filter((course) => course.status === 'pending_review').length;
+
+  const header = (
+    <PageHeader
+      title="My Courses"
+      description={
+        courses.isSuccess && all.length > 0
+          ? `${all.length} course${all.length === 1 ? '' : 's'}: ${published} published, ${waiting} in review`
+          : 'Create courses, build their curriculum and send them for review.'
+      }
+      actions={
+        <Button icon={Plus} onClick={() => setShowCreateModal(true)}>
+          Create New Course
+        </Button>
+      }
+    />
+  );
+
   if (courses.isPending) {
-    return <PageSpinner />;
+    return (
+      <div className="space-y-6">
+        {header}
+        <PageSpinner className="h-72" />
+      </div>
+    );
   }
 
   if (courses.isError) {
     return (
-      <ErrorState
-        title="We could not load your courses"
-        error={courses.error}
-        onRetry={() => courses.refetch()}
-      />
+      <div className="space-y-6">
+        {header}
+        <Card>
+          <ErrorState
+            title="We could not load your courses"
+            error={courses.error}
+            onRetry={() => courses.refetch()}
+          />
+        </Card>
+      </div>
     );
   }
 
-  const createButton = (label: string, className: string) => (
-    <button onClick={() => setShowCreateModal(true)} className={className}>
-      {label}
-    </button>
-  );
-
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">My Courses</h1>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 flex items-center shrink-0"
-        >
-          <Plus size={20} className="mr-2" />
-          Create New Course
-        </button>
-      </div>
+      {header}
 
-      {/* Filters */}
-      <div className="bg-white rounded-xl shadow-sm p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <input
-                type="text"
-                placeholder="Search courses..."
-                aria-label="Search courses"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-          </div>
-          <select
-            aria-label="Status"
-            value={statusFilter}
-            onChange={(e) => {
-              if (isStatusFilter(e.target.value)) setStatusFilter(e.target.value);
-            }}
-            className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="all">All Status</option>
-            <option value="published">Published</option>
-            <option value="draft">Draft</option>
-            <option value="pending_review">Pending Review</option>
-            <option value="rejected">Rejected</option>
-          </select>
-          <select
-            aria-label="Sort"
-            value={sortOption}
-            onChange={(e) => {
-              if (isSortKey(e.target.value)) setSortOption(e.target.value);
-            }}
-            className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="date">Sort by Date</option>
-            <option value="revenue">Sort by Revenue</option>
-            <option value="students">Sort by Students</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Courses Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {shown.map((course) => {
-          const action = publishAction(course.status);
-          const locked = isLocked(course.status);
-          return (
-            <div key={course.id} className="bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 overflow-hidden">
-              <div className="relative">
-                <CourseThumbnail course={course} className="w-full h-48 object-cover" />
-                <StatusBadge status={course.status} className="absolute top-4 right-4" />
-              </div>
-
-              <div className="p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{course.title}</h3>
-
-                <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
-                  <div className="text-center">
-                    <p className="text-gray-500">Students</p>
-                    <p className="font-semibold text-gray-900">{course.total_enrolled}</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-gray-500">Rating</p>
-                    <p className="font-semibold text-yellow-600 flex items-center justify-center">
-                      <Star size={14} className="mr-1" />
-                      {course.average_rating || 'N/A'}
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-gray-500">Revenue</p>
-                    <p className="font-semibold text-green-600">{formatMoney(course.total_revenue)}</p>
-                  </div>
-                </div>
-
-                {/* Rejection reason display */}
-                {course.status === 'rejected' && course.rejection_reason && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-                    <div className="flex items-start space-x-2">
-                      <AlertCircle size={16} className="text-red-600 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-red-800 mb-1">Course Rejected</p>
-                        <p className="text-sm text-red-700">{course.rejection_reason}</p>
-                        {course.rejection_date && (
-                          <p className="text-xs text-red-600 mt-1">
-                            Rejected on {formatDate(course.rejection_date)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  {/* Edit and Publish/Unpublish buttons */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setSelectedCourse(course)}
-                      disabled={locked}
-                      className={`flex-1 px-3 py-2 rounded-lg transition-colors flex items-center justify-center ${
-                        locked
-                          ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                      title={locked ? LOCKED_EDIT_HINT : 'Edit course'}
-                    >
-                      <Edit2 size={16} className="mr-1" />
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handlePublish(course)}
-                      disabled={action.disabled}
-                      className={`flex-1 px-3 py-2 rounded-lg transition-colors flex items-center justify-center ${TONES[action.tone]} ${
-                        action.disabled ? 'cursor-not-allowed' : ''
-                      }`}
-                    >
-                      {action.kind === 'unpublish' ? (
-                        <EyeOff size={16} className="mr-1" />
-                      ) : (
-                        <Eye size={16} className="mr-1" />
-                      )}
-                      {action.label}
-                    </button>
-                  </div>
-
-                  {/* Delete button */}
-                  <button
-                    onClick={() => setCourseToDelete(course)}
-                    disabled={locked}
-                    className={`w-full px-3 py-2 rounded-lg transition-colors flex items-center justify-center border ${
-                      locked
-                        ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
-                        : 'bg-red-50 text-red-700 hover:bg-red-100 border-red-200'
-                    }`}
-                    title={locked ? LOCKED_DELETE_HINT : 'Delete course'}
-                  >
-                    <Trash2 size={16} className="mr-1" />
-                    Delete Course
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* No results message */}
-      {shown.length === 0 && all.length > 0 && (
-        <EmptyState
-          icon={Search}
-          title="No courses found"
-          className="py-12 bg-white rounded-xl"
-          action={
-            <button
-              onClick={clearFilters}
-              className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors"
+      {all.length > 0 && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <SearchInput
+            label="Search courses"
+            placeholder="Search your courses..."
+            value={searchTerm}
+            onChange={setSearchTerm}
+            className="sm:flex-1"
+          />
+          <div className="grid grid-cols-2 gap-3 sm:flex">
+            <Select
+              aria-label="Status"
+              value={statusFilter}
+              onChange={(e) => {
+                if (isStatusFilter(e.target.value)) setStatusFilter(e.target.value);
+              }}
+              className="sm:w-44"
             >
-              Clear filters
-            </button>
-          }
-        >
-          Try adjusting your search or filter criteria.
-        </EmptyState>
+              <option value="all">All statuses</option>
+              <option value="published">Published</option>
+              <option value="draft">Draft</option>
+              <option value="pending_review">Pending Review</option>
+              <option value="rejected">Rejected</option>
+            </Select>
+            <Select
+              aria-label="Sort"
+              value={sortOption}
+              onChange={(e) => {
+                if (isSortKey(e.target.value)) setSortOption(e.target.value);
+              }}
+              className="sm:w-44"
+            >
+              <option value="date">Newest first</option>
+              <option value="revenue">Most revenue</option>
+              <option value="students">Most students</option>
+            </Select>
+          </div>
+        </div>
       )}
 
-      {/* No courses at all */}
+      {shown.length > 0 && (
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          {shown.map((course) => (
+            <CourseCard
+              key={course.id}
+              course={course}
+              onEdit={() => setSelectedCourse(course)}
+              onPublish={() => handlePublish(course)}
+              onDelete={() => setCourseToDelete(course)}
+              publishing={publishingId === course.id}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* nothing matches the search or the filter */}
+      {shown.length === 0 && all.length > 0 && (
+        <Card>
+          <EmptyState
+            icon={Search}
+            title="No courses found"
+            action={
+              <Button variant="secondary" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            }
+          >
+            Try adjusting your search or filter criteria.
+          </EmptyState>
+        </Card>
+      )}
+
+      {/* no course at all */}
       {all.length === 0 && (
-        <EmptyState
-          icon={BookOpen}
-          title="No courses yet"
-          className="py-12 bg-white rounded-xl"
-          action={createButton(
-            'Create Your First Course',
-            'px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200'
-          )}
-        >
-          Create your first course to get started!
-        </EmptyState>
+        <Card>
+          <EmptyState
+            icon={BookOpen}
+            title="No courses yet"
+            action={
+              <Button icon={Plus} onClick={() => setShowCreateModal(true)}>
+                Create Your First Course
+              </Button>
+            }
+          >
+            {`Create your first course, add sections and lectures, then request publication. Plus courses earn a share of ${BRAND.plus}.`}
+          </EmptyState>
+        </Card>
       )}
 
       {showCreateModal && (

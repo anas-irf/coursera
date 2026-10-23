@@ -857,6 +857,29 @@ paths:
         sessionCookie: []
       tags:
       - assessments
+  /api/v1/auth/demo/:
+    get:
+      description: Whether the demo sign-in is on, and the accounts the login page offers (none when it
+        is off).
+      operationId: auth_demo_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - {}
+      tags:
+      - auth
+  /api/v1/auth/demo/login/:
+    post:
+      description: Sign in as the demo account of a role, without a password (demo mode only).
+      operationId: auth_demo_login_create
+      responses:
+        '200':
+          description: No response body
+      security:
+      - {}
+      tags:
+      - auth
   /api/v1/auth/login/:
     post:
       description: 'Sign in: the session cookies are set, and the answer says who signed in.
@@ -885,9 +908,38 @@ paths:
       - {}
       tags:
       - auth
+  /api/v1/auth/password/:
+    post:
+      description: 'Change the password: the current one proves it is the owner.
+
+
+        Every other session of the user ends; this browser gets a fresh pair of session cookies.'
+      operationId: auth_password_create
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - auth
   /api/v1/auth/profile/:
     get:
+      description: Who is signed in, with the profile of their role; ``PATCH`` changes what they may change
+        of it.
       operationId: auth_profile_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - auth
+    patch:
+      description: Who is signed in, with the profile of their role; ``PATCH`` changes what they may change
+        of it.
+      operationId: auth_profile_partial_update
       responses:
         '200':
           description: No response body
@@ -922,6 +974,36 @@ paths:
       - {}
       tags:
       - auth
+  /api/v1/billing/admin/plans/:
+    get:
+      description: The monthly and the yearly plan, as sold now.
+      operationId: billing_admin_plans_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - billing
+  /api/v1/billing/admin/plans/{cycle}/:
+    put:
+      description: Change the name, wording or price of the plan of a billing cycle (new checkouts only).
+      operationId: billing_admin_plans_update
+      parameters:
+      - in: path
+        name: cycle
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - billing
   /api/v1/billing/checkout/:
     get:
       description: Get data needed for checkout page
@@ -992,6 +1074,28 @@ paths:
       security:
       - bearerToken: []
         sessionCookie: []
+      tags:
+      - certificates
+  /api/v1/certificates/verify/{code}/:
+    get:
+      description: 'What anybody holding a verification code may see of the certificate it belongs to.
+
+
+        The code is random (80 bits), so it cannot be guessed from a student or a course; the answer
+
+        names the learner, the course and the grade, which is what a certificate shows anyway.'
+      operationId: certificates_verify_retrieve
+      parameters:
+      - in: path
+        name: code
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - {}
       tags:
       - certificates
   /api/v1/courses/admin/all/:
@@ -1523,10 +1627,78 @@ paths:
         sessionCookie: []
       tags:
       - courses
+  /api/v1/insights/admin/platform/:
+    get:
+      description: The rules the platform runs by, its categories and languages, and what this instance
+        runs on.
+      operationId: insights_admin_platform_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - insights
+  /api/v1/insights/admin/reports/:
+    get:
+      description: The reports that can be downloaded, with their current number of rows.
+      operationId: insights_admin_reports_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - insights
+  /api/v1/insights/admin/reports/{report}/:
+    get:
+      description: One report as a CSV file, read from the live data.
+      operationId: insights_admin_reports_retrieve_2
+      parameters:
+      - in: path
+        name: report
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - insights
+  /api/v1/insights/admin/revenue/:
+    get:
+      description: Plus revenue by month, the members, the instructors' share and the latest payments.
+      operationId: insights_admin_revenue_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - insights
   /api/v1/insights/admin/users/:
     get:
       description: Get all users for admin dashboard
       operationId: insights_admin_users_retrieve
+      responses:
+        '200':
+          description: No response body
+      security:
+      - bearerToken: []
+        sessionCookie: []
+      tags:
+      - insights
+  /api/v1/insights/instructor/analytics/:
+    get:
+      description: Learners, completion, quiz results and earnings of the instructor's courses, month
+        by month.
+      operationId: insights_instructor_analytics_retrieve
       responses:
         '200':
           description: No response body

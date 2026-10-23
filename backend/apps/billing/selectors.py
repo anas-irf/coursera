@@ -1,6 +1,34 @@
 """Read side of billing: who is subscribed, what the plans are."""
+from django.db.models import Q
+from django.utils import timezone
+
 from . import plans
-from .models import StudentPlusSubscription
+from .models import StudentPlusSubscription, SubscriptionPlan
+
+
+def members(*, now=None):
+    """Subscriptions that give Plus right now: running, or cancelled within the period paid for."""
+    now = now or timezone.now()
+    return StudentPlusSubscription.objects.filter(
+        status__in=StudentPlusSubscription.ACCESS_STATUSES,
+    ).filter(Q(end_date__isnull=True) | Q(end_date__gt=now))
+
+
+def admin_plans():
+    """Both plans as the administrator edits them: what is sold, whether it is configured, who has it."""
+    counts = {cycle: members().filter(subscription_type=cycle).count() for cycle in plans.CYCLES}
+    rows = []
+    for cycle in plans.CYCLES:
+        offer = plans.offer(cycle)
+        rows.append({
+            'cycle': cycle,
+            'name': offer.name,
+            'description': offer.description,
+            'price': float(offer.price),
+            'configured': SubscriptionPlan.objects.filter(billing_cycle=cycle, is_active=True).exists(),
+            'members': counts[cycle],
+        })
+    return rows
 
 
 def get_subscription(user):

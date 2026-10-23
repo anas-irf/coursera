@@ -1,6 +1,6 @@
 import React from 'react';
 import type { ReactElement, ReactNode } from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import http from '../../shared/api/client';
@@ -11,11 +11,13 @@ import { ToastProvider } from '../../shared/ui/Toast';
 import type { SubscriptionStatus } from '../billing';
 import type { CatalogCourse, EnrolledCourse } from '../learning';
 import AchievementsPage from './pages/AchievementsPage';
+import InstructorAnalyticsPage from './pages/InstructorAnalyticsPage';
 import InstructorEarningsPage from './pages/InstructorEarningsPage';
 import InstructorOverviewPage from './pages/InstructorOverviewPage';
 import StudentHomePage from './pages/StudentHomePage';
 import type {
   Achievements,
+  InstructorAnalytics,
   InstructorDashboard,
   InstructorEarnings,
   StudentStats,
@@ -26,6 +28,10 @@ import type {
 jest.mock('../../shared/api/client', () => ({
   __esModule: true,
   default: { get: jest.fn(), post: jest.fn() },
+}));
+// the greeting names the signed-in user
+jest.mock('../../shared/auth/AuthProvider', () => ({
+  useAuth: () => ({ user: { first_name: 'Ada', last_name: 'Lovelace', email: 'ada@example.com' } }),
 }));
 // the chart needs a layout engine; the page's own states are what these tests are about
 jest.mock('recharts', () => ({
@@ -155,7 +161,7 @@ const figure = (label: string) => within(screen.getByRole('group', { name: label
 test('shows the figures, the courses to continue and the suggestions', async () => {
   renderHome();
 
-  expect(await screen.findByText('Welcome back! 👋')).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: 'Welcome back, Ada' })).toBeInTheDocument();
   expect(await screen.findByText('JavaScript from Scratch')).toBeInTheDocument();
   expect(await screen.findByText('React for Beginners')).toBeInTheDocument();
   expect(await figure('Courses Enrolled').findByText('5')).toBeInTheDocument();
@@ -169,7 +175,7 @@ test('figures that could not be loaded are not shown as zeros', async () => {
   renderHome();
 
   expect(await screen.findByText(/Your figures could not be loaded/)).toBeInTheDocument();
-  expect(figure('Courses Enrolled').getByText('–')).toBeInTheDocument();
+  expect(figure('Courses Enrolled').getByText('-')).toBeInTheDocument();
   // the rest of the page does not depend on them
   expect(await screen.findByText('JavaScript from Scratch')).toBeInTheDocument();
 
@@ -240,10 +246,11 @@ describe('the instructor pages', () => {
 
   test('the overview says what its figures are about and shows no invented growth', async () => {
     answers['/insights/instructor/dashboard/'] = dashboard;
+    answers['/insights/instructor/earnings/'] = earnings;
     renderPage(<InstructorOverviewPage />);
 
-    expect(await screen.findByText('Dashboard Overview')).toBeInTheDocument();
-    expect(screen.getByText('2 published, 1 draft')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Dashboard Overview' })).toBeInTheDocument();
+    expect(await screen.findByText('2 published, 1 draft')).toBeInTheDocument();
     expect(screen.getByText('$1,250.50')).toBeInTheDocument();
     expect(screen.queryByText(/from last month/)).not.toBeInTheDocument();
     expect(screen.queryByText(/\+12%/)).not.toBeInTheDocument();
@@ -252,10 +259,13 @@ describe('the instructor pages', () => {
     expect(screen.getAllByText('-').length).toBeGreaterThan(0);
     expect(screen.getByText('Top Performing Courses')).toBeInTheDocument();
     expect(screen.getByText('Demo Student')).toBeInTheDocument();
+    // earnings are calculated per month, so the trend is drawn by month
+    expect(await screen.findByText('The last six months: $220.00')).toBeInTheDocument();
   });
 
   test('a dashboard that could not be loaded is an error, not a page of zeros', async () => {
     answers['/insights/instructor/dashboard/'] = serverError;
+    answers['/insights/instructor/earnings/'] = serverError;
     renderPage(<InstructorOverviewPage />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('The server had a problem.');
@@ -329,5 +339,156 @@ describe('achievements', () => {
 
     expect(await screen.findByText('First Steps')).toBeInTheDocument();
     expect(screen.getByText('#4')).toBeInTheDocument();
+  });
+});
+
+describe('the instructor analytics', () => {
+  const analytics: InstructorAnalytics = {
+    months: 6,
+    totals: {
+      courses: 3, published_courses: 2, students: 7, enrollments: 8, active_learners: 3, completions: 1,
+      completion_rate: 12.5, average_progress: 41.3, quiz_attempts: 6, average_quiz_score: 66.7, quiz_pass_rate: 50,
+      submissions: 4, pending_submissions: 1, earnings: 504.97, average_rating: null,
+    },
+    monthly: [
+      { month: '2026-09', label: 'Sep', enrollments: 2, completions: 0, earnings: 123.07 },
+      { month: '2026-10', label: 'Oct', enrollments: 1, completions: 1, earnings: 150.53 },
+    ],
+    progress_distribution: [
+      { key: 'not_started', label: 'Not started', count: 1 },
+      { key: 'under_half', label: 'Under half', count: 3 },
+      { key: 'over_half', label: 'Half or more', count: 3 },
+      { key: 'completed', label: 'Completed', count: 1 },
+    ],
+    courses: [
+      { id: 'c-1', title: 'Introduction to Python', status: 'published', course_type: 'free', thumbnail: null,
+        enrollments: 6, active_learners: 2, completions: 1, completion_rate: 16.7, average_progress: 48,
+        average_quiz_score: 70, average_rating: 4.7, total_reviews: 12, revenue: 0 },
+      { id: 'c-2', title: 'Cloud Computing Fundamentals', status: 'pending_review', course_type: 'coursera_plus',
+        thumbnail: null, enrollments: 0, active_learners: 0, completions: 0, completion_rate: null,
+        average_progress: null, average_quiz_score: null, average_rating: null, total_reviews: 0, revenue: 0 },
+    ],
+  };
+
+  const renderAnalytics = () =>
+    render(
+      <QueryProvider client={createQueryClient({ retryDelay: 1 })}>
+        <MemoryRouter>
+          <InstructorAnalyticsPage />
+        </MemoryRouter>
+      </QueryProvider>
+    );
+
+  const ANALYTICS_URL = '/insights/instructor/analytics/';
+
+  test('shows the real figures of the courses, and a dash where there is nothing to compute', async () => {
+    answers[ANALYTICS_URL] = analytics;
+    renderAnalytics();
+
+    await screen.findByRole('group', { name: 'Students' });
+    expect(figure('Students').getByText('7')).toBeInTheDocument();
+    expect(figure('Students').getByText('3 active in the last 7 days')).toBeInTheDocument();
+    expect(figure('Completion rate').getByText('12.5%')).toBeInTheDocument();
+    expect(figure('Average quiz score').getByText('66.7%')).toBeInTheDocument();
+    expect(figure('Earnings').getByText('$504.97')).toBeInTheDocument();
+    expect(figure('Average rating').getByText('-')).toBeInTheDocument();
+    expect(figure('Hand-ins to grade').getByText('1')).toBeInTheDocument();
+
+    const table = screen.getByRole('table', { name: 'Course performance' });
+    expect(within(table).getByText('Introduction to Python')).toBeInTheDocument();
+    expect(within(table).getByText('Cloud Computing Fundamentals')).toBeInTheDocument();
+    expect(within(table).getByText('Pending Review')).toBeInTheDocument();
+    expect(screen.getByText('Under half')).toBeInTheDocument();
+    expect(screen.getAllByTestId('chart')).toHaveLength(2);
+    expect(mockedGet).toHaveBeenCalledWith(ANALYTICS_URL, { params: { months: 6 } });
+  });
+
+  test('another period is asked of the server', async () => {
+    answers[ANALYTICS_URL] = analytics;
+    renderAnalytics();
+    await screen.findByRole('group', { name: 'Students' });
+
+    fireEvent.click(screen.getByRole('radio', { name: '12 months' }));
+
+    expect(screen.getByRole('radio', { name: '12 months' })).toHaveAttribute('aria-checked', 'true');
+    await waitFor(() => expect(mockedGet).toHaveBeenCalledWith(ANALYTICS_URL, { params: { months: 12 } }));
+  });
+
+  test('months without activity say so instead of drawing flat charts', async () => {
+    answers[ANALYTICS_URL] = {
+      ...analytics,
+      monthly: analytics.monthly.map((month) => ({ ...month, enrollments: 0, completions: 0, earnings: 0 })),
+    };
+    renderAnalytics();
+
+    expect(await screen.findByText('No enrollments in this period')).toBeInTheDocument();
+    expect(screen.getByText('No earnings in this period')).toBeInTheDocument();
+    expect(screen.queryByTestId('chart')).not.toBeInTheDocument();
+  });
+
+  test('an instructor without courses is invited to create one', async () => {
+    answers[ANALYTICS_URL] = {
+      ...analytics,
+      totals: { ...analytics.totals, courses: 0, published_courses: 0 },
+      courses: [],
+    };
+    renderAnalytics();
+
+    expect(await screen.findByText('No courses yet')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Create a course' })).toHaveAttribute('href', '/instructor/courses');
+  });
+
+  test('analytics that could not be loaded are an error, not zeros', async () => {
+    answers[ANALYTICS_URL] = serverError;
+    renderAnalytics();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The server had a problem.');
+    expect(screen.queryByRole('group', { name: 'Students' })).not.toBeInTheDocument();
+  });
+});
+
+describe('the student home', () => {
+  test('a newcomer without courses is pointed at the catalogue', async () => {
+    answers['/learning/enrolled/'] = [];
+    renderHome();
+
+    expect(await screen.findByText('Start your first course')).toBeInTheDocument();
+    expect(screen.queryByText('Continue Learning')).not.toBeInTheDocument();
+  });
+
+  test('a member sees the overall progress instead of an upgrade', async () => {
+    renderHome();
+
+    expect(await screen.findByText('Overall progress')).toBeInTheDocument();
+    expect(await screen.findByRole('progressbar', { name: 'Average progress' })).toHaveAttribute('aria-valuenow', '40');
+    expect(screen.getByText('3-day streak')).toBeInTheDocument();
+  });
+});
+
+describe('the achievements page', () => {
+  test('shows the level, the earned badges and how far the others are', async () => {
+    const achievements: Achievements = {
+      total_points: 620, current_level: 2, next_level_points: 750, global_rank: 3, monthly_rank: 2,
+      achievements: [
+        { id: 1, title: 'First Steps', icon: '*', description: 'Finish a lecture', earned: true,
+          date: '2026-09-01', progress: 100 },
+        { id: 3, title: 'Week Warrior', icon: '*', description: '7 day streak', earned: false,
+          date: null, progress: 42.8 },
+      ],
+    };
+    answers['/insights/student/achievements/'] = achievements;
+    render(
+      <QueryProvider client={createQueryClient({ retryDelay: 1 })}>
+        <AchievementsPage />
+      </QueryProvider>
+    );
+
+    await screen.findByRole('group', { name: 'Points' });
+    expect(figure('Points').getByText('620')).toBeInTheDocument();
+    expect(screen.getByText('620 / 750 Points')).toBeInTheDocument();
+    expect(screen.getByText(/^Earned \w{3} \d+, 2026$/)).toBeInTheDocument();
+    expect(screen.getByText('43%')).toBeInTheDocument();
+    expect(screen.getByText('#2 this month')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Progress to level 3' })).toHaveAttribute('aria-valuenow', '48');
   });
 });

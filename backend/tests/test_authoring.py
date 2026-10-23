@@ -200,10 +200,26 @@ def test_instructor_lists_only_own_courses_with_revenue(auth_client, instructor,
     rows = r.json()
     assert [row['id'] for row in rows] == [str(mine.uuid)]
     row = rows[0]
-    assert set(row) == {'id', 'title', 'status', 'course_type', 'total_enrolled',
-                        'average_rating', 'total_revenue', 'created_at', 'thumbnail'}
+    assert set(row) == {'id', 'title', 'subtitle', 'description', 'status', 'course_type', 'level', 'category',
+                        'total_enrolled', 'average_rating', 'total_reviews', 'total_revenue', 'created_at',
+                        'published_date', 'rejection_reason', 'rejection_date', 'thumbnail'}
     assert row['total_revenue'] == pytest.approx(25.0)
     assert row['status'] == 'draft'
+    assert row['rejection_reason'] is None and row['published_date'] is None
+
+
+def test_a_rejected_course_tells_its_instructor_why(auth_client, instructor, admin):
+    """The rejection reason reaches the instructor's own list, so the course card can show it."""
+    course = f.build_course(instructor, status='pending_review', title='Too short').course
+    r = auth_client(admin).post(f'/api/v1/courses/admin/{course.uuid}/reject/',
+                                {'reason': 'Add a second section.'}, format='json')
+    assert r.status_code == 200
+
+    row = auth_client(instructor).get(COURSES).json()[0]
+
+    assert row['status'] == 'rejected'
+    assert row['rejection_reason'] == 'Add a second section.'
+    assert row['rejection_date']
 
 
 def test_course_detail_and_partial_update_for_owner(auth_client, instructor):

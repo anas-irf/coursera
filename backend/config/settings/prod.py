@@ -8,7 +8,10 @@ deployment fails at boot instead of running with a development default.
 from django.core.exceptions import ImproperlyConfigured
 
 from .base import *  # noqa: F401,F403
-from .base import CORS_ALLOW_ALL_ORIGINS, DATABASES, DB_ENGINE, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
+from .base import (
+    CORS_ALLOW_ALL_ORIGINS, DATABASES, DB_ENGINE, DEMO_MODE, INSTALLED_APPS, STRIPE_SECRET_KEY,
+    STRIPE_WEBHOOK_SECRET,
+)
 from .env import env_bool, env_str
 
 _missing = []
@@ -53,6 +56,11 @@ if _missing or _problems:
         + (f'Set: {", ".join(_missing)}. ' if _missing else '')
         + (f'Fix: {"; ".join(_problems)}.' if _problems else '')
     )
+
+# A portfolio demo (DEMO_MODE) is filled once with `manage.py seed_dev --force`: the seeding tools
+# exist in production only then.  Without demo mode nothing can create demo accounts.
+if DEMO_MODE:
+    INSTALLED_APPS = [*INSTALLED_APPS, 'apps.seeding']
 
 # HTTPS only.  Behind a TLS terminating proxy set BEHIND_TLS_PROXY so the
 # proxy's X-Forwarded-Proto header is trusted (never set it without a proxy).

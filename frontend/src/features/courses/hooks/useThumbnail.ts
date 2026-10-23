@@ -13,12 +13,15 @@ export interface ThumbnailState {
   error: string;
   /** The ``onChange`` of the file input. */
   pick: (event: ChangeEvent<HTMLInputElement>) => void;
+  /** A file dropped on the drop zone (or ``null`` to forget the choice). */
+  choose: (file: File | null) => boolean;
   clear: () => void;
 }
 
 /**
  * The picture a course form is about to upload: the chosen file, a preview of it and the reason a
- * file was refused.  ``pick`` is the ``onChange`` of the file input.
+ * file was refused.  ``pick`` is the ``onChange`` of the file input, ``choose`` takes a file that
+ * was dropped on the form.
  */
 export function useThumbnail(): ThumbnailState {
   const [file, setFile] = useState<File | null>(null);
@@ -31,14 +34,14 @@ export function useThumbnail(): ThumbnailState {
     setError('');
   }, []);
 
-  const pick = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-    const chosen = event.target.files && event.target.files[0];
+  // true when the file was taken
+  const choose = useCallback((chosen: File | null): boolean => {
     setError('');
 
     if (!chosen) {
       setFile(null);
       setPreview(null);
-      return;
+      return false;
     }
 
     const problem = thumbnailProblem(chosen);
@@ -46,8 +49,7 @@ export function useThumbnail(): ThumbnailState {
       setError(problem);
       setFile(null);
       setPreview(null);
-      event.target.value = ''; // let the same file be chosen again after it is fixed
-      return;
+      return false;
     }
 
     setFile(chosen);
@@ -55,9 +57,19 @@ export function useThumbnail(): ThumbnailState {
     // readAsDataURL answers text
     reader.onload = () => setPreview(typeof reader.result === 'string' ? reader.result : null);
     reader.readAsDataURL(chosen);
+    return true;
   }, []);
 
-  return { file, preview, error, pick, clear };
+  const pick = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const taken = choose((event.target.files && event.target.files[0]) || null);
+      // let the same file be chosen again after it is fixed
+      if (!taken) event.target.value = '';
+    },
+    [choose]
+  );
+
+  return { file, preview, error, pick, choose, clear };
 }
 
 export default useThumbnail;

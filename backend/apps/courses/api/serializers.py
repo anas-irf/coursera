@@ -155,15 +155,23 @@ class CourseCreateSerializer(serializers.ModelSerializer):
 # list rows (plain dicts: some carry columns that slices above courses add)
 # --------------------------------------------------------------------------- #
 def instructor_course_row(course):
-    """One row of the instructor's course list."""
+    """One row of the instructor's course list (with why it was rejected, when it was)."""
     row = {
         'id': str(course.uuid),
         'title': course.title,
+        'subtitle': course.subtitle,
+        'description': course.description,
         'status': course.status,
         'course_type': course.course_type,
+        'level': course.level,
+        'category': course.category.name if course.category else None,
         'total_enrolled': course.total_enrolled or 0,
         'average_rating': float(course.average_rating or 0),
+        'total_reviews': course.total_reviews,
         'created_at': course.created_at.isoformat(),
+        'published_date': course.published_date.isoformat() if course.published_date else None,
+        'rejection_reason': course.rejection_reason or None,
+        'rejection_date': course.rejection_date.isoformat() if course.rejection_date else None,
         'thumbnail': course.thumbnail.url if course.thumbnail else None,
     }
     return extensions.enrich_course_row(course, row)

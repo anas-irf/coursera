@@ -103,6 +103,46 @@ describe('the instructor course list', () => {
     expect(screen.getByText('Published', { selector: 'span' })).toBeInTheDocument();
   });
 
+  test('a rejected course says why, and the list can be searched and narrowed', async () => {
+    courseList = [
+      course({
+        description: 'Components, props and state',
+        category: 'Web Development',
+        level: 'beginner',
+        subtitle: 'Hooks first',
+      }),
+      course({
+        id: 'c-2',
+        title: 'SQL Basics',
+        status: 'rejected',
+        description: 'Queries and joins',
+        rejection_reason: 'The quiz answers are missing.',
+        rejection_date: '2026-10-01T10:00:00Z',
+      }),
+    ];
+    renderPage();
+
+    const rejected = await screen.findByRole('article', { name: 'SQL Basics' });
+    expect(within(rejected).getByText('Course Rejected')).toBeInTheDocument();
+    expect(within(rejected).getByText('The quiz answers are missing.')).toBeInTheDocument();
+    expect(within(rejected).getByRole('button', { name: /Resubmit for Review/ })).toBeEnabled();
+    expect(screen.getByText('Hooks first')).toBeInTheDocument();
+    expect(screen.getByText(/^Web Development · Beginner · /)).toBeInTheDocument();
+
+    // the search reads the descriptions too
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search courses' }), { target: { value: 'joins' } });
+    expect(screen.getByRole('article', { name: 'SQL Basics' })).toBeInTheDocument();
+    expect(screen.queryByRole('article', { name: 'React for Beginners' })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search courses' }), { target: { value: 'nothing like it' } });
+    expect(screen.getByText('No courses found')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(screen.getAllByRole('article')).toHaveLength(2);
+
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'rejected' } });
+    expect(screen.getAllByRole('article')).toHaveLength(1);
+  });
+
   test('a failed load is an error, not "No courses yet"', async () => {
     mockedGet.mockRejectedValue({ response: { status: 500, data: { error: 'The server had a problem.' } } });
     renderPage();
@@ -181,8 +221,8 @@ describe('creating a course', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create Course' }));
     expect(await screen.findByText('Please fill in required fields (Title and Description)')).toBeInTheDocument();
 
-    fireEvent.change(within(dialog).getByLabelText('Course Title *'), { target: { value: 'Python' } });
-    fireEvent.change(within(dialog).getByLabelText('Description *'), { target: { value: 'Learn it' } });
+    fireEvent.change(within(dialog).getByLabelText(/^Course Title/), { target: { value: 'Python' } });
+    fireEvent.change(within(dialog).getByLabelText(/^Description/), { target: { value: 'Learn it' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create Course' }));
 
     expect(await screen.findByText('Please upload a course thumbnail')).toBeInTheDocument();
@@ -193,8 +233,8 @@ describe('creating a course', () => {
     mockedPost.mockResolvedValue({ data: { id: 'c-9', message: 'Course created successfully', title: 'Python' } });
     const dialog = await open();
 
-    fireEvent.change(within(dialog).getByLabelText('Course Title *'), { target: { value: 'Python' } });
-    fireEvent.change(within(dialog).getByLabelText('Description *'), { target: { value: 'Learn it' } });
+    fireEvent.change(within(dialog).getByLabelText(/^Course Title/), { target: { value: 'Python' } });
+    fireEvent.change(within(dialog).getByLabelText(/^Description/), { target: { value: 'Learn it' } });
     await within(dialog).findByRole('option', { name: 'Development' });
     fireEvent.change(within(dialog).getByLabelText('Category'), { target: { value: '2' } });
     fireEvent.change(within(dialog).getByLabelText('Language'), { target: { value: '5' } });
@@ -233,8 +273,8 @@ describe('creating a course', () => {
     });
     const dialog = await open();
 
-    fireEvent.change(within(dialog).getByLabelText('Course Title *'), { target: { value: 'Python' } });
-    fireEvent.change(within(dialog).getByLabelText('Description *'), { target: { value: 'Learn it' } });
+    fireEvent.change(within(dialog).getByLabelText(/^Course Title/), { target: { value: 'Python' } });
+    fireEvent.change(within(dialog).getByLabelText(/^Description/), { target: { value: 'Learn it' } });
     fireEvent.change(within(dialog).getByLabelText(/Course Thumbnail/, { selector: 'input' }), {
       target: { files: [png()] },
     });
@@ -257,7 +297,7 @@ describe('editing a course', () => {
     mockedPatch.mockResolvedValue({ data: {} });
     const dialog = await open();
 
-    const title = await within(dialog).findByLabelText('Course Title *');
+    const title = await within(dialog).findByLabelText(/^Course Title/);
     expect(title).toHaveValue('React for Beginners');
     expect(within(dialog).getByLabelText('Subtitle')).toHaveValue('Hooks first');
     expect(within(dialog).getByLabelText('Level')).toHaveValue('intermediate');
@@ -292,10 +332,10 @@ describe('editing a course', () => {
 
   test('has no pretend "settings" tab', async () => {
     const dialog = await open();
-    await within(dialog).findByLabelText('Course Title *');
+    await within(dialog).findByLabelText(/^Course Title/);
 
     expect(within(dialog).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-      'basic', 'curriculum', 'pricing',
+      'Details', 'Curriculum', 'Pricing',
     ]);
   });
 });

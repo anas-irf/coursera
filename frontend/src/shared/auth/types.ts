@@ -12,6 +12,33 @@ export interface User {
   phone_number: string | null;
   email_verified?: boolean;
   profile_picture: string | null;
+  bio?: string;
+  country?: string;
+  city?: string;
+  /** Instructors: what they teach. */
+  expertise?: string;
+  linkedin_url?: string | null;
+  website_url?: string | null;
+  years_of_experience?: number;
+  date_joined?: string;
+}
+
+/** The roles the demo sign-in offers. */
+export type DemoRole = UserType;
+
+/** A seeded account the login page offers to sign in as. */
+export interface DemoAccount {
+  role: DemoRole;
+  email: string;
+  name: string;
+  /** What there is to see with it. */
+  headline: string;
+}
+
+/** ``GET /auth/demo/``: empty and disabled unless the server runs in demo mode. */
+export interface DemoAccounts {
+  enabled: boolean;
+  accounts: DemoAccount[];
 }
 
 /**

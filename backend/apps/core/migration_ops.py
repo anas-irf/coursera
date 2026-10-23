@@ -3,12 +3,16 @@
 ``GuardedDeleteModel`` and ``GuardedRemoveField`` behave exactly like Django's
 ``DeleteModel`` and ``RemoveField`` (same state changes, same reverse) but stop
 with ``DataStillPresent`` *before* anything is dropped when the table still
-holds rows, or when a column holds a value other than its default.  A fresh
-database, CI and development databases pass straight through; a database that
-actually used the feature is left untouched until someone has looked at it.
+holds rows, or when a column holds a value other than its default.  An empty
+string counts as empty in a text or file column.  A fresh database, CI and
+development databases pass straight through; a database that actually used the
+feature is left untouched until someone has looked at it.
 """
-from django.db import migrations
+from django.db import migrations, models
 from django.db.models import Q
+
+# columns that hold '' for "nothing" even when they allow NULL: a FileField without a file saves ''
+TEXT_FIELDS = (models.CharField, models.TextField, models.FileField)
 
 
 class DataStillPresent(RuntimeError):
@@ -40,6 +44,8 @@ class GuardedRemoveField(migrations.RemoveField):
         if self.allow_migrate_model(alias, model):
             field = model._meta.get_field(self.name)
             empty = Q(**{self.name: field.get_default()}) | Q(**{f'{self.name}__isnull': True})
+            if isinstance(field, TEXT_FIELDS):
+                empty |= Q(**{self.name: ''})
             used = model._default_manager.using(alias).exclude(empty).count()
             if used:
                 raise DataStillPresent(

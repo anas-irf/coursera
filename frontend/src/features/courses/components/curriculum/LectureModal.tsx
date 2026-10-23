@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
-import { Play, HelpCircle, ClipboardList, BookOpen } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
-import Modal from '../../../../shared/ui/Modal';
-import { useToast } from '../../../../shared/ui/Toast';
+
 import type { ContentType } from '../../../../shared/types';
+import { Button } from '../../../../shared/ui/Button';
+import { Checkbox } from '../../../../shared/ui/Checkbox';
+import { Field } from '../../../../shared/ui/Field';
+import { Input, Textarea } from '../../../../shared/ui/Input';
+import Modal, { ModalFooter } from '../../../../shared/ui/Modal';
+import { SegmentedControl } from '../../../../shared/ui/SegmentedControl';
+import type { SegmentOption } from '../../../../shared/ui/SegmentedControl';
+import { useToast } from '../../../../shared/ui/Toast';
 import type { CurriculumLecture, LectureFormData, LecturePayload } from '../../types';
+import { LECTURE_KINDS } from './LectureItem';
 import VideoLectureForm from './forms/VideoLectureForm';
 import QuizForm from './forms/QuizForm';
 import AssignmentForm from './forms/AssignmentForm';
@@ -19,6 +25,15 @@ interface LectureModalProps {
   onSave: (data: LecturePayload) => Promise<void>;
   title: string;
 }
+
+// the four kinds of lecture, in the order the dialog offers them
+const CONTENT_TYPES: SegmentOption<ContentType>[] = (['video', 'reading', 'quiz', 'assignment'] as const).map(
+  (value) => ({
+    value,
+    label: value === 'video' ? 'Video' : LECTURE_KINDS[value].label,
+    icon: LECTURE_KINDS[value].icon,
+  })
+);
 
 const LectureModal = ({ lecture, onClose, onSave, title }: LectureModalProps) => {
   const { error } = useToast();
@@ -183,156 +198,103 @@ const LectureModal = ({ lecture, onClose, onSave, title }: LectureModalProps) =>
     }
   };
 
-  const contentTypes: Array<{ id: ContentType; label: string; icon: LucideIcon }> = [
-    { id: 'video', label: 'Video Lecture', icon: Play },
-    { id: 'reading', label: 'Reading', icon: BookOpen },
-    { id: 'quiz', label: 'Quiz', icon: HelpCircle },
-    { id: 'assignment', label: 'Assignment', icon: ClipboardList }
-  ];
-
   return (
-    <Modal title={title} onClose={isUploading ? undefined : onClose}>
-      <div>
-        <div className="px-6 pt-4">
-          <div className="flex space-x-1 border-b">
-            {contentTypes.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => setActiveTab(id)}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-                  activeTab === id
-                    ? 'bg-indigo-50 text-indigo-700 border-b-2 border-indigo-700'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <Icon size={16} />
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+    <Modal
+      title={title}
+      description="A lecture is a video, a reading, a quiz or an assignment."
+      onClose={isUploading ? undefined : onClose}
+      size="lg"
+    >
+      <form onSubmit={handleSubmit} noValidate>
+        <div className="space-y-5 p-5 sm:p-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Lecture Title *
-            </label>
-            <input
-              type="text"
+            <p className="mb-1.5 text-sm font-medium text-fg">Lecture type</p>
+            <SegmentedControl
+              label="Lecture type"
+              options={CONTENT_TYPES}
+              value={activeTab}
+              onChange={setActiveTab}
+            />
+          </div>
+
+          <Field label="Lecture Title" required>
+            <Input
               data-autofocus
               value={formData.title}
-              onChange={(e) => setFormData({...formData, title: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="e.g., Introduction to Components"
-              required
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              placeholder="e.g. Introduction to components"
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Description
-            </label>
-            <textarea
+          <Field label="Description">
+            <Textarea
               value={formData.description}
-              onChange={(e) => setFormData({...formData, description: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="Brief description of this lecture"
+              placeholder="One or two sentences about this lecture"
             />
-          </div>
+          </Field>
 
-          {activeTab === 'video' && (
-            <VideoLectureForm
-              formData={formData}
-              setFormData={setFormData}
-              isUploading={isUploading}
-              setIsUploading={setIsUploading}
-            />
-          )}
-
-          {activeTab === 'reading' && (
-            <ReadingForm
-              formData={formData}
-              setFormData={setFormData}
-              readingFile={readingFile}
-              setReadingFile={setReadingFile}
-            />
-          )}
-
-          {activeTab === 'quiz' && (
-            <QuizForm formData={formData} setFormData={setFormData} />
-          )}
-
-          {activeTab === 'assignment' && (
-            <AssignmentForm
-              formData={formData}
-              setFormData={setFormData}
-              assignmentAttachment={assignmentAttachment}
-              setAssignmentAttachment={setAssignmentAttachment}
-            />
-          )}
-
-          <div className="space-y-3 pt-4 border-t">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={formData.is_preview}
-                onChange={(e) => setFormData({...formData, is_preview: e.target.checked})}
-                className="rounded border-gray-300"
+          <div className="rounded-xl border border-line p-4 sm:p-5">
+            {activeTab === 'video' && (
+              <VideoLectureForm
+                formData={formData}
+                setFormData={setFormData}
+                isUploading={isUploading}
+                setIsUploading={setIsUploading}
               />
-              <span className="text-sm text-gray-700">Allow free preview</span>
-            </label>
+            )}
 
-            {activeTab !== 'quiz' && (
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={formData.is_downloadable}
-                  onChange={(e) => setFormData({...formData, is_downloadable: e.target.checked})}
-                  className="rounded border-gray-300"
-                />
-                <span className="text-sm text-gray-700">Allow download</span>
-              </label>
+            {activeTab === 'reading' && (
+              <ReadingForm
+                formData={formData}
+                setFormData={setFormData}
+                readingFile={readingFile}
+                setReadingFile={setReadingFile}
+              />
+            )}
+
+            {activeTab === 'quiz' && (
+              <QuizForm formData={formData} setFormData={setFormData} />
+            )}
+
+            {activeTab === 'assignment' && (
+              <AssignmentForm
+                formData={formData}
+                setFormData={setFormData}
+                assignmentAttachment={assignmentAttachment}
+                setAssignmentAttachment={setAssignmentAttachment}
+              />
             )}
           </div>
 
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isUploading}
-              className={`flex-1 px-4 py-2 border border-gray-300 rounded-lg transition-colors ${
-                isUploading
-                  ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
-                  : 'text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isUploading}
-              className={`flex-1 px-4 py-2 rounded-lg transition-colors ${
-                isUploading
-                  ? 'bg-gray-400 text-white cursor-not-allowed'
-                  : 'bg-indigo-600 text-white hover:bg-indigo-700'
-              }`}
-            >
-              {isUploading ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Uploading...
-                </>
-              ) : (
-                `${lecture ? 'Update' : 'Create'} Lecture`
-              )}
-            </button>
+          <div className="space-y-3">
+            <Checkbox
+              checked={formData.is_preview}
+              onChange={(e) => setFormData({ ...formData, is_preview: e.target.checked })}
+              label="Allow free preview"
+              description="Visitors can open this lecture before they enrol."
+            />
+            {activeTab !== 'quiz' && (
+              <Checkbox
+                checked={formData.is_downloadable}
+                onChange={(e) => setFormData({ ...formData, is_downloadable: e.target.checked })}
+                label="Allow download"
+                description="Learners can save the file for offline use."
+              />
+            )}
           </div>
-        </form>
-      </div>
+        </div>
+
+        <ModalFooter className="sticky bottom-0 bg-surface-raised">
+          <Button variant="secondary" onClick={onClose} disabled={isUploading}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={isUploading}>
+            {isUploading ? 'Uploading...' : `${lecture ? 'Update' : 'Create'} Lecture`}
+          </Button>
+        </ModalFooter>
+      </form>
     </Modal>
   );
 };

@@ -1,10 +1,12 @@
 import React from 'react';
 import type { ReactNode } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { WifiOff } from 'lucide-react';
 
 import { useAuth } from '../shared/auth/AuthProvider';
 import { homePathFor } from '../shared/auth/paths';
 import type { UserType } from '../shared/types';
+import { Button } from '../shared/ui/Button';
 import { PageSpinner } from '../shared/ui/Spinner';
 
 /** Shown while the server is asked who is signed in, and when it cannot be reached. */
@@ -17,16 +19,16 @@ export function SessionGate({ children }: { children?: ReactNode }) {
   if (status === 'unavailable') {
     // not "signed out": the session may well be fine, so the user is not sent to the login page
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">We cannot reach the server</h2>
-          <p className="text-gray-500 mb-4">Check your connection and try again.</p>
-          <button
-            onClick={retry}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-          >
+      <div className="flex min-h-screen items-center justify-center bg-canvas p-6">
+        <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-8 text-center shadow-card">
+          <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-warning-soft text-warning-fg">
+            <WifiOff size={22} aria-hidden="true" />
+          </span>
+          <h2 className="text-lg font-semibold text-fg">We cannot reach the server</h2>
+          <p className="mt-1 text-sm text-fg-muted">Check your connection and try again.</p>
+          <Button onClick={retry} className="mt-6">
             Try again
-          </button>
+          </Button>
         </div>
       </div>
     );

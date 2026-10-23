@@ -1,15 +1,30 @@
 import React, { useState } from 'react';
-import { BookOpen, Search } from 'lucide-react';
+import { BookOpen, Star } from 'lucide-react';
 
+import { COURSE_STATUS } from '../../../shared/lib/courseStatus';
 import { isFullWeight } from '../../../shared/lib/gradeWeight';
+import { cn } from '../../../shared/lib/cn';
 import { formatDate } from '../../../shared/lib/time';
 import type { CourseStatus } from '../../../shared/types';
+import { Badge } from '../../../shared/ui/Badge';
+import { Card } from '../../../shared/ui/Card';
+import CourseThumbnail from '../../../shared/ui/CourseThumbnail';
+import EmptyState from '../../../shared/ui/EmptyState';
 import ErrorState from '../../../shared/ui/ErrorState';
+import { Field } from '../../../shared/ui/Field';
+import { SearchInput, Select } from '../../../shared/ui/Input';
+import { PageHeader } from '../../../shared/ui/PageHeader';
 import { PageSpinner } from '../../../shared/ui/Spinner';
 import StatusBadge from '../../../shared/ui/StatusBadge';
+import { Table, TBody, TD, TH, THead, TR } from '../../../shared/ui/Table';
 import { useAdminCourses } from '../hooks/useAdmin';
 
 type StatusFilter = 'all' | CourseStatus;
+
+const STATUS_OPTIONS = Object.keys(COURSE_STATUS) as CourseStatus[];
+
+const isStatusFilter = (value: string): value is StatusFilter =>
+  value === 'all' || STATUS_OPTIONS.some((status) => status === value);
 
 const CoursesPage = () => {
   const query = useAdminCourses();
@@ -27,147 +42,116 @@ const CoursesPage = () => {
   }
 
   const courses = query.data;
-  const filteredCourses = courses.filter(course => {
+  const term = searchQuery.toLowerCase();
+  const filteredCourses = courses.filter((course) => {
     const matchesStatus = filter === 'all' || course.status === filter;
-    const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          course.instructor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          course.instructor.email.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch =
+      course.title.toLowerCase().includes(term) ||
+      course.instructor.name.toLowerCase().includes(term) ||
+      course.instructor.email.toLowerCase().includes(term);
     return matchesStatus && matchesSearch;
   });
+  const published = courses.filter((course) => course.status === 'published').length;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">All Courses</h2>
-          <p className="text-gray-600 mt-1">{courses.length} total courses</p>
-        </div>
+      <PageHeader title="All Courses" description={`${courses.length} total courses, ${published} published`} />
 
-        <div className="flex items-center space-x-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search courses or instructors..."
-              aria-label="Search courses or instructors"
-              className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <select
-            aria-label="Status"
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <SearchInput
+          label="Search courses or instructors"
+          placeholder="Search courses or instructors..."
+          value={searchQuery}
+          onChange={setSearchQuery}
+          className="flex-1"
+        />
+        <Field label="Status" hideLabel className="sm:w-56">
+          <Select
             value={filter}
-            // the options below are the only values the select can report
-            onChange={(e) => setFilter(e.target.value as StatusFilter)}
-            className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            onChange={(e) => {
+              if (isStatusFilter(e.target.value)) setFilter(e.target.value);
+            }}
           >
-            <option value="all">All Status</option>
-            <option value="published">Published</option>
-            <option value="pending_review">Pending Review</option>
-            <option value="draft">Draft</option>
-            <option value="rejected">Rejected</option>
-          </select>
-        </div>
+            <option value="all">All statuses</option>
+            {STATUS_OPTIONS.map((status) => (
+              <option key={status} value={status}>
+                {COURSE_STATUS[status].label}
+              </option>
+            ))}
+          </Select>
+        </Field>
       </div>
 
-      {/* Courses Table */}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+      <Card className="overflow-hidden">
+        {filteredCourses.length > 0 ? (
+          <Table label="Courses">
+            <THead>
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Course
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Instructor
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Content
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Grade Weight
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created
-                </th>
+                <TH>Course</TH>
+                <TH>Instructor</TH>
+                <TH>Status</TH>
+                <TH>Type</TH>
+                <TH align="right">Learners</TH>
+                <TH align="right">Rating</TH>
+                <TH>Content</TH>
+                <TH align="right">Grade Weight</TH>
+                <TH>Created</TH>
               </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            </THead>
+            <TBody>
               {filteredCourses.map((course) => (
-                <tr key={course.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="w-12 h-12 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-lg flex items-center justify-center mr-4">
-                        <BookOpen className="text-indigo-600" size={20} />
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium text-gray-900 max-w-xs truncate">{course.title}</div>
-                        <div className="text-sm text-gray-500">{course.category}</div>
+                <TR key={course.id}>
+                  <TD>
+                    <div className="flex items-center gap-3">
+                      <CourseThumbnail course={course} className="h-10 w-16 shrink-0 rounded-md" />
+                      <div className="min-w-0">
+                        <p className="max-w-[16rem] truncate font-medium text-fg">{course.title}</p>
+                        <p className="text-xs text-fg-subtle">{course.category}</p>
                       </div>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{course.instructor.name}</div>
-                      <div className="text-sm text-gray-500">{course.instructor.email}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  </TD>
+                  <TD className="whitespace-nowrap">
+                    <p className="text-fg">{course.instructor.name}</p>
+                    <p className="text-xs text-fg-subtle">{course.instructor.email}</p>
+                  </TD>
+                  <TD>
                     <StatusBadge status={course.status} />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                      course.course_type === 'free'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-purple-100 text-purple-800'
-                    }`}>
-                      {course.course_type === 'free' ? 'FREE' : 'PLUS'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <div>
-                      <p>{course.sections_count} sections</p>
-                      <p>{course.lectures_count} lectures</p>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`text-sm font-medium ${
-                      isFullWeight(course.total_weight) ? 'text-green-600' : 'text-red-600'
-                    }`}>
+                  </TD>
+                  <TD>
+                    {course.course_type === 'free' ? <Badge tone="success">Free</Badge> : <Badge tone="plus">Plus</Badge>}
+                  </TD>
+                  <TD align="right">{(course.total_enrolled || 0).toLocaleString()}</TD>
+                  <TD align="right">
+                    {course.average_rating > 0 ? (
+                      <span className="inline-flex items-center gap-1 text-fg">
+                        <Star size={13} aria-hidden="true" className="fill-warning-fg text-warning-fg" />
+                        {Number(course.average_rating).toFixed(1)}
+                      </span>
+                    ) : (
+                      '-'
+                    )}
+                  </TD>
+                  <TD className="whitespace-nowrap text-xs">
+                    {course.sections_count} sections · {course.lectures_count} lectures
+                  </TD>
+                  <TD align="right">
+                    <span className={cn('font-medium', isFullWeight(course.total_weight) ? 'text-success-fg' : 'text-danger-fg')}>
                       {course.total_weight}%
                     </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDate(course.created_date)}
-                  </td>
-                </tr>
+                  </TD>
+                  <TD className="whitespace-nowrap">{formatDate(course.created_date)}</TD>
+                </TR>
               ))}
-            </tbody>
-          </table>
-        </div>
-
-        {filteredCourses.length === 0 && (
-          <div className="text-center py-12">
-            <BookOpen size={48} className="mx-auto text-gray-300 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No courses found</h3>
-            <p className="text-gray-500">
-              {searchQuery || filter !== 'all'
-                ? 'Try adjusting your search or filter criteria.'
-                : 'No courses have been created yet.'}
-            </p>
-          </div>
+            </TBody>
+          </Table>
+        ) : (
+          <EmptyState icon={BookOpen} title="No courses found">
+            {searchQuery || filter !== 'all'
+              ? 'Try adjusting your search or filter criteria.'
+              : 'No courses have been created yet.'}
+          </EmptyState>
         )}
-      </div>
+      </Card>
     </div>
   );
 };

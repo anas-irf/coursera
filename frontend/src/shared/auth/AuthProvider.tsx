@@ -7,7 +7,7 @@ import * as accountsApi from './api';
 import { restoreSession } from './restore';
 import { session } from '../lib/session';
 import type { UserType } from '../types';
-import type { Identity, Profile, SessionStatus, SignupPayload, SignupResponse, User } from './types';
+import type { DemoRole, Identity, Profile, SessionStatus, SignupPayload, SignupResponse, User } from './types';
 
 export interface AuthContextValue {
   status: SessionStatus;
@@ -16,8 +16,12 @@ export interface AuthContextValue {
   userType: UserType | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<Identity>;
+  /** Sign in as the seeded account of a role (demo mode only). */
+  loginAsDemo: (role: DemoRole) => Promise<Identity>;
   signup: (payload: SignupPayload) => Promise<SignupResponse>;
   logout: () => Promise<void>;
+  /** The server answered new details of the signed-in user (the profile form). */
+  updateIdentity: (identity: Identity) => void;
   retry: () => void;
 }
 
@@ -43,6 +47,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return data;
   }, []);
 
+  const loginAsDemo = useCallback(async (role: DemoRole) => {
+    const data = await accountsApi.demoLogin(role);
+    session.start({ user: data.user, profile: data.profile });
+    return data;
+  }, []);
+
   // Signing up does not log the user in: they are sent to the login form.
   const signup = useCallback((payload: SignupPayload) => accountsApi.signup(payload), []);
 
@@ -56,6 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session.setAnonymous();
   }, []);
 
+  const updateIdentity = useCallback((identity: Identity) => session.update(identity), []);
+
   const retry = useCallback(() => session.setUnknown(), []);
 
   const value = useMemo<AuthContextValue>(
@@ -66,11 +78,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       userType: snapshot.user ? snapshot.user.user_type : null,
       isAuthenticated: snapshot.authenticated,
       login,
+      loginAsDemo,
       signup,
       logout,
+      updateIdentity,
       retry,
     }),
-    [snapshot, login, signup, logout, retry]
+    [snapshot, login, loginAsDemo, signup, logout, updateIdentity, retry]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

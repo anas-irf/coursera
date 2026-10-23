@@ -94,6 +94,10 @@ def row_counts():
 def test_reset_replaces_the_seeded_data_and_leaves_everybody_else_alone():
     seed(password='first-password')
     before = row_counts()
+    # one pool per month that has earning rows: how many depends on the day the seed runs (a
+    # month before the first Plus course was published has none)
+    pools = CourseraRevenuePool.objects.count()
+    assert pools == f.InstructorEarning.objects.values('month').distinct().count() >= 5
     stranger = f.make_student(email='someone.else@example.org')
     foreign_course = f.make_course(f.make_instructor(email='teacher.else@example.org'),
                                    status='published')
@@ -109,7 +113,7 @@ def test_reset_replaces_the_seeded_data_and_leaves_everybody_else_alone():
     assert after['Course'] == before['Course'] + 1
     assert after['Enrollment'] == before['Enrollment'] + 1
     assert after['Notification'] == before['Notification'] + 1
-    assert CourseraRevenuePool.objects.count() == 6          # replaced, not duplicated
+    assert CourseraRevenuePool.objects.count() == pools      # replaced, not duplicated
     for label in ('Lecture', 'QuizAttempt', 'AssignmentSubmission', 'Certificate', 'DirectMessage',
                   'InstructorEarning', 'StudentPlusSubscription'):
         assert after[label] == before[label], label
@@ -496,3 +500,14 @@ def test_the_admin_screens_are_populated(world, auth_client):
     users = api_get(auth_client, admin, '/api/v1/insights/admin/users/')
     assert len(users) == len(PEOPLE) and {u['user_type'] for u in users} == {'admin', 'instructor', 'student'}
     assert any(not user['is_active'] for user in users) and any(not user['email_verified'] for user in users)
+
+
+@pytest.mark.django_db
+def test_the_demo_instructor_has_learners_in_both_published_courses(world):
+    """The instructor of the one-click demo sign-in shows a lively dashboard and analytics page."""
+    demo = f.User.objects.get(email='demo.instructor@example.com')
+    learners = {course.slug: f.Enrollment.objects.filter(course=course).count()
+                for course in f.Course.objects.filter(instructor=demo, status='published')}
+
+    assert learners['introduction-to-python'] >= 5 and learners['applied-machine-learning'] >= 3
+    assert f.InstructorEarning.objects.filter(instructor=demo).exists()

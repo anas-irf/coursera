@@ -1,313 +1,246 @@
 import React, { useState } from 'react';
-import { Settings, Save, Shield, Bell, Globe } from 'lucide-react';
+import type { FormEvent } from 'react';
+import { CircleCheck, CircleSlash, Crown, Layers, Save, Scale, Server } from 'lucide-react';
+
+import { errorMessage, fieldErrors } from '../../../shared/api/errors';
+import { formatMoney } from '../../../shared/lib/money';
+import { Badge } from '../../../shared/ui/Badge';
+import { Button } from '../../../shared/ui/Button';
+import { Callout } from '../../../shared/ui/Callout';
+import { Card, CardBody, CardFooter, CardHeader } from '../../../shared/ui/Card';
+import ErrorState from '../../../shared/ui/ErrorState';
+import { Field } from '../../../shared/ui/Field';
+import { Input, Textarea } from '../../../shared/ui/Input';
+import { PageHeader } from '../../../shared/ui/PageHeader';
+import { PageSpinner } from '../../../shared/ui/Spinner';
+import { Table, TBody, TD, TH, THead, TR } from '../../../shared/ui/Table';
 import { useToast } from '../../../shared/ui/Toast';
-import type { PlatformSettings } from '../types';
+import { usePlans, usePlatform, useUpdatePlan } from '../hooks/useAdmin';
+import { planValues, validatePlan } from '../lib/plans';
+import type { PlanErrors, PlanValues } from '../lib/plans';
+import type { AdminPlan, PlatformEnvironment, PlatformRules } from '../types';
 
-const SettingsPage = () => {
-  const { success } = useToast();
-  const [settings, setSettings] = useState<PlatformSettings>({
-    // General Settings
-    platform_name: 'Coursera Clone',
-    platform_description: 'Professional online learning platform',
-    maintenance_mode: false,
-    allow_registrations: true,
+const CYCLE = { monthly: { title: 'Monthly plan', per: 'month' }, yearly: { title: 'Annual plan', per: 'year' } } as const;
 
-    // Security Settings
-    require_email_verification: true,
-    password_min_length: 8,
-    session_timeout: 30,
-    two_factor_auth: false,
+const toValues = planValues;
 
-    // Notification Settings
-    email_notifications: true,
-    push_notifications: true,
-    marketing_emails: false,
-    system_alerts: true,
+/** One plan, editable: what the checkout page sells. */
+const PlanCard = ({ plan }: { plan: AdminPlan }) => {
+  const update = useUpdatePlan();
+  const toast = useToast();
+  const [values, setValues] = useState<PlanValues>(() => toValues(plan));
+  const [errors, setErrors] = useState<PlanErrors>({});
+  const initial = toValues(plan);
+  const dirty = values.name !== initial.name || values.description !== initial.description || values.price !== initial.price;
+  const cycle = CYCLE[plan.cycle];
 
-    // Course Settings
-    auto_approve_courses: false,
-    require_instructor_approval: true,
-    max_course_duration: 120,
-    min_course_price: 0,
-    max_course_price: 999,
-
-    // Payment Settings
-    commission_rate: 30,
-    minimum_payout: 50,
-    payment_methods: ['stripe', 'paypal'],
-
-    // Content Settings
-    max_video_size: 500,
-    allowed_file_types: ['mp4', 'pdf', 'docx', 'pptx'],
-    content_moderation: true
-  });
-
-  const handleSettingChange = <K extends keyof PlatformSettings>(key: K, value: PlatformSettings[K]) => {
-    setSettings(prev => ({
-      ...prev,
-      [key]: value
-    }));
+  const set = (name: keyof PlanValues) => (event: { target: { value: string } }) => {
+    setValues((prev) => ({ ...prev, [name]: event.target.value }));
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: undefined }));
   };
 
-  const handleSaveSettings = () => {
-    // demo only: the platform has no settings endpoint yet
-    success('Demo only: platform settings are not stored yet.', 'Not Saved');
+  const save = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const problems = validatePlan(values);
+    if (Object.keys(problems).length > 0) {
+      setErrors(problems);
+      return;
+    }
+    update.mutate(
+      {
+        cycle: plan.cycle,
+        changes: { name: values.name.trim(), description: values.description.trim(), price: Number(values.price) },
+      },
+      {
+        onSuccess: (saved) => {
+          setValues(toValues(saved));
+          toast.success(`${saved.name} now sells at ${formatMoney(saved.price)} per ${cycle.per}.`, 'Plan saved');
+        },
+        onError: (error) => {
+          const fields = fieldErrors(error);
+          if (fields.name || fields.description || fields.price) {
+            setErrors({ name: fields.name, description: fields.description, price: fields.price });
+          } else {
+            toast.error(errorMessage(error, 'The plan could not be saved.'), 'Not saved');
+          }
+        },
+      }
+    );
   };
 
   return (
+    <Card as="article" aria-label={cycle.title}>
+      <form onSubmit={save} noValidate>
+        <CardHeader
+          title={cycle.title}
+          description={`${plan.members} member${plan.members === 1 ? '' : 's'} on this plan`}
+          icon={Crown}
+          action={plan.configured ? <Badge tone="success">Configured</Badge> : <Badge tone="neutral">Built-in default</Badge>}
+        />
+        <CardBody className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-[1fr_9rem]">
+            <Field label="Name" error={errors.name}>
+              <Input value={values.name} onChange={set('name')} maxLength={100} />
+            </Field>
+            <Field label={`Price per ${cycle.per}`} error={errors.price}>
+              <Input type="number" min="0.01" step="0.01" inputMode="decimal" value={values.price} onChange={set('price')} />
+            </Field>
+          </div>
+          <Field label="Description" error={errors.description} hint="Shown on the checkout page.">
+            <Textarea rows={2} maxLength={500} value={values.description} onChange={set('description')} />
+          </Field>
+        </CardBody>
+        <CardFooter>
+          <Button variant="ghost" onClick={() => { setValues(initial); setErrors({}); }} disabled={!dirty || update.isPending}>
+            Reset
+          </Button>
+          <Button type="submit" icon={Save} loading={update.isPending} disabled={!dirty}>
+            Save plan
+          </Button>
+        </CardFooter>
+      </form>
+    </Card>
+  );
+};
+
+const RULES: Array<{ key: keyof PlatformRules; label: string; unit: string; help: string }> = [
+  { key: 'revenue_share_percent', label: 'Instructor revenue share', unit: '%', help: 'of each month of Plus payments, shared among the Plus courses' },
+  { key: 'course_passing_grade', label: 'Passing grade', unit: '%', help: 'weighted course grade that earns a certificate' },
+  { key: 'quiz_submit_grace_seconds', label: 'Quiz grace period', unit: ' s', help: 'how late a timed quiz may still be handed in' },
+  { key: 'access_token_minutes', label: 'Session token lifetime', unit: ' min', help: 'before the browser refreshes it' },
+  { key: 'refresh_token_days', label: 'Sign-in lifetime', unit: ' days', help: 'without activity before signing in again' },
+];
+
+const EnvironmentRow = ({ label, on, detail }: { label: string; on: boolean; detail?: string }) => (
+  <li className="flex items-center justify-between gap-3 py-2.5">
+    <span className="text-sm text-fg-muted">{label}</span>
+    <span className="flex items-center gap-1.5 text-sm font-medium text-fg">
+      {on ? (
+        <CircleCheck size={15} aria-hidden="true" className="text-success-fg" />
+      ) : (
+        <CircleSlash size={15} aria-hidden="true" className="text-fg-subtle" />
+      )}
+      {detail || (on ? 'On' : 'Off')}
+    </span>
+  </li>
+);
+
+const environmentRows = (environment: PlatformEnvironment) => [
+  { label: 'Demo mode', on: environment.demo_mode },
+  { label: 'Debug', on: environment.debug },
+  { label: 'Database', on: true, detail: environment.database === 'postgresql' ? 'PostgreSQL' : 'SQLite' },
+  { label: 'Real-time layer', on: true, detail: environment.realtime === 'redis' ? 'Redis' : 'In memory' },
+  { label: 'Stripe payments', on: environment.stripe, detail: environment.stripe ? 'Configured' : 'Not configured' },
+  { label: 'API version', on: true, detail: environment.api_version },
+];
+
+/** The plans and their prices (editable), the rules and the catalogue (read from the server). */
+const SettingsPage = () => {
+  const plans = usePlans();
+  const platform = usePlatform();
+
+  return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <PageHeader
+        title="Platform Settings"
+        description="The Plus plans can be changed here; the rules come from the server's configuration."
+      />
+
+      <section aria-labelledby="plans-heading" className="space-y-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Platform Settings</h2>
-          <p className="text-sm text-yellow-700 mt-1">
-            Sample settings: nothing here is stored or applied yet.
-          </p>
+          <h2 id="plans-heading" className="text-lg font-semibold text-fg">Coursera Plus plans</h2>
+          <p className="mt-0.5 text-sm text-fg-muted">What the checkout page offers and Stripe charges.</p>
         </div>
-        <button
-          onClick={handleSaveSettings}
-          className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-        >
-          <Save size={16} />
-          <span>Save Changes</span>
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* General Settings */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center mb-6">
-            <Settings className="text-indigo-600 mr-3" size={24} />
-            <h3 className="text-lg font-semibold text-gray-900">General Settings</h3>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Platform Name</label>
-              <input
-                type="text"
-                value={settings.platform_name}
-                onChange={(e) => handleSettingChange('platform_name', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
+        {plans.isPending && <PageSpinner className="h-48" />}
+        {plans.isError && <ErrorState title="The plans could not be loaded" error={plans.error} onRetry={() => plans.refetch()} />}
+        {plans.isSuccess && (
+          <>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {plans.data.map((plan) => (
+                <PlanCard key={plan.cycle} plan={plan} />
+              ))}
             </div>
+            <Callout tone="info">
+              A new price applies to new checkouts. Members keep the price they signed up with until they cancel.
+            </Callout>
+          </>
+        )}
+      </section>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Platform Description</label>
-              <textarea
-                value={settings.platform_description}
-                onChange={(e) => handleSettingChange('platform_description', e.target.value)}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
+      {platform.isPending && <PageSpinner className="h-48" />}
+      {platform.isError && (
+        <ErrorState title="The configuration could not be loaded" error={platform.error} onRetry={() => platform.refetch()} />
+      )}
+      {platform.isSuccess && (
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Card className="lg:col-span-2">
+            <CardHeader title="Rules" description="Set with environment variables (see backend/.env.example)" icon={Scale} />
+            <dl className="divide-y divide-line">
+              {RULES.map((rule) => (
+                <div key={rule.key} className="flex flex-col gap-1 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <dt className="text-sm font-medium text-fg">{rule.label}</dt>
+                    <p className="text-xs text-fg-subtle">{rule.help}</p>
+                  </div>
+                  <dd className="text-lg font-semibold text-fg tabular-nums">
+                    {platform.data.rules[rule.key]}
+                    {rule.unit}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </Card>
 
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">Maintenance Mode</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.maintenance_mode}
-                  onChange={(e) => handleSettingChange('maintenance_mode', e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-              </label>
-            </div>
+          <Card>
+            <CardHeader title="Environment" description="How this server runs" icon={Server} />
+            <CardBody className="py-2">
+              <ul className="divide-y divide-line">
+                {environmentRows(platform.data.environment).map((row) => (
+                  <EnvironmentRow key={row.label} {...row} />
+                ))}
+              </ul>
+            </CardBody>
+          </Card>
 
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">Allow New Registrations</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.allow_registrations}
-                  onChange={(e) => handleSettingChange('allow_registrations', e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-              </label>
+          <Card className="overflow-hidden lg:col-span-3">
+            <CardHeader
+              title="Catalogue"
+              description={`${platform.data.categories.length} categories and ${platform.data.languages.length} languages instructors can choose from`}
+              icon={Layers}
+            />
+            <Table label="Categories">
+              <THead>
+                <tr>
+                  <TH>Category</TH>
+                  <TH>Slug</TH>
+                  <TH align="right">Courses</TH>
+                  <TH align="right">Published</TH>
+                </tr>
+              </THead>
+              <TBody>
+                {platform.data.categories.map((category) => (
+                  <TR key={category.id}>
+                    <TD className="font-medium text-fg">{category.name}</TD>
+                    <TD>
+                      <code className="rounded bg-surface-muted px-1.5 py-0.5 text-xs">{category.slug}</code>
+                    </TD>
+                    <TD align="right">{category.courses}</TD>
+                    <TD align="right">{category.published}</TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+            <div className="flex flex-wrap items-center gap-2 border-t border-line px-5 py-4">
+              <span className="text-sm text-fg-muted">Languages:</span>
+              {platform.data.languages.map((language) => (
+                <Badge key={language.id} tone="primary">
+                  {language.name} · {language.courses}
+                </Badge>
+              ))}
             </div>
-          </div>
+          </Card>
         </div>
-
-        {/* Security Settings */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center mb-6">
-            <Shield className="text-green-600 mr-3" size={24} />
-            <h3 className="text-lg font-semibold text-gray-900">Security Settings</h3>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">Require Email Verification</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.require_email_verification}
-                  onChange={(e) => handleSettingChange('require_email_verification', e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
-              </label>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Minimum Password Length</label>
-              <input
-                type="number"
-                value={settings.password_min_length}
-                onChange={(e) => handleSettingChange('password_min_length', parseInt(e.target.value))}
-                min="6"
-                max="20"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Session Timeout (minutes)</label>
-              <input
-                type="number"
-                value={settings.session_timeout}
-                onChange={(e) => handleSettingChange('session_timeout', parseInt(e.target.value))}
-                min="5"
-                max="120"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">Two-Factor Authentication</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.two_factor_auth}
-                  onChange={(e) => handleSettingChange('two_factor_auth', e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        {/* Notification Settings */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center mb-6">
-            <Bell className="text-blue-600 mr-3" size={24} />
-            <h3 className="text-lg font-semibold text-gray-900">Notification Settings</h3>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">Email Notifications</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.email_notifications}
-                  onChange={(e) => handleSettingChange('email_notifications', e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">Push Notifications</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.push_notifications}
-                  onChange={(e) => handleSettingChange('push_notifications', e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">Marketing Emails</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.marketing_emails}
-                  onChange={(e) => handleSettingChange('marketing_emails', e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">System Alerts</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.system_alerts}
-                  onChange={(e) => handleSettingChange('system_alerts', e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        {/* Course Settings */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center mb-6">
-            <Globe className="text-purple-600 mr-3" size={24} />
-            <h3 className="text-lg font-semibold text-gray-900">Course Settings</h3>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">Auto-approve Courses</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.auto_approve_courses}
-                  onChange={(e) => handleSettingChange('auto_approve_courses', e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
-              </label>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Max Course Duration (hours)</label>
-              <input
-                type="number"
-                value={settings.max_course_duration}
-                onChange={(e) => handleSettingChange('max_course_duration', parseInt(e.target.value))}
-                min="1"
-                max="500"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Commission Rate (%)</label>
-              <input
-                type="number"
-                value={settings.commission_rate}
-                onChange={(e) => handleSettingChange('commission_rate', parseInt(e.target.value))}
-                min="0"
-                max="50"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Save Button */}
-      <div className="flex justify-center">
-        <button
-          onClick={handleSaveSettings}
-          className="mt-6 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-        >
-          Save Settings
-        </button>
-      </div>
+      )}
     </div>
   );
 };

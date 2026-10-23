@@ -1,9 +1,24 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DefaultError, UseMutationResult, UseQueryResult } from '@tanstack/react-query';
 
+import { saveBlob } from '../../../shared/lib/download';
 import type { UUID } from '../../../shared/types';
 import * as adminApi from '../api';
-import type { AdminCourse, AdminUser, ApproveResult, PendingCourse, RejectResult } from '../types';
+import type {
+  AdminCourse,
+  AdminPlan,
+  AdminUser,
+  ApproveResult,
+  PendingCourse,
+  PlanChanges,
+  PlanCycle,
+  Platform,
+  RejectResult,
+  ReportId,
+  ReportInfo,
+  Revenue,
+  RevenueMonths,
+} from '../types';
 
 /**
  * Query keys of the admin area (``['admin', resource]``).  The approval queue, the badge in the
@@ -15,6 +30,10 @@ export const adminKeys = {
   pending: ['admin', 'pending'],
   courses: ['admin', 'courses'],
   users: ['admin', 'users'],
+  revenue: (months: RevenueMonths) => ['admin', 'revenue', months] as const,
+  reports: ['admin', 'reports'],
+  platform: ['admin', 'platform'],
+  plans: ['admin', 'plans'],
 } as const;
 
 const QUEUE_REFRESH_MS = 60 * 1000;
@@ -84,4 +103,55 @@ export function useApproveCourse(): UseMutationResult<ApproveResult, DefaultErro
 /** ``mutate({courseId, reason})``: send a course back to its instructor with a reason. */
 export function useRejectCourse(): UseMutationResult<RejectResult, DefaultError, RejectVariables> {
   return useDecision(({ courseId, reason }: RejectVariables) => adminApi.rejectCourse(courseId, reason));
+}
+
+/** Revenue over the last ``months``; the previous answer stays on screen while another loads. */
+export function useRevenue(months: RevenueMonths): UseQueryResult<Revenue> {
+  return useQuery({
+    queryKey: adminKeys.revenue(months),
+    queryFn: () => adminApi.revenue(months),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useReports(): UseQueryResult<ReportInfo[]> {
+  return useQuery({ queryKey: adminKeys.reports, queryFn: adminApi.reports });
+}
+
+/** ``mutate(reportId)``: fetch a report and offer it to the user as a file. */
+export function useDownloadReport(): UseMutationResult<string, DefaultError, ReportId> {
+  return useMutation({
+    mutationFn: async (id: ReportId) => {
+      const file = await adminApi.downloadReport(id);
+      saveBlob(file.blob, file.filename);
+      return file.filename;
+    },
+  });
+}
+
+export function usePlatform(): UseQueryResult<Platform> {
+  return useQuery({ queryKey: adminKeys.platform, queryFn: adminApi.platform });
+}
+
+export function usePlans(): UseQueryResult<AdminPlan[]> {
+  return useQuery({ queryKey: adminKeys.plans, queryFn: adminApi.plans });
+}
+
+/** What saving a plan needs. */
+export interface PlanVariables {
+  cycle: PlanCycle;
+  changes: PlanChanges;
+}
+
+/** ``mutate({cycle, changes})``: the plan is sold at its new price from the next checkout on. */
+export function useUpdatePlan(): UseMutationResult<AdminPlan, DefaultError, PlanVariables> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ cycle, changes }: PlanVariables) => adminApi.updatePlan(cycle, changes),
+    onSuccess: () => Promise.all([
+      client.invalidateQueries({ queryKey: adminKeys.plans }),
+      client.invalidateQueries({ queryKey: ['admin', 'revenue'] }),
+      client.invalidateQueries({ queryKey: ['billing'] }),
+    ]),
+  });
 }

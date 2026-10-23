@@ -1,7 +1,11 @@
 import React, { createContext, useContext, useId, useState, useCallback, useMemo } from 'react';
-import type { ReactElement, ReactNode } from 'react';
-import { AlertTriangle, Info, Trash2, LogOut, X } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { AlertTriangle, Info, LogOut, Trash2, X } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
+import { cn } from '../lib/cn';
+import { Button, IconButton } from './Button';
+import type { ButtonVariant } from './Button';
 import Modal from './Modal';
 
 export type ConfirmType = 'info' | 'warning' | 'danger' | 'logout';
@@ -29,7 +33,6 @@ interface DialogState extends ConfirmOptions {
   resolve: (confirmed: boolean) => void;
 }
 
-// Confirm Dialog Context
 const ConfirmContext = createContext<ConfirmApi | null>(null);
 
 export const useConfirm = (): ConfirmApi => {
@@ -40,110 +43,69 @@ export const useConfirm = (): ConfirmApi => {
   return context;
 };
 
+// how each kind of question looks: its icon, the tint behind it and the confirming button
+const LOOKS: Record<ConfirmType, { icon: LucideIcon; tint: string; button: ButtonVariant }> = {
+  info: { icon: Info, tint: 'bg-primary-soft text-primary-fg', button: 'primary' },
+  warning: { icon: AlertTriangle, tint: 'bg-warning-soft text-warning-fg', button: 'primary' },
+  danger: { icon: Trash2, tint: 'bg-danger-soft text-danger-fg', button: 'danger' },
+  logout: { icon: LogOut, tint: 'bg-surface-muted text-fg-muted', button: 'primary' },
+};
+
 interface ConfirmDialogProps {
   dialog: DialogState | null;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-// Confirm Dialog Component
 const ConfirmDialog = ({ dialog, onConfirm, onCancel }: ConfirmDialogProps) => {
   const titleId = useId();
   if (!dialog) return null;
 
-  const icons: Record<ConfirmType, ReactElement> = {
-    warning: <AlertTriangle className="w-6 h-6 text-yellow-500" />,
-    danger: <Trash2 className="w-6 h-6 text-red-500" />,
-    info: <Info className="w-6 h-6 text-blue-500" />,
-    logout: <LogOut className="w-6 h-6 text-orange-500" />
-  };
-
-  const buttonStyles: Record<ConfirmType, { confirm: string; cancel: string }> = {
-    warning: {
-      confirm: 'bg-yellow-600 hover:bg-yellow-700 text-white',
-      cancel: 'bg-gray-300 hover:bg-gray-400 text-gray-700'
-    },
-    danger: {
-      confirm: 'bg-red-600 hover:bg-red-700 text-white',
-      cancel: 'bg-gray-300 hover:bg-gray-400 text-gray-700'
-    },
-    info: {
-      confirm: 'bg-blue-600 hover:bg-blue-700 text-white',
-      cancel: 'bg-gray-300 hover:bg-gray-400 text-gray-700'
-    },
-    logout: {
-      confirm: 'bg-orange-600 hover:bg-orange-700 text-white',
-      cancel: 'bg-gray-300 hover:bg-gray-400 text-gray-700'
-    }
-  };
+  const look = LOOKS[dialog.type] || LOOKS.info;
+  const Icon = look.icon;
 
   return (
     <Modal bare layer="top" size="sm" labelledBy={titleId} onClose={onCancel}>
-      <div>
-        <div className="flex items-start p-6">
-          <div className="flex-shrink-0">
-            {icons[dialog.type] || icons.info}
-          </div>
-          <div className="ml-3 w-full">
-            <h3 id={titleId} className="text-lg font-medium text-gray-900 mb-2">
+      <div className="p-6">
+        <div className="flex items-start gap-4">
+          <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full', look.tint)}>
+            <Icon size={20} aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1 pt-0.5">
+            <h3 id={titleId} className="text-base font-semibold text-fg">
               {dialog.title}
             </h3>
-            <p className="text-sm text-gray-600">
-              {dialog.message}
-            </p>
+            <p className="mt-1 text-sm text-fg-muted">{dialog.message}</p>
           </div>
-          {dialog.showClose && (
-            <button
-              onClick={onCancel}
-              aria-label="Close"
-              className="flex-shrink-0 ml-3 text-gray-400 hover:text-gray-600"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
+          {dialog.showClose && <IconButton icon={X} label="Close" size="sm" onClick={onCancel} className="-mr-2 -mt-1" />}
         </div>
-        <div className="flex justify-end space-x-3 px-6 pb-6">
-          <button
-            onClick={onCancel}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-              buttonStyles[dialog.type]?.cancel || buttonStyles.info.cancel
-            }`}
-          >
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="secondary" onClick={onCancel}>
             {dialog.cancelText || 'Cancel'}
-          </button>
-          <button
-            onClick={onConfirm}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-              buttonStyles[dialog.type]?.confirm || buttonStyles.info.confirm
-            }`}
-          >
+          </Button>
+          <Button variant={look.button} onClick={onConfirm}>
             {dialog.confirmText || 'Confirm'}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>
   );
 };
 
-// Confirm Provider
 export const ConfirmProvider = ({ children }: { children: ReactNode }) => {
   const [dialog, setDialog] = useState<DialogState | null>(null);
 
   const confirm = useCallback((options?: ConfirmOptions): Promise<boolean> => {
     return new Promise<boolean>((resolve) => {
-      const dialogConfig = {
-        type: 'info' as ConfirmType,
+      setDialog({
+        type: 'info',
         title: 'Confirm',
         message: 'Are you sure?',
         confirmText: 'Confirm',
         cancelText: 'Cancel',
         showClose: true,
-        ...options
-      };
-
-      setDialog({
-        ...dialogConfig,
-        resolve
+        ...options,
+        resolve,
       });
     });
   }, []);
@@ -162,7 +124,6 @@ export const ConfirmProvider = ({ children }: { children: ReactNode }) => {
     setDialog(null);
   }, [dialog]);
 
-  // Convenience methods
   const confirmDelete = useCallback((message = 'This action cannot be undone.', title = 'Delete Item') => {
     return confirm({
       type: 'danger',

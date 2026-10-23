@@ -20,6 +20,11 @@ class LoginThrottle(AnonRateThrottle):
     scope = 'login'
 
 
+class PasswordChangeThrottle(UserRateThrottle):
+    """Guessing the current password of a signed-in account: the login rate, per user."""
+    scope = 'login'
+
+
 class SignupThrottle(AnonRateThrottle):
     """Limits sign-ups per client address."""
     scope = 'signup'

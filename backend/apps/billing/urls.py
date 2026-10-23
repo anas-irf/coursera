@@ -2,11 +2,15 @@
 
 from django.urls import path
 
-from .api import views
+from .api import admin, views
 
 app_name = 'billing'
 
 urlpatterns = [
+    # the administrator's plan settings
+    path('admin/plans/', admin.admin_plans, name='admin-plans'),
+    path('admin/plans/<str:cycle>/', admin.admin_plan, name='admin-plan'),
+
     # checkout
     path('checkout/', views.checkout_page_data, name='checkout-data'),
     path('checkout/session/', views.create_stripe_checkout_session, name='stripe-checkout-session'),

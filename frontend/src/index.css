@@ -2,16 +2,224 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+/*
+ * Design tokens.  Every colour of the interface is one of these variables, written as
+ * "R G B" so Tailwind can add an opacity (tailwind.config.js maps them to class names).
+ * The light set is the default; the dark set applies under html.dark, which the theme
+ * provider (and the script in public/index.html, before the first paint) sets.
+ */
+@layer base {
+  :root {
+    --canvas: 245 247 251;
+    --surface: 255 255 255;
+    --surface-muted: 241 244 249;
+    --surface-raised: 255 255 255;
+    --line: 227 232 239;
+    --line-strong: 205 213 224;
+    --fg: 15 23 42;
+    --fg-muted: 71 85 105;
+    --fg-subtle: 100 116 139;
+
+    --primary: 0 86 210;
+    --primary-hover: 0 71 173;
+    --primary-contrast: 255 255 255;
+    --primary-soft: 235 243 255;
+    --primary-fg: 0 86 210;
+    --ring: 0 86 210;
+
+    --success: 21 128 61;
+    --success-soft: 234 247 239;
+    --success-fg: 22 101 52;
+    --warning: 180 83 9;
+    --warning-soft: 255 246 229;
+    --warning-fg: 146 64 14;
+    --danger: 220 38 38;
+    --danger-soft: 254 241 241;
+    --danger-fg: 185 28 28;
+    --info: 2 132 199;
+    --info-soft: 234 246 253;
+    --info-fg: 7 89 133;
+    --plus: 124 58 237;
+    --plus-soft: 243 238 255;
+    --plus-fg: 109 40 217;
+
+    --chart-1: 0 86 210;
+    --chart-2: 16 185 129;
+    --chart-3: 245 158 11;
+    --chart-4: 139 92 246;
+    --chart-5: 236 72 153;
+    --chart-6: 14 165 233;
+
+    --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.05);
+    --shadow-pop: 0 12px 32px -12px rgb(15 23 42 / 0.28), 0 4px 12px -4px rgb(15 23 42 / 0.1);
+
+    color-scheme: light;
+  }
+
+  .dark {
+    --canvas: 10 15 28;
+    --surface: 16 23 38;
+    --surface-muted: 23 32 52;
+    --surface-raised: 21 29 47;
+    --line: 34 44 66;
+    --line-strong: 52 64 90;
+    --fg: 230 235 243;
+    --fg-muted: 163 175 194;
+    --fg-subtle: 123 135 156;
+
+    --primary: 26 111 232;
+    --primary-hover: 59 130 246;
+    --primary-contrast: 255 255 255;
+    --primary-soft: 19 42 82;
+    --primary-fg: 138 182 255;
+    --ring: 96 155 255;
+
+    --success: 21 128 61;
+    --success-soft: 14 42 29;
+    --success-fg: 74 222 128;
+    --warning: 180 83 9;
+    --warning-soft: 46 33 8;
+    --warning-fg: 251 191 36;
+    --danger: 220 38 38;
+    --danger-soft: 52 20 26;
+    --danger-fg: 248 113 113;
+    --info: 2 132 199;
+    --info-soft: 12 42 61;
+    --info-fg: 56 189 248;
+    --plus: 124 58 237;
+    --plus-soft: 38 26 71;
+    --plus-fg: 196 181 253;
+
+    --chart-1: 77 148 255;
+    --chart-2: 52 211 153;
+    --chart-3: 251 191 36;
+    --chart-4: 167 139 250;
+    --chart-5: 244 114 182;
+    --chart-6: 56 189 248;
+
+    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.35);
+    --shadow-pop: 0 16px 40px -12px rgb(0 0 0 / 0.65), 0 0 0 1px rgb(255 255 255 / 0.04);
+
+    color-scheme: dark;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-fg antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  ::selection {
+    background: rgb(var(--primary) / 0.2);
+  }
+
+  /* thin scrollbars in the colours of the theme */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--line-strong)) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--line-strong));
+    border: 3px solid transparent;
+    border-radius: 9999px;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  code,
+  kbd,
+  pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+@layer components {
+  /* A reading lecture: instructors write HTML (sanitised twice), this gives it a type scale. */
+  .reading-content {
+    @apply text-[0.95rem] leading-7 text-fg;
+  }
+  .reading-content > * + * {
+    @apply mt-4;
+  }
+  .reading-content h1 {
+    @apply mt-8 text-2xl font-semibold tracking-tight;
+  }
+  .reading-content h2 {
+    @apply mt-8 text-xl font-semibold tracking-tight;
+  }
+  .reading-content h3 {
+    @apply mt-6 text-lg font-semibold;
+  }
+  .reading-content h4 {
+    @apply mt-6 font-semibold;
+  }
+  .reading-content a {
+    @apply font-medium text-primary-fg underline underline-offset-2;
+  }
+  .reading-content ul {
+    @apply list-disc pl-6;
+  }
+  .reading-content ol {
+    @apply list-decimal pl-6;
+  }
+  .reading-content li + li {
+    @apply mt-1;
+  }
+  .reading-content blockquote {
+    @apply border-l-4 border-line-strong pl-4 italic text-fg-muted;
+  }
+  .reading-content code {
+    @apply rounded bg-surface-muted px-1.5 py-0.5 text-[0.85em];
+  }
+  .reading-content pre {
+    @apply overflow-x-auto rounded-lg border border-line bg-surface-muted p-4 text-sm leading-6;
+  }
+  .reading-content pre code {
+    @apply bg-transparent p-0;
+  }
+  .reading-content img {
+    @apply max-w-full rounded-lg border border-line;
+  }
+  .reading-content hr {
+    @apply my-8 border-line;
+  }
+  .reading-content table {
+    @apply w-full border-collapse text-sm;
+  }
+  .reading-content th,
+  .reading-content td {
+    @apply border border-line px-3 py-2 text-left;
+  }
+  .reading-content th {
+    @apply bg-surface-muted font-semibold;
+  }
+}
+
+@layer utilities {
+  /* a quiet dot grid for hero panels */
+  .bg-dots {
+    background-image: radial-gradient(rgb(255 255 255 / 0.14) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
 }

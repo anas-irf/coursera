@@ -2,31 +2,30 @@ import type { GradebookCourse } from '../types';
 
 /** Pure helpers of the learner's gradebook. */
 
-interface Band {
-  from: number;
-  text: string;
-  bg: string;
+/** The tone a grade is drawn in (the names of the UI kit's tones). */
+export type GradeTone = 'success' | 'primary' | 'warning' | 'danger';
+
+export interface GradeBand {
+  tone: GradeTone;
 }
 
-/** The Tailwind classes of a grade. */
-export interface GradeColours {
-  text: string;
-  bg: string;
+interface Band {
+  from: number;
+  tone: GradeTone;
 }
 
 const BANDS: Band[] = [
-  { from: 90, text: 'text-green-600', bg: 'bg-green-50 border-green-200' },
-  { from: 80, text: 'text-blue-600', bg: 'bg-blue-50 border-blue-200' },
-  { from: 70, text: 'text-yellow-600', bg: 'bg-yellow-50 border-yellow-200' },
-  { from: 60, text: 'text-orange-600', bg: 'bg-orange-50 border-orange-200' },
+  { from: 90, tone: 'success' },
+  { from: 80, tone: 'primary' },
+  { from: 60, tone: 'warning' },
 ];
 
-const BELOW: GradeColours = { text: 'text-red-600', bg: 'bg-red-50 border-red-200' };
+const BELOW: GradeBand = { tone: 'danger' };
 
-/** The colours of a grade: ``{text, bg}`` for 90+, 80+, 70+, 60+ and below. */
-export function gradeBand(grade: number): GradeColours {
+/** The tone of a grade: 90+ success, 80+ primary, 60+ warning, below that danger. */
+export function gradeBand(grade: number): GradeBand {
   const band = BANDS.find((candidate) => grade >= candidate.from);
-  return band ? { text: band.text, bg: band.bg } : BELOW;
+  return band ? { tone: band.tone } : BELOW;
 }
 
 /** What the figures of a gradebook need of a course. */
@@ -56,7 +55,7 @@ export function gradebookStats(courses: GradedCourse[]): GradebookStats {
 /** The filter of the course list. */
 export type GradeFilter = 'all' | 'passing' | 'failing';
 
-/** Narrows the value of the filter ``<select>`` (a string) to the filter it stands for. */
+/** Narrows a value handed over as text (a select, a URL) to the filter it stands for. */
 export function isGradeFilter(value: string): value is GradeFilter {
   return value === 'all' || value === 'passing' || value === 'failing';
 }

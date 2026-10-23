@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
-import type { ChangeEvent, FormEvent } from 'react';
+import type { FormEvent } from 'react';
+import { FileUp, Send } from 'lucide-react';
 
 import { errorMessage } from '../../../shared/api/errors';
+import { Button } from '../../../shared/ui/Button';
+import { Callout } from '../../../shared/ui/Callout';
+import { Field } from '../../../shared/ui/Field';
+import FileDrop from '../../../shared/ui/FileDrop';
+import { Textarea } from '../../../shared/ui/Input';
 import { useToast } from '../../../shared/ui/Toast';
 import { useSubmitAssignment } from '../hooks/useAttempts';
 import type { AssignmentLecture } from '../types';
@@ -22,12 +28,12 @@ const AssignmentSubmissionForm = ({ assignment, onSubmitted }: AssignmentSubmiss
   const [file, setFile] = useState<File | null>(null);
   const toast = useToast();
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const chosen = event.target.files?.[0];
-    if (!chosen) return;
+  // a file that is refused leaves the box empty again, so the same file can be chosen after fixing it
+  const pick = (chosen: File, reset: () => void) => {
 
     if (chosen.size > MAX_BYTES) {
       toast.warning('File size cannot exceed 50MB', 'File Too Large');
+      reset();
       return;
     }
 
@@ -37,6 +43,7 @@ const AssignmentSubmissionForm = ({ assignment, onSubmitted }: AssignmentSubmiss
         `File type ${extension} not allowed. Allowed types: ${ALLOWED_TYPES.join(', ')}`,
         'Invalid File Type'
       );
+      reset();
       return;
     }
 
@@ -60,10 +67,7 @@ const AssignmentSubmissionForm = ({ assignment, onSubmitted }: AssignmentSubmiss
       toast.success('Assignment submitted successfully!', 'Submission Complete');
       if (onSubmitted) onSubmitted();
     } catch (err) {
-      toast.error(
-        errorMessage(err, 'Failed to submit assignment. Please try again.'),
-        'Submission Failed'
-      );
+      toast.error(errorMessage(err, 'Failed to submit assignment. Please try again.'), 'Submission Failed');
     }
   };
 
@@ -72,74 +76,38 @@ const AssignmentSubmissionForm = ({ assignment, onSubmitted }: AssignmentSubmiss
   const blocked = isLate && !assignment.allow_late_submission;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div>
-        <label htmlFor="submissionText" className="block text-sm font-medium text-gray-700 mb-2">
-          Text Submission (Optional)
-        </label>
-        <textarea
-          id="submissionText"
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <Field label="Text Submission (Optional)">
+        <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={6}
-          className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
           placeholder="Enter your submission text here..."
         />
-      </div>
+      </Field>
 
-      <div>
-        <label htmlFor="submissionFile" className="block text-sm font-medium text-gray-700 mb-2">
-          File Upload (Optional)
-        </label>
-        <div className="flex items-center justify-center w-full">
-          <label
-            htmlFor="submissionFile"
-            className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
-          >
-            <div className="flex flex-col items-center justify-center pt-5 pb-6">
-              <svg className="w-8 h-8 mb-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                />
-              </svg>
-              <p className="mb-2 text-sm text-gray-500">{file ? file.name : 'Click to upload file'}</p>
-              <p className="text-xs text-gray-500">PDF, DOC, DOCX, TXT, JPG, PNG, ZIP (Max 50MB)</p>
-            </div>
-            <input
-              id="submissionFile"
-              type="file"
-              className="hidden"
-              onChange={handleFileChange}
-              accept={ALLOWED_TYPES.join(',')}
-            />
-          </label>
-        </div>
-      </div>
+      <Field label="File Upload (Optional)">
+        <FileDrop
+          accept={ALLOWED_TYPES.join(',')}
+          title="Click to upload file, or drop it here"
+          hint="PDF, DOC, DOCX, TXT, JPG, PNG, ZIP (Max 50MB)"
+          icon={FileUp}
+          buttonLabel="Choose file"
+          onFile={pick}
+          file={file}
+          onRemove={() => setFile(null)}
+        />
+      </Field>
 
       {isLate && assignment.allow_late_submission && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-sm text-yellow-800">
-            ⚠️ This assignment is past the due date. Late submissions may be penalized.
-          </p>
-        </div>
+        <Callout tone="warning">This assignment is past the due date. Late submissions may be penalized.</Callout>
       )}
 
-      <div className="text-center">
-        <button
-          type="submit"
-          disabled={submitting || blocked}
-          className={`px-6 py-3 rounded-lg font-medium ${
-            submitting || blocked
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : 'bg-purple-600 text-white hover:bg-purple-700'
-          }`}
-        >
+      <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-end">
+        {blocked && <p className="text-sm font-medium text-danger-fg">Late submissions not allowed for this assignment</p>}
+        <Button type="submit" icon={Send} loading={submitting} disabled={blocked}>
           {submitting ? 'Submitting...' : 'Submit Assignment'}
-        </button>
-        {blocked && <p className="mt-2 text-sm text-red-600">Late submissions not allowed for this assignment</p>}
+        </Button>
       </div>
     </form>
   );

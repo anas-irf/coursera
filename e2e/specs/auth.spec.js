@@ -1,4 +1,4 @@
-// The login form, the role areas and what happens to visitors who are not allowed in.
+// The login form, the demo sign-in, the role areas and what happens to visitors who are not allowed in.
 const { test, expect, PASSWORD, API_URL } = require('../support/session');
 
 const ACCOUNTS = [
@@ -25,8 +25,8 @@ for (const account of ACCOUNTS) {
 test('a wrong password is refused and the visitor stays on the login page', async ({ page }) => {
   await submitLogin(page, 'demo.student@example.com', 'definitely-not-the-password');
 
+  await expect(page.getByRole('alert')).toContainText('Invalid credentials');
   await expect(page).toHaveURL(/\/login/);
-  await expect(page.locator('body')).not.toContainText('Welcome back! 👋');
 });
 
 test('the form asks for a valid e-mail address and a password', async ({ page }) => {
@@ -35,6 +35,26 @@ test('the form asks for a valid e-mail address and a password', async ({ page })
   await expect(page.getByText('Please enter a valid email')).toBeVisible();
   await expect(page.getByText('Password is required')).toBeVisible();
   await expect(page).toHaveURL(/\/login/);
+});
+
+test('the demo opens every role in one click, without a password', async ({ page }) => {
+  for (const [role, area] of [['Student', /\/student$/], ['Instructor', /\/instructor$/], ['Admin', /\/admin$/]]) {
+    await page.context().clearCookies();
+    await page.goto('/login');
+    await page.getByRole('button', { name: `Explore as ${role}` }).click();
+    await expect(page).toHaveURL(area);
+  }
+});
+
+test('a demo account switches to another role from the top bar', async ({ page, signIn }) => {
+  await signIn('demo.student@example.com', '/student');
+  await expect(page.locator('main')).toContainText('Welcome back');
+
+  await page.getByRole('button', { name: 'Switch demo role' }).click();
+  await page.getByRole('menuitemradio', { name: /Instructor/ }).click();
+
+  await expect(page).toHaveURL(/\/instructor$/);
+  await expect(page.locator('main')).toContainText('Recent Enrollments');
 });
 
 test('a visitor without a session is sent to the login page', async ({ page }) => {
@@ -94,4 +114,16 @@ test('after the server ended the session the next visit is sent to the login pag
   await page.goto('/student/grades');
 
   await expect(page).toHaveURL(/\/login/);
+});
+
+test('the dark theme is chosen once and kept across visits', async ({ page }) => {
+  await page.goto('/login');
+  const html = page.locator('html');
+  const dark = (await html.getAttribute('class') || '').includes('dark');
+
+  await page.getByRole('button', { name: dark ? 'Switch to light theme' : 'Switch to dark theme' }).click();
+  await page.reload();
+
+  if (dark) await expect(html).not.toHaveClass(/dark/);
+  else await expect(html).toHaveClass(/dark/);
 });

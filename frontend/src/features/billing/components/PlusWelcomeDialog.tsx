@@ -1,39 +1,50 @@
 import React, { useId } from 'react';
-import { Crown, Trophy } from 'lucide-react';
+import { Award, BookOpen, Crown, Infinity as InfinityIcon } from 'lucide-react';
 
+import { BRAND } from '../../../shared/brand';
+import { Button } from '../../../shared/ui/Button';
 import Modal from '../../../shared/ui/Modal';
 
 interface PlusWelcomeDialogProps {
   onClose: () => void;
 }
 
+const PERKS = [
+  { icon: InfinityIcon, text: 'Every Plus course is open to you' },
+  { icon: Award, text: 'Earn a certificate for each course you pass' },
+  { icon: BookOpen, text: 'Your progress carries over, nothing to set up' },
+];
+
 /** Congratulations popup shown after a successful Stripe checkout. */
 const PlusWelcomeDialog = ({ onClose }: PlusWelcomeDialogProps) => {
   const titleId = useId();
 
   return (
-    <Modal bare size="sm" labelledBy={titleId} onClose={onClose} className="rounded-2xl">
-      <div className="p-6 sm:p-8 text-center">
-        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
-          <Crown className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
-        </div>
-        <h2 id={titleId} className="text-xl sm:text-2xl font-bold text-gray-900 mb-3 sm:mb-4">
-          🎉 Congratulations!
+    <Modal bare size="sm" labelledBy={titleId} onClose={onClose}>
+      <div className="relative overflow-hidden rounded-t-2xl bg-gradient-to-br from-plus via-brand-700 to-brand-900 px-6 pb-8 pt-10 text-center text-white sm:rounded-t-2xl">
+        <div className="bg-dots absolute inset-0 opacity-40" aria-hidden="true" />
+        <span className="relative mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25">
+          <Crown size={32} aria-hidden="true" />
+        </span>
+        <h2 id={titleId} className="relative mt-5 text-2xl font-semibold tracking-tight">
+          Welcome to {BRAND.plus}
         </h2>
-        <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
-          Welcome to Coursera Plus! You now have unlimited access to all Plus courses.
-        </p>
-        <div className="flex items-center justify-center space-x-2 text-xs sm:text-sm text-gray-500 mb-4 sm:mb-6">
-          <Trophy className="h-3 w-3 sm:h-4 sm:w-4" />
-          <span>Your subscription is now active</span>
-        </div>
-        <button
-          onClick={onClose}
-          data-autofocus
-          className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 text-white py-2.5 sm:py-3 px-6 sm:px-8 rounded-xl text-sm sm:text-base font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200"
-        >
-          Get Started!
-        </button>
+        <p className="relative mt-1 text-sm text-brand-100">Your subscription is now active.</p>
+      </div>
+      <div className="space-y-5 p-6">
+        <ul className="space-y-3">
+          {PERKS.map(({ icon: Icon, text }) => (
+            <li key={text} className="flex items-center gap-3 text-sm text-fg-muted">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-plus-soft text-plus-fg">
+                <Icon size={16} aria-hidden="true" />
+              </span>
+              {text}
+            </li>
+          ))}
+        </ul>
+        <Button block size="lg" onClick={onClose} data-autofocus>
+          Start learning
+        </Button>
       </div>
     </Modal>
   );

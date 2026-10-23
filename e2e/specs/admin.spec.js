@@ -1,4 +1,5 @@
-// What an administrator sees and does: the numbers, the users and the approval queue.
+// What an administrator sees and does: the numbers, the users, the money, the reports and the
+// approval queue.
 const { test, expect } = require('../support/session');
 
 const ADMIN = 'demo.admin@example.com';
@@ -23,6 +24,42 @@ test('the user list shows roles, verification and deactivated accounts', async (
   await expect(main).toContainText('Verified');
 });
 
+test('revenue comes from the payments and the ledger, not from sample figures', async ({ page, signIn }) => {
+  await signIn(ADMIN, '/admin/revenue');
+  const main = page.locator('main');
+
+  await expect(main.getByRole('group', { name: 'Gross revenue' })).toContainText(/\$[1-9][\d,]*\.\d{2}/);
+  await expect(main.getByRole('group', { name: 'Monthly recurring revenue' })).toContainText(/renewing member/);
+  // the seeded members: a failed payment of the lapsed one, plans with their members
+  await expect(main).toContainText('Mateo Alvarez');
+  await expect(main).toContainText(/Monthly[\s\S]*\$49\.99/);
+  await expect(main).not.toContainText('Sample data');
+});
+
+test('a report downloads as a CSV file named after the day', async ({ page, signIn }) => {
+  await signIn(ADMIN, '/admin/reports');
+  const card = page.getByRole('article', { name: 'Users' });
+  await expect(card).toContainText('32 rows');
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    card.getByRole('button', { name: 'Download CSV' }).click(),
+  ]);
+
+  expect(download.suggestedFilename()).toMatch(/^users-\d{4}-\d{2}-\d{2}\.csv$/);
+});
+
+test('the platform settings show the plans as sold and the rules of the server', async ({ page, signIn }) => {
+  await signIn(ADMIN, '/admin/settings');
+  const main = page.locator('main');
+
+  const monthly = main.getByRole('article', { name: 'Monthly plan' });
+  await expect(monthly.getByLabel('Name')).toHaveValue(/Plus Monthly/);
+  await expect(monthly.getByLabel('Price per month')).toHaveValue('49.99');
+  await expect(main).toContainText(/Instructor revenue share\s*[\s\S]*40%/);
+  await expect(main.getByRole('table', { name: 'Categories' })).toContainText('Web Development');
+});
+
 test('the approval queue shows the weight problem of the edited course', async ({ page, signIn }) => {
   await signIn(ADMIN, '/admin/courses/approvals');
   const main = page.locator('main');
@@ -42,10 +79,7 @@ test('approving a course takes it out of the queue', async ({ page, signIn }) =>
 
   await expect(main).toContainText('Cloud Computing Fundamentals');
   const before = await waiting();
-  const card = main.locator('div')
-    .filter({ hasText: 'Cloud Computing Fundamentals' })
-    .filter({ has: page.getByRole('button', { name: 'Approve' }) })
-    .last();
+  const card = main.getByRole('article', { name: 'Cloud Computing Fundamentals' });
 
   await card.getByRole('button', { name: 'Approve' }).click();
 

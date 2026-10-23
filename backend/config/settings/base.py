@@ -185,7 +185,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOWED_ORIGINS = env_list('CORS_ALLOWED_ORIGINS')
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_EXPOSE_HEADERS = ['X-Total-Count', 'Link']  # the paging headers (apps.core.api.pagination)
+# the paging headers (apps.core.api.pagination) and the file name of a download (the CSV reports)
+CORS_EXPOSE_HEADERS = ['X-Total-Count', 'Link', 'Content-Disposition']
 
 # SECURITY: never allow all origins in production (prod.py refuses it)
 CORS_ALLOW_ALL_ORIGINS = env_bool('CORS_ALLOW_ALL_ORIGINS', False)
@@ -334,3 +335,17 @@ INSTRUCTOR_REVENUE_SHARE_PERCENT = env_int('INSTRUCTOR_REVENUE_SHARE_PERCENT', 4
 
 # Password of the users created by ``manage.py seed_dev`` (random, printed once, when empty)
 SEED_PASSWORD = env_str('SEED_PASSWORD')
+
+# Demo mode, for a public portfolio demo of the seeded world (never for real users): the login
+# page offers a one-click sign-in to the accounts below, and those accounts keep their password
+# so that every visitor can use them.  dev.py switches it on; a deployment opts in.
+DEMO_MODE = env_bool('DEMO_MODE', False)
+DEMO_ACCOUNTS = {
+    'student': 'demo.student@example.com',
+    'instructor': 'demo.instructor@example.com',
+    'admin': 'demo.admin@example.com',
+}
+
+# Serve the uploads (``MEDIA_URL``) from Django itself even with DEBUG off.  Only for a demo that
+# runs as a single process: a real deployment serves /media/ from its proxy or from object storage.
+SERVE_MEDIA = env_bool('SERVE_MEDIA', False)

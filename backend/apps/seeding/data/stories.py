@@ -86,6 +86,13 @@ STORIES = (
                         text='The search text lives in the list component because both the input and the '
                              'filtered list need it; the items only receive props.',
                         grade=85, feedback='Correct placement of state. Name the handlers more clearly.')}),
+              # the demo instructor's Plus course has learners besides the demo student
+              Enrol(ML, days=45, done=6, last=4,
+                    quiz={PY_QUIZ: [3]},
+                    work={PY_WORK: Submit(
+                        text='Machine learning fits a function to examples instead of writing the rules by '
+                             'hand; the validation set tells you whether it learned the pattern or the noise.',
+                        grade=92, feedback='Precise and well put. The point about validation is exactly right.')}),
           )),
     Story('liam.chen@example.com',
           plus=Plus('monthly', since=60),
@@ -93,6 +100,7 @@ STORIES = (
               Enrol(VIZ, days=45, done=6, last=2, quiz={'Check: choosing a chart': [4]}),
               Enrol(REACT, days=20, done=3, last=5, quiz={'Check: components and props': [2]}),
               Enrol(STATS, days=30, done=4, last=1, quiz={'Check: describing data': [3]}),
+              Enrol(ML, days=20, done=2, last=3),
           )),
     Story('sara.haddad@example.com',
           plus=Plus('monthly', since=70, final='cancelled'),
