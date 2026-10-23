@@ -1,7 +1,7 @@
 """HTTP adapters of the accounts API: signup, login, token refresh, logout, the profile and the demo sign-in."""
 
 from django.conf import settings
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, get_user_model
 from rest_framework import status
 from rest_framework.decorators import (
     api_view, authentication_classes, permission_classes, throttle_classes,
@@ -116,6 +116,9 @@ def refresh(request):
         serializer.is_valid(raise_exception=True)
     except TokenError as error:
         raise InvalidToken(error.args[0]) from error
+    except get_user_model().DoesNotExist as error:
+        # a genuine token of an account that is gone: deleted, or the demo was seeded again
+        raise InvalidToken('The account of this session no longer exists.') from error
     tokens = serializer.validated_data
 
     # a browser that authenticated with its cookie never sees the tokens: only a caller that
