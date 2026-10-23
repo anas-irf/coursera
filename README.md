@@ -2,16 +2,29 @@
 
 [![CI](https://github.com/anas-irfan786/coursera/actions/workflows/ci.yml/badge.svg)](https://github.com/anas-irfan786/coursera/actions/workflows/ci.yml)
 
-A learning platform with three roles (student, instructor, admin): course authoring and moderation, enrollment and progress, quizzes and assignments with grading, direct messaging, notifications and Stripe subscriptions.
+A full-stack learning platform with three roles, each with its own workspace:
+
+* **Students** browse the catalogue, enrol, learn in a course player (video, readings, timed quizzes, graded assignments), follow their grades, achievements and certificates, message instructors and classmates, and subscribe to Plus with Stripe.
+* **Instructors** build courses with a drag-and-drop curriculum editor, submit them for review, grade hand-ins, and follow their learners, analytics and monthly earnings.
+* **Administrators** moderate the catalogue, manage users, follow revenue and memberships, download CSV reports and set the Plus prices.
+
+Light and dark themes, a responsive layout from phone to desktop, real-time messaging over WebSockets, and a seeded world (32 people, 18 courses, months of activity) behind every screen. A portfolio project: not affiliated with Coursera Inc.
+
+| | |
+|---|---|
+| ![The login page with the one-click demo](docs/screenshots/login.webp) | ![A student's home page](docs/screenshots/student-home.webp) |
+| ![The course player on a reading](docs/screenshots/course-player.webp) | ![An instructor's analytics in the dark theme](docs/screenshots/instructor-analytics.webp) |
+| ![An instructor's courses](docs/screenshots/instructor-courses.webp) | ![The admin's revenue page](docs/screenshots/admin-revenue.webp) |
+| ![The admin overview in the dark theme](docs/screenshots/admin-overview-dark.webp) | ![A student's home page on a phone](docs/screenshots/mobile-student.webp) |
 
 ```
 backend/    Django 5 + DRF + Channels API         python manage.py ...
 frontend/   React 19 + TypeScript single page app pnpm start
 package.json pnpm dev starts both of them: backend on :8000, frontend on :3000
-docs/       ARCHITECTURE.md: slices, rules, how to extend
+docs/       ARCHITECTURE.md: slices, rules, how to extend; DESIGN.md: the design system
 ```
 
-Both sides are organised by the same product slices (identity, authoring, monetisation, learning, assessment, engagement, recognition, insight); see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the slices and their rules, [docs/CONVENTIONS.md](docs/CONVENTIONS.md) for how code is written, [backend/README.md](backend/README.md) and [frontend/README.md](frontend/README.md) for each side, and [docs/CI.md](docs/CI.md) for the pipeline.
+Both sides are organised by the same product slices (identity, authoring, monetisation, learning, assessment, engagement, recognition, insight); see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the slices and their rules, [docs/CONVENTIONS.md](docs/CONVENTIONS.md) for how code is written, [docs/DESIGN.md](docs/DESIGN.md) for the design system (tokens, themes, components), [backend/README.md](backend/README.md) and [frontend/README.md](frontend/README.md) for each side, and [docs/CI.md](docs/CI.md) for the pipeline.
 
 ## Quickstart
 
@@ -84,7 +97,7 @@ python manage.py seed_dev --list             # the accounts and what to try with
 python manage.py seed_dev --password ...     # or SEED_PASSWORD in backend/.env, else random and printed once
 ```
 
-All seeded accounts share one password and use `@example.com` addresses. The ones to start with:
+All seeded accounts share one password and use `@example.com` addresses. In development the login page also offers **Explore the live demo**: one click signs in as the demo student, instructor or admin (no password), and a demo account can switch roles from the top bar (`DEMO_MODE`, see *Running it as a public demo*). The accounts to start with:
 
 | Account | Role | Why |
 |---|---|---|
@@ -96,7 +109,7 @@ All seeded accounts share one password and use `@example.com` addresses. The one
 | `noah.bennett@example.com` | instructor | no courses: the empty instructor screens |
 | `demo.admin@example.com` | admin | two courses waiting in the approvals queue, every list |
 
-`seed_demo` is the smaller sibling (three accounts and two courses); `seed_dev` runs it first. Both refuse to run when `DEBUG` is off unless `--force` is given, and neither exists in the production settings.
+`seed_demo` is the smaller sibling (three accounts and two courses); `seed_dev` runs it first. Both refuse to run when `DEBUG` is off unless `--force` is given, and the production settings only install them in demo mode.
 
 ### Stripe
 
@@ -153,8 +166,32 @@ start** and names every missing variable marked *required* below.
 | `COURSE_PASSING_GRADE` | backend | weighted grade that earns a certificate (60) |
 | `INSTRUCTOR_REVENUE_SHARE_PERCENT` | backend | share of the month's Plus payments that goes to instructors (40) |
 | `SEED_PASSWORD` | backend | password of the users `seed_dev` creates (random when empty) |
+| `DEMO_MODE` | backend | the one-click demo sign-in on the login page and the role switch; the demo accounts keep their password (on in development, off in production unless set) |
+| `SERVE_MEDIA` | backend | let Django serve `/media/` with `DEBUG` off (a demo that runs as one process; a real deployment serves uploads from its proxy or object storage) |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | backend | Stripe test secret key (no default) and webhook secret |
-| `REACT_APP_API_URL` | frontend | API base; **required for a production build** (`pnpm run build` stops without it), `http://localhost:8000/api/v1` in development |
-| `REACT_APP_WS_URL` | frontend | WebSocket base, derived from the API URL by default |
+| `REACT_APP_API_URL` | frontend | API base; **required for a production build** (`pnpm run build` stops without it), `http://localhost:8000/api/v1` in development; a path (`/api/v1`) when the app and the API share one origin |
+| `REACT_APP_WS_URL` | frontend | WebSocket base, derived from the API URL (or from the page, for a path) by default |
 
 `backend/.env.example` lists the rest.
+
+## Running it as a public demo
+
+The code is ready to run as a portfolio demo; hosting it is a separate step. What an instance needs:
+
+1. **One site.** The session lives in `SameSite=Lax` cookies, so the app and the API must share a site: serve both
+   from one origin (a proxy sends `/api`, `/ws` and `/media` to Daphne and everything else to the built app), or use
+   `app.` and `api.` of one domain.
+2. **The frontend**, built once: `REACT_APP_API_URL=/api/v1 pnpm run build` for one origin (or the API's full URL),
+   then serve `frontend/build` with a fallback to `index.html`.
+3. **The backend** on `config.settings.prod` with `SECRET_KEY`, `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS` and
+   `FRONTEND_URL` (the site's origin), PostgreSQL (`DB_*`), and `REDIS_URL` or `CHANNEL_LAYER=memory` for a
+   single process. Run it with Daphne (`daphne config.asgi:application`) so WebSockets work; set `BEHIND_TLS_PROXY`
+   and `NUM_PROXIES=1` behind a TLS proxy.
+4. **Demo data**: with `DEMO_MODE=True`, run `python manage.py migrate` and then
+   `python manage.py seed_dev --force --password <something long>` once. The login page then offers the three demo
+   roles; `seed_dev --reset --force` puts the world back the way it was after visitors changed it.
+5. **Uploads** (the course pictures are files): keep `backend/media` on a persistent disk, and either let the proxy
+   serve `/media/` or set `SERVE_MEDIA=True`.
+6. **Stripe** stays in test mode (`sk_test_...` and its webhook secret); without a key the checkout answers that the payment provider could not process the request, and everything else works.
+
+`python manage.py check --deploy` under the production settings must stay quiet (CI runs it).

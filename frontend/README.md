@@ -19,6 +19,11 @@ session, the query cache and the UI kit, `src/features/<slice>` holds the `api.t
 `types.ts`, its `hooks/` (TanStack Query), `lib/` (pure rules), pages and components. Module boundaries and
 "screens use hooks, not `api.ts`" are checked by ESLint (`.eslintrc.js`); the types by `pnpm run typecheck`.
 
+The look is one design system ([`../docs/DESIGN.md`](../docs/DESIGN.md)): colour tokens in `src/index.css`
+(a light and a dark set) mapped to class names in `tailwind.config.js`, the components of `src/shared/ui`, the
+Inter typeface (`@fontsource-variable/inter`, bundled: no request to a font service), and a theme the user picks
+(light, dark or the system's). `public/` holds the icons and the manifest of the brand.
+
 Dependencies are installed with pnpm (`pnpm-lock.yaml`); the version is the `packageManager` field of
 `package.json`. Everything a module imports is declared in `package.json` (pnpm does not let a package see
 what only a dependency of a dependency brings), which is why `eslint`, `eslint-config-react-app` and

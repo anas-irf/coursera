@@ -110,13 +110,21 @@ src/features/<slice>/
 * Copy that browser specs and users rely on (`Request Publish`, `No Students Yet`, `Credential ID`) does not
   change without the spec.
 
-### UI kit (`src/shared/ui`)
+### UI kit (`src/shared/ui`) and the look
+
+[DESIGN.md](DESIGN.md) is the guide. In short: every page is built from the kit (`Button`, `Card`,
+`PageHeader`, `StatCard`, `Field` with `Input` / `Select` / `Textarea`, `Tabs`, `SegmentedControl`, `Table`,
+`Badge`, `Callout`, `ProgressBar`, `FileDrop`, `Menu`, `Modal`, `Drawer` ...) and coloured with the design
+tokens only (`bg-surface`, `text-fg-muted`, `border-line`, `bg-primary`, `text-success-fg` ...), never with raw
+palette classes (`bg-white`, `text-gray-500`, `bg-indigo-600`), so the light and the dark theme both work
+without a `dark:` class. Charts take their colours from `useChartTheme()`.
 
 `Modal` (named dialog, Escape, focus trap, scroll lock) for every popup; `ConfirmDialog` through
 `useConfirm()`; `Toast` through `useToast()`; `ErrorState`, `EmptyState`, `PageSpinner`; `Avatar`
 (initials, drawn locally) and `CourseThumbnail` (no third-party image requests); `StatusBadge` for a
 course's state. Grade weights are compared with `shared/lib/gradeWeight` (exact hundredths) and money is
 shown with `formatMoney`. A control that has no handler does not exist: it is wired, linked or removed.
+The product's name comes from `shared/brand.ts`, never from a literal in a page.
 
 ### Types
 
