@@ -354,3 +354,12 @@ def test_enrolled_courses_is_student_only(api, auth_client, instructor):
     """Anonymous 401, instructors 403."""
     assert api.get(ENROLLED).status_code == 401
     assert auth_client(instructor).get(ENROLLED).status_code == 403
+
+
+@pytest.mark.parametrize(('lessons', 'text'), [
+    (0, '0 hours'), (2, '1 hour'), (6, '3 hours'), (48, '1 day'), (100, '2 days'), (336, '1 week'), (700, '2 weeks'),
+])
+def test_the_time_left_agrees_with_its_number(lessons, text):
+    from apps.learning.api.serializers import _estimated_completion
+
+    assert _estimated_completion(lessons) == text

@@ -13,7 +13,10 @@ PUBLIC = {
     'api/v1/auth/signup/',
     'api/v1/auth/logout/',              # the refresh token is the credential, so an expired access token still signs out
     'api/v1/auth/token/refresh/',       # the refresh token is the credential
+    'api/v1/auth/demo/',                # which demo accounts the login page offers (none unless DEMO_MODE)
+    'api/v1/auth/demo/login/',          # the one-click demo sign-in; a 404 unless DEMO_MODE
     'api/v1/learning/courses/',         # the public catalogue
+    'api/v1/certificates/verify/<str:code>/',   # the page a certificate links to; the code is the credential
 }
 
 

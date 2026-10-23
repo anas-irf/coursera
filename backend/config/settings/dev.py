@@ -5,6 +5,9 @@ from .env import LOCAL_ORIGINS, env_bool
 
 DEBUG = env_bool('DEBUG', True)
 
+# the login page offers the one-click demo sign-in locally (DEMO_MODE=False turns it off)
+DEMO_MODE = env_bool('DEMO_MODE', True)
+
 # nothing here is a secret: a real SECRET_KEY, hosts or origins in the environment win
 SECRET_KEY = SECRET_KEY or 'django-insecure-development-only-key'
 ALLOWED_HOSTS = ALLOWED_HOSTS or ['localhost', '127.0.0.1']

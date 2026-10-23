@@ -45,7 +45,8 @@ class InstructorCourseViewSet(mixins.CreateModelMixin,
 
     def list(self, request):
         """List all instructor's courses (slices above courses add columns, e.g. revenue)"""
-        courses, headers = paginate(request, self.get_queryset().order_by('-created_at', 'id'))
+        courses, headers = paginate(
+            request, self.get_queryset().select_related('category').order_by('-created_at', 'id'))
 
         return Response(
             [serializers.instructor_course_row(course) for course in courses], headers=headers)

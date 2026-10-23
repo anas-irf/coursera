@@ -1,4 +1,4 @@
-"""HTTP adapters of the accounts API: signup, login, token refresh, logout and the profile."""
+"""HTTP adapters of the accounts API: signup, login, token refresh, logout, the profile and the demo sign-in."""
 
 from django.conf import settings
 from django.contrib.auth import authenticate
@@ -13,13 +13,37 @@ from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from apps.core.api.throttling import LoginThrottle, RefreshThrottle, SignupThrottle, client_ip
+from apps.core.api.errors import NotFound
+from apps.core.api.params import object_body
+from apps.core.api.throttling import LoginThrottle, PasswordChangeThrottle, RefreshThrottle, SignupThrottle, client_ip
 
 from .. import cookies, services
 from ..authentication import Unauthenticated, require_same_site_origin
 from .serializers import (
-    SignupSerializer, LoginSerializer, UserSerializer, profile_payload,
+    ChangePasswordSerializer, DemoLoginSerializer, LoginSerializer, ProfileUpdateSerializer,
+    SignupSerializer, UserSerializer, profile_payload,
 )
+
+# what each demo account shows a visitor, said on the login page
+DEMO_HEADLINES = {
+    'student': 'A Plus member with courses in progress, grades, a certificate and messages',
+    'instructor': 'Teaches published courses: learners, grading, analytics and earnings',
+    'admin': 'Moderates new courses and sees every user, the revenue and the reports',
+}
+
+
+def _signed_in(request, user):
+    """The answer of a successful sign-in: who signed in, and the session cookies."""
+    services.record_login(user, client_ip(request))
+    tokens = services.issue_tokens(user)
+
+    body = {
+        'user': UserSerializer(user).data,
+        'profile': profile_payload(user),
+    }
+    if cookies.bearer_transport(request):
+        body['tokens'] = tokens
+    return cookies.set_auth_cookies(Response(body), tokens)
 
 
 @api_view(['POST'])
@@ -60,16 +84,7 @@ def login(request):
         user = authenticate(username=email, password=password)
 
         if user:
-            services.record_login(user, client_ip(request))
-            tokens = services.issue_tokens(user)
-
-            body = {
-                'user': UserSerializer(user).data,
-                'profile': profile_payload(user),
-            }
-            if cookies.bearer_transport(request):
-                body['tokens'] = tokens
-            return cookies.set_auth_cookies(Response(body), tokens)
+            return _signed_in(request, user)
         return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -134,10 +149,67 @@ def logout(request):
     return cookies.clear_auth_cookies(response)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def get_user_profile(request):
+    """Who is signed in, with the profile of their role; ``PATCH`` changes what they may change of it."""
+    user = request.user
+    if request.method == 'PATCH':
+        serializer = ProfileUpdateSerializer(data=object_body(request), partial=True, context={'user': user})
+        serializer.is_valid(raise_exception=True)
+        services.update_profile(user, serializer.validated_data)
+        user.refresh_from_db()
     return Response({
-        'user': UserSerializer(request.user).data,
-        'profile': profile_payload(request.user),
+        'user': UserSerializer(user).data,
+        'profile': profile_payload(user),
     })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@throttle_classes([PasswordChangeThrottle])
+def change_password(request):
+    """Change the password: the current one proves it is the owner.
+
+    Every other session of the user ends; this browser gets a fresh pair of session cookies.
+    """
+    user = request.user
+    services.ensure_password_can_change(user)
+    serializer = ChangePasswordSerializer(data=object_body(request), context={'user': user})
+    serializer.is_valid(raise_exception=True)
+    services.change_password(user, serializer.validated_data['new_password'])
+
+    response = Response({'message': 'Your password was changed.'})
+    return cookies.set_auth_cookies(response, services.issue_tokens(user))
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+@authentication_classes([Unauthenticated])
+def demo_accounts(request):
+    """Whether the demo sign-in is on, and the accounts the login page offers (none when it is off)."""
+    return Response({
+        'enabled': bool(settings.DEMO_MODE),
+        'accounts': [
+            {
+                'role': role,
+                'email': user.email,
+                'name': f'{user.first_name} {user.last_name}'.strip() or user.email,
+                'headline': DEMO_HEADLINES[role],
+            }
+            for role, user in services.demo_users()
+        ],
+    })
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@authentication_classes([Unauthenticated])
+@throttle_classes([LoginThrottle])
+def demo_login(request):
+    """Sign in as the demo account of a role, without a password (demo mode only)."""
+    if not settings.DEMO_MODE:
+        raise NotFound('Demo sign-in is not available.')
+    serializer = DemoLoginSerializer(data=object_body(request))
+    serializer.is_valid(raise_exception=True)
+    return _signed_in(request, services.demo_user(serializer.validated_data['role']))

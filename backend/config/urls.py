@@ -9,9 +9,12 @@ switched off is a decision made from data.  The only path outside the scheme is
 Stripe's webhook, which is configured in the Stripe dashboard and is neither
 versioned nor aliased (see ``apps/billing/webhook_urls.py``).
 """
+import re
+
 from django.conf import settings
 from django.conf.urls.static import static
-from django.urls import include, path
+from django.urls import include, path, re_path
+from django.views.static import serve
 
 # (path prefix, urlconf) of every slice
 SLICES = (
@@ -43,8 +46,25 @@ def build_urlpatterns(legacy):
     return patterns
 
 
+def serve_media(request, path):
+    """One uploaded file from ``MEDIA_ROOT`` (``django.views.static.serve``, which refuses ``..``)."""
+    return serve(request, path, document_root=settings.MEDIA_ROOT)
+
+
+def media_patterns():
+    """``/media/<path>`` served by Django: the uploads of a single-process demo (``SERVE_MEDIA``).
+
+    ``static()`` serves nothing while DEBUG is off, so the view is mounted directly.  A real
+    deployment leaves this off and serves the folder from its proxy or from object storage.
+    """
+    prefix = re.escape(settings.MEDIA_URL.lstrip('/'))
+    return [re_path(rf'^{prefix}(?P<path>.*)$', serve_media, name='media')]
+
+
 urlpatterns = build_urlpatterns(settings.API_LEGACY_ALIASES)
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+elif settings.SERVE_MEDIA:
+    urlpatterns += media_patterns()

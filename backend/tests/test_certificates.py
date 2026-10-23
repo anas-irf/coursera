@@ -236,3 +236,54 @@ def test_the_backfill_can_notify(legacy, student):
     run('--notify')
 
     assert f.Notification.objects.filter(recipient=student, notification_type='certificate_earned').count() == 1
+
+
+# --------------------------------------------------------------------------- #
+# verifying one
+# --------------------------------------------------------------------------- #
+def verify_url(code):
+    return f'/api/v1/certificates/verify/{code}/'
+
+
+def test_the_link_of_a_certificate_opens_the_verification_page_of_the_app(auth_client, instructor, student):
+    enrollment = f.enroll(student, f.make_course(instructor, status='published'), status='completed')
+    certificate = f.make_certificate(enrollment)
+
+    row = auth_client(student).get(CERTIFICATES).json()[0]
+
+    assert row['verification_url'] == f'http://localhost:3000/verify/{certificate.verification_code}'
+
+
+def test_anybody_with_the_code_can_check_a_certificate(api, instructor, student):
+    course = f.make_course(instructor, status='published', title='Statistics', estimated_hours=Decimal('12.5'))
+    certificate = f.make_certificate(f.enroll(student, course, status='completed'), grade=Decimal('91.25'))
+
+    r = api.get(verify_url(certificate.verification_code))
+
+    assert r.status_code == 200
+    assert r.json() == {
+        'certificate_number': certificate.certificate_number,
+        'verification_code': certificate.verification_code,
+        'student_name': 'Student Tester',
+        'course_title': 'Statistics',
+        'instructor': 'Instructor Tester',
+        'issue_date': certificate.issue_date.isoformat(),
+        'grade': 91.25,
+        'course_hours': 12.5,
+    }
+
+
+def test_a_certificate_of_an_ungraded_course_has_no_grade(api, instructor, student):
+    certificate = f.make_certificate(
+        f.enroll(student, f.make_course(instructor, status='published'), status='completed'), grade=None)
+
+    body = api.get(verify_url(certificate.verification_code)).json()
+
+    assert body['grade'] is None and body['course_hours'] is None
+
+
+def test_an_unknown_code_is_a_404(api):
+    r = api.get(verify_url('0123456789abcdef0123'))
+
+    assert r.status_code == 404
+    assert r.json() == {'error': 'No certificate has this verification code.'}

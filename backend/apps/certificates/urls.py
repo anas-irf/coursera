@@ -8,4 +8,6 @@ app_name = 'certificates'
 
 urlpatterns = [
     path('', views.student_certificates, name='student-certificates'),
+    # public: the page a certificate's link opens
+    path('verify/<str:code>/', views.verify_certificate, name='verify-certificate'),
 ]

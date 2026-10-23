@@ -73,13 +73,18 @@ def catalog_card(course, *, student_view, has_plus):
     }
 
 
+def _count(number, unit):
+    """``1 hour``, ``3 hours``: the unit agrees with the number."""
+    return f"{number} {unit}" if number == 1 else f"{number} {unit}s"
+
+
 def _estimated_completion(remaining_lessons, minutes_per_lesson=30):
     hours = remaining_lessons * minutes_per_lesson / 60
     if hours < 24:
-        return f"{int(hours)} hours"
+        return _count(int(hours), 'hour')
     if hours < 168:
-        return f"{int(hours / 24)} days"
-    return f"{int(hours / 168)} weeks"
+        return _count(int(hours / 24), 'day')
+    return _count(int(hours / 168), 'week')
 
 
 def enrolled_course_row(enrollment):
@@ -225,6 +230,6 @@ def student_directory(enrollments):
     rows = []
     for entry in students.values():
         entry['courses_enrolled_count'] = len(entry['courses_enrolled'])
-        entry['courses_enrolled'] = f"{len(entry['courses_enrolled'])} courses"
+        entry['courses_enrolled'] = _count(len(entry['courses_enrolled']), 'course')
         rows.append(entry)
     return rows
