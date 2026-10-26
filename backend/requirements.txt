@@ -16,6 +16,6 @@ psycopg2-binary==2.9.13
 stripe==11.6.0
 
 # Other
-Pillow==12.3.0
+Pillow==13.0.0
 nh3==0.3.7
 python-decouple==3.8
