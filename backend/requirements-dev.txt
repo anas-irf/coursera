@@ -1,8 +1,8 @@
 -r requirements.txt
-pytest==9.1.1
+pytest==9.2.0
 pytest-django==4.14.0
 pytest-cov==7.1.0
 pytest-json-ctrf==0.6.1
 import-linter==2.15
-ruff==0.17.0
+ruff==0.17.3
 drf-spectacular==0.30.0   # writes down the v1 contract (tests/test_openapi.py)
